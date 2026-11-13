@@ -31,6 +31,7 @@ import org.springframework.data.domain.Sort;
 
 import com.digithink.zsretail.core.dto.DashboardTodayDTO;
 import com.digithink.zsretail.core.model.PaymentMethod;
+import com.digithink.zsretail.core.model.enumeration.PaymentMethodBehaviour;
 import com.digithink.zsretail.core.model.enumeration.PaymentMethodType;
 import com.digithink.zsretail.core.repository.PaymentMethodRepository;
 import com.digithink.zsretail.headoffice.model.HoReturn;
@@ -172,6 +173,14 @@ class ConsolidatedSalesServiceTest {
 				cash.setName("Client Espèce");
 				cash.setType(PaymentMethodType.CLIENT_ESPECES);
 				return Optional.of(cash);
+			}
+			if ("findAll".equals(method)) {
+				// 3.2.0, step 6 polish: a scanned-tickets method the head office knows (by its code)
+				PaymentMethod meal = new PaymentMethod();
+				meal.setCode("TICKET_RESTAURANT");
+				meal.setName("Ticket Restaurant");
+				meal.setBehaviour(PaymentMethodBehaviour.SCANNED_TICKETS);
+				return Arrays.asList(meal);
 			}
 			return UNHANDLED;
 		});
@@ -519,6 +528,30 @@ class ConsolidatedSalesServiceTest {
 		assertEquals(false, cash.get("countOnly"));
 		assertEquals(false, cash.get("systemOnly"));
 		assertEquals(false, service.session(session.getId()).get().get("hasPerMethodRespClosure"));
+	}
+
+	@Test
+	@DisplayName("3.2.0, step 6 polish: a scanned-tickets method shows the declared face total and tickets, no difference")
+	void scannedTicketsDeclaredNoDifference() {
+		HoSession session = session(rs01, "S7", LocalDateTime.of(2026, 11, 13, 8, 0), "TERMINATED");
+		session.setOpeningCash(0.0);
+		session.setRealCash(0.0);
+		pay(ticket(rs01, "T-7", LocalDateTime.of(2026, 11, 13, 9, 0), "COMPLETED", 18.9, "S7"), "TICKET_RESTAURANT",
+				"Ticket Restaurant", 16.3);
+		count(session, "POS_USER", "TICKET_RESTAURANT", "Ticket Restaurant", 19);
+		session.getCounts().get(0).setQuantity(3);
+		count(session, "RESPONSIBLE", "TICKET_RESTAURANT", "Ticket Restaurant", 19);
+		session.getCounts().get(1).setQuantity(2);
+
+		Map<String, Object> meal = summary(session).get("TICKET_RESTAURANT");
+		assertEquals(true, meal.get("scanned"));
+		assertEquals(16.3, meal.get("systemAmount"), "the payments' net, as the store sends them");
+		assertEquals(19.0, meal.get("posClosureAmount"));
+		assertEquals(3L, meal.get("posClosureCount"));
+		assertNull(meal.get("deltaPOS"));
+		assertEquals(19.0, meal.get("respClosureAmount"));
+		assertEquals(2L, meal.get("respClosureCount"));
+		assertNull(meal.get("deltaResp"));
 	}
 
 	@Test

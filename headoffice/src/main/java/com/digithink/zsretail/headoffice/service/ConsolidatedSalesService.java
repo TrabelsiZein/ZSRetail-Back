@@ -29,6 +29,7 @@ import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.dto.DashboardTodayDTO;
 import com.digithink.zsretail.core.model.PaymentMethod;
 import com.digithink.zsretail.core.model.enumeration.CounterType;
+import com.digithink.zsretail.core.model.enumeration.PaymentMethodBehaviour;
 import com.digithink.zsretail.core.model.enumeration.PaymentMethodType;
 import com.digithink.zsretail.core.model.enumeration.ReturnType;
 import com.digithink.zsretail.core.model.enumeration.SessionStatus;
@@ -258,6 +259,14 @@ public class ConsolidatedSalesService {
 		// Count lines by method and counter: POS_USER the cashier's, RESPONSIBLE the responsible's
 		Map<String, Double> posClosureByCode = new LinkedHashMap<>();
 		Map<String, Double> respClosureByCode = new LinkedHashMap<>();
+		// 3.2.0, step 6 polish: a scanned-tickets method (known here by its code) is declared as a number of tickets and
+		// a face total; the head office has no scanned tickets to compare them with (the store sends the payments' net
+		// only): it shows what was declared and no difference
+		Set<String> scannedCodes = paymentMethods.findAll().stream()
+				.filter(m -> m.getBehaviour() == PaymentMethodBehaviour.SCANNED_TICKETS).map(PaymentMethod::getCode)
+				.collect(Collectors.toSet());
+		Map<String, Long> posTicketsByCode = new LinkedHashMap<>();
+		Map<String, Long> respTicketsByCode = new LinkedHashMap<>();
 		for (HoSessionCount count : session.getCounts()) {
 			String code = count.getPaymentMethodCode() != null ? count.getPaymentMethodCode() : especeCode;
 			if (code == null) {
@@ -266,10 +275,13 @@ public class ConsolidatedSalesService {
 			if (count.getPaymentMethodCode() != null && count.getPaymentMethodName() != null) {
 				codeToName.putIfAbsent(code, count.getPaymentMethodName());
 			}
+			long tickets = count.getQuantity() != null ? count.getQuantity().longValue() : 0L;
 			if (CounterType.POS_USER.name().equals(count.getCounterType())) {
 				posClosureByCode.merge(code, doubleOf(count.getLineTotal()), Double::sum);
+				posTicketsByCode.merge(code, tickets, Long::sum);
 			} else if (CounterType.RESPONSIBLE.name().equals(count.getCounterType())) {
 				respClosureByCode.merge(code, doubleOf(count.getLineTotal()), Double::sum);
+				respTicketsByCode.merge(code, tickets, Long::sum);
 			}
 		}
 		if (especeCode != null) {
@@ -298,6 +310,14 @@ public class ConsolidatedSalesService {
 			Double respClosure = respClosureByCode.get(code);
 			row.put("respClosureAmount", respClosure);
 			row.put("deltaResp", respClosure != null ? respClosure - sysAmount : null);
+			if (scannedCodes.contains(code)) {
+				// the declared face total and number of tickets; no difference: the expected values stay on the store
+				row.put("scanned", true);
+				row.put("deltaPOS", null);
+				row.put("deltaResp", null);
+				row.put("posClosureCount", posClosure != null ? posTicketsByCode.getOrDefault(code, 0L) : null);
+				row.put("respClosureCount", respClosure != null ? respTicketsByCode.getOrDefault(code, 0L) : null);
+			}
 			boolean hasSystem = codeToRawAmount.containsKey(code) || (isEspece && sysAmount > 0);
 			boolean hasClosure = posClosureByCode.containsKey(code) || respClosureByCode.containsKey(code);
 			row.put("countOnly", !hasSystem && hasClosure);

@@ -293,10 +293,19 @@ reads on them). Its payments stay the net (the parts applied), in PAIEMENTS, the
   PAIEMENTS. The store X / Z add the sessions' blocks per method, the issuers merged by name, and the counts of
   CONTRÔLE (counted null when a session did not declare the method).
 - **Sessions closed before step 6**: the method has no row: counted and its number null ("—"), the expected shown.
-- **Not changed**: the head office copy of the count rows (`SalesCopyMapper`) carries quantity and line total as before,
-  but the head office has no scanned tickets to compare with: its session pages compare the face total declared with
-  the net payments (a difference of deduction + excess). The admin dashboard's older verification form sends a total
-  only.
+- **Signs** (polish): the block prints the deduction and the excess kept negative: face - deduction - excess = net.
+- **The closing window's rows** (polish): the active methods and every method of the session's sales, a switched-off
+  one included (`GET /cashier-session/current/payment-methods`, `CashierSessionService.sessionPaymentMethods`: methods
+  only, never an amount, so the count stays blind).
+- **Head office** (polish): the store sends what it sent before (the count rows with quantity and line total, the
+  payments' net). The head office knows a scanned-tickets method by its own method of the same code
+  (`ConsolidatedSalesService`, behaviour `SCANNED_TICKETS`): its row shows the declared face total and number of
+  tickets (`scanned`, `posClosureCount`, `respClosureCount`) and no difference (`deltaPOS` / `deltaResp` null, "—"; the
+  totals row's differences too). A method the head office does not have under that code shows as before. **For
+  later**: the store sends the expected face total and number of tickets with the session, so the head office can show
+  the differences.
+- **The admin dashboard's verification** (polish): its older form sends a total only; a session with a scanned-tickets
+  method shows a link to the session history's form instead (number of tickets and face total per method).
 
 ## Closed points
 

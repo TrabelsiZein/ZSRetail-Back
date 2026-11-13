@@ -376,6 +376,21 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	}
 
 	/**
+	 * Step 6 polish: the payment methods of a session's sales (PENDING and CANCELLED left out), active or not, each once:
+	 * the till's closing window gives a row to a method switched off that still took payments. No amount.
+	 */
+	public List<PaymentMethod> sessionPaymentMethods(CashierSession session) {
+		Map<Long, PaymentMethod> methods = new LinkedHashMap<>();
+		for (Payment payment : paymentRepository.findByCashierSession(session,
+				Arrays.asList(TransactionStatus.PENDING, TransactionStatus.CANCELLED))) {
+			if (payment.getPaymentMethod() != null) {
+				methods.putIfAbsent(payment.getPaymentMethod().getId(), payment.getPaymentMethod());
+			}
+		}
+		return new ArrayList<>(methods.values());
+	}
+
+	/**
 	 * A count row's total: denomination x quantity. Step 6: a scanned-tickets method's row holds the face total the
 	 * cashier read on the tickets as its denomination and their number as its quantity, so its total is the face total.
 	 */

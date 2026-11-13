@@ -80,6 +80,22 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 	 * the till when its screen opens (catalogue hidden, the right rail). A count only, never an amount: the closing
 	 * count stays blind.
 	 */
+	/**
+	 * 3.2.0, step 6 polish: the payment methods of the current user's open session's sales, active or not (empty without
+	 * a session): the closing window's rows for a method switched off since. Methods only, never an amount (a blind count).
+	 */
+	@GetMapping("/current/payment-methods")
+	public ResponseEntity<?> getCurrentSessionPaymentMethods() {
+		try {
+			UserAccount currentUser = currentUserProvider.getCurrentUser();
+			return ResponseEntity.ok(service.getCurrentOpenSession(currentUser).map(service::sessionPaymentMethods)
+					.orElse(Collections.emptyList()));
+		} catch (Exception e) {
+			log.error("CashierSessionAPI::getCurrentSessionPaymentMethods:error: " + e.getMessage(), e);
+			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
 	@GetMapping("/current/ticket-count")
 	public ResponseEntity<?> getCurrentTicketCount() {
 		try {

@@ -503,6 +503,18 @@ class ScannedTicketsClosingTest {
 				.filter(p -> "Espèces".equals(p.getPaymentMethodName())).findFirst().get().getTicketsCount());
 	}
 
+	@Test
+	@DisplayName("Polish: the session's methods for the closing window, a switched-off one included, a cancelled sale's left out")
+	void sessionPaymentMethods() {
+		PaymentMethod card = method(5L, "TEST_CARTE", "Carte Pluxee TEST", null, null, 9);
+		card.setActive(false);
+		pay(sales.get(0), card, 0.0);
+		PaymentMethod cheque = method(6L, "CHQ", "Chèque", PaymentMethodType.CLIENT_CHEQUE, null, 5);
+		pay(sales.get(2), cheque, 7.0); // the cancelled sale only
+		assertEquals(Arrays.asList("ESP", "TR", "TEST_CARTE"), sessions.sessionPaymentMethods(session).stream()
+				.map(PaymentMethod::getCode).collect(Collectors.toList()));
+	}
+
 	// ─── The store ticket Z ─────────────────────────────────────────
 
 	@Test
