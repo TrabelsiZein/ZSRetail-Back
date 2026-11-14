@@ -181,6 +181,7 @@ public class StoreReportService {
 		dto.setControl(all.getControl());
 		dto.setScannedTickets(all.getScannedTickets());
 		dto.setCashMovements(all.getCashMovements());
+		dto.setDrawerHandover(all.getDrawerHandover());
 		dto.setModifiedAfterClosingCount(all.getModifiedAfterClosingCount());
 		if (machine != null) {
 			dto.setPosMachineId(machine.getId());
@@ -245,6 +246,7 @@ public class StoreReportService {
 		block.setControl(control(reports, order, z));
 		block.setScannedTickets(scannedTickets(reports, order));
 		block.setCashMovements(cashMovements(reports));
+		block.setDrawerHandover(drawerHandover(reports));
 		if (z) {
 			block.setModifiedAfterClosingCount(
 					reports.stream().filter(SessionReportTicketDTO::isModifiedAfterClosing).count());
@@ -447,6 +449,30 @@ public class StoreReportService {
 			sum.setOutTotal(totals[1].add(totals[2]).doubleValue());
 		}
 		return sum;
+	}
+
+	/**
+	 * 3.2.0, the opening amount: the sessions' amounts taken at the verification, left in the drawer and écarts
+	 * d'ouverture added up; each null when no session has one, the whole null when none has any.
+	 */
+	static SessionReportTicketDTO.DrawerHandover drawerHandover(List<SessionReportTicketDTO> reports) {
+		BigDecimal taken = null;
+		BigDecimal left = null;
+		BigDecimal gap = null;
+		for (SessionReportTicketDTO r : reports) {
+			if (r.getClosingWithdrawal() != null) {
+				taken = (taken == null ? BigDecimal.ZERO.setScale(3) : taken).add(bd(r.getClosingWithdrawal().getAmountTaken()));
+				left = (left == null ? BigDecimal.ZERO.setScale(3) : left).add(bd(r.getClosingWithdrawal().getAmountLeft()));
+			}
+			if (r.getOpeningFloat() != null) {
+				gap = (gap == null ? BigDecimal.ZERO.setScale(3) : gap).add(bd(r.getOpeningFloat().getOpeningGap()));
+			}
+		}
+		if (taken == null && gap == null) {
+			return null;
+		}
+		return new SessionReportTicketDTO.DrawerHandover(taken == null ? null : taken.doubleValue(),
+				left == null ? null : left.doubleValue(), gap == null ? null : gap.doubleValue());
 	}
 
 	// ─── Helpers ─────────────────────────────────────────────────────

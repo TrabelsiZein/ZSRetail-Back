@@ -119,6 +119,10 @@ public class SessionReportService {
 	@Autowired
 	private CashMovementRepository cashMovementRepository;
 
+	/** 3.2.0, the opening amount (a service built without it counts none). */
+	@Autowired
+	private com.digithink.zsretail.store.cashmovement.service.DrawerHandoverService drawerHandoverService;
+
 	/** The block of these totals; null without any movement (the block is absent). */
 	public static SessionReportTicketDTO.CashMovements cashMovements(CashMovementTotals totals) {
 		if (totals == null || totals.isEmpty()) {
@@ -211,6 +215,11 @@ public class SessionReportService {
 		// 3.2.0, POS machines step 5: MOUVEMENTS DE CAISSE (none: absent); the cash line above holds them already
 		dto.setCashMovements(cashMovements(cashMovementRepository == null ? null
 				: CashMovementTotals.of(cashMovementRepository.findByCashierSessionOrderByMovedAtAsc(session))));
+		// 3.2.0, the opening amount: Remis à la clôture / Laissé dans le tiroir, the écart d'ouverture (absent: none)
+		if (drawerHandoverService != null) {
+			dto.setClosingWithdrawal(drawerHandoverService.withdrawalOf(session));
+			dto.setOpeningFloat(drawerHandoverService.openingOf(session));
+		}
 
 		if (session.getStatus() == SessionStatus.TERMINATED) {
 			Verification verification = verification(session, keys, methods, expected, respCounted);

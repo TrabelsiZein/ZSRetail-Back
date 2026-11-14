@@ -93,17 +93,26 @@ public class DayJournalService {
 	@Autowired
 	private com.digithink.zsretail.store.cashmovement.service.CashMovementService cashMovementService;
 
+	/** 3.2.0, the opening amount (a service built without it shows none). */
+	@Autowired
+	private com.digithink.zsretail.store.cashmovement.service.DrawerHandoverService drawerHandoverService;
+
 	/** The totals per type of the day's movements; null without any. */
 	static SessionReportTicketDTO.CashMovements cashMovementTotals(
 			List<com.digithink.zsretail.store.cashmovement.dto.CashMovementDTO> movements) {
-		if (movements.isEmpty()) {
+		// 3.2.0, the opening amount: a closing withdrawal (PRELEVEMENT_CLOTURE) is not a movement of the session's drawer
+		List<com.digithink.zsretail.store.cashmovement.dto.CashMovementDTO> drawer = movements.stream()
+				.filter(m -> !com.digithink.zsretail.store.cashmovement.service.DrawerHandoverService.CLOSING_TYPE
+						.equals(m.getType()))
+				.collect(Collectors.toList());
+		if (drawer.isEmpty()) {
 			return null;
 		}
 		SessionReportTicketDTO.CashMovements totals = new SessionReportTicketDTO.CashMovements();
 		BigDecimal apport = BigDecimal.ZERO.setScale(3);
 		BigDecimal prelevement = BigDecimal.ZERO.setScale(3);
 		BigDecimal depense = BigDecimal.ZERO.setScale(3);
-		for (com.digithink.zsretail.store.cashmovement.dto.CashMovementDTO m : movements) {
+		for (com.digithink.zsretail.store.cashmovement.dto.CashMovementDTO m : drawer) {
 			BigDecimal amount = bd(m.getAmount());
 			if ("APPORT".equals(m.getType())) {
 				totals.setApportCount(totals.getApportCount() + 1);
@@ -146,8 +155,17 @@ public class DayJournalService {
 				.findByReturnDateGreaterThanEqualAndReturnDateLessThanOrderByReturnDateAsc(from, to);
 		// 3.2.0, POS machines step 5: the day's cash movements, by their own time (a day with only movements has a journal)
 		List<com.digithink.zsretail.store.cashmovement.dto.CashMovementDTO> movements = cashMovementService == null
-				? new ArrayList<>() : cashMovementService.linesOfDay(date);
-		if (finished.isEmpty() && cancelled.isEmpty() && returns.isEmpty() && movements.isEmpty()) {
+				? new ArrayList<>() : new ArrayList<>(cashMovementService.linesOfDay(date));
+		// 3.2.0, the opening amount: the closing withdrawals of the day (their own type) and the openings with a float
+		List<com.digithink.zsretail.store.cashmovement.dto.OpeningFloatDTO> openingFloats = new ArrayList<>();
+		if (drawerHandoverService != null) {
+			movements.addAll(drawerHandoverService.closingLinesOfDay(date));
+			movements.sort(java.util.Comparator.comparing(com.digithink.zsretail.store.cashmovement.dto.CashMovementDTO::getMovedAt,
+					java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
+			openingFloats.addAll(drawerHandoverService.openingsOfDay(date));
+		}
+		if (finished.isEmpty() && cancelled.isEmpty() && returns.isEmpty() && movements.isEmpty()
+				&& openingFloats.isEmpty()) {
 			throw new IllegalArgumentException("No ticket, return or cancelled ticket on " + date + ": no journal.");
 		}
 
@@ -170,6 +188,10 @@ public class DayJournalService {
 		dto.setStoreName(companyInformationService.get().getCompanyName());
 		dto.setCashMovements(movements);
 		dto.setCashMovementTotals(cashMovementTotals(movements));
+		dto.setOpeningFloats(openingFloats);
+		dto.setOpeningGapTotal(openingFloats.isEmpty() ? null
+				: openingFloats.stream().map(o -> bd(o.getOpeningGap())).reduce(BigDecimal.ZERO.setScale(3), BigDecimal::add)
+						.doubleValue());
 		List<JournalCosts.Result> gains = new ArrayList<>();
 		for (SalesHeader sale : finished) {
 			List<SalesLine> lines = linesByTicket.getOrDefault(sale.getId(), Collections.emptyList());

@@ -40,9 +40,22 @@ public class DayJournalDTO {
 	 */
 	private List<com.digithink.zsretail.store.cashmovement.dto.CashMovementDTO> cashMovements = new ArrayList<>();
 
-	/** Their totals per type; absent without any. */
+	/**
+	 * Their totals per type (the drawer's in / out; a closing withdrawal, PRELEVEMENT_CLOTURE, never counts there); absent
+	 * without any.
+	 */
 	@JsonInclude(JsonInclude.Include.NON_NULL)
 	private SessionReportTicketDTO.CashMovements cashMovementTotals;
+
+	/**
+	 * 3.2.0, the opening amount: the sessions opened that day with a float proposed, their écart d'ouverture (opening cash
+	 * - proposed); empty without any.
+	 */
+	private List<com.digithink.zsretail.store.cashmovement.dto.OpeningFloatDTO> openingFloats = new ArrayList<>();
+
+	/** Their écarts added up; absent without any. */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private Double openingGapTotal;
 
 	@Data
 	@NoArgsConstructor

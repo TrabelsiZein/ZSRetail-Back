@@ -62,6 +62,33 @@ public class SessionReportTicketDTO {
 	@JsonInclude(JsonInclude.Include.NON_NULL)
 	private CashMovements cashMovements;
 
+	/**
+	 * 3.2.0, the opening amount: the responsible's "Retrait du tiroir" (Remis à la clôture, Laissé dans le tiroir); absent
+	 * when the session has none (not verified, or verified before this step).
+	 */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private com.digithink.zsretail.store.cashmovement.dto.ClosingWithdrawalDTO closingWithdrawal;
+
+	/** 3.2.0, the opening amount: the float proposed at the opening and the écart d'ouverture; absent when none. */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private com.digithink.zsretail.store.cashmovement.dto.OpeningFloatDTO openingFloat;
+
+	/**
+	 * 3.2.0, the opening amount, on the store ticket and its groups: the sessions' amounts taken at the verification, left
+	 * in the drawer and écarts d'ouverture added up; each null when no session has one.
+	 */
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class DrawerHandover {
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private Double closingTaken;
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private Double closingLeft;
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private Double openingGap;
+	}
+
 	/** The responsible's verification, only for a TERMINATED session. */
 	private Verification verification;
 

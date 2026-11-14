@@ -503,7 +503,7 @@ class ScannedTicketsClosingTest {
 		mealLine.put("code", "TR");
 		mealLine.put("amount", 19.0);
 		mealLine.put("count", 3);
-		sessions.verifySession(7L, 131.6, null, user("Karim Responsable"), Arrays.asList(cashLine, mealLine));
+		sessions.verifySession(7L, 131.6, null, user("Karim Responsable"), Arrays.asList(cashLine, mealLine), "NONE", null);
 		SessionCashCount tr = counts.stream()
 				.filter(c -> c.getCounterType() == CounterType.RESPONSIBLE && c.getPaymentMethod() == meal).findFirst()
 				.get();

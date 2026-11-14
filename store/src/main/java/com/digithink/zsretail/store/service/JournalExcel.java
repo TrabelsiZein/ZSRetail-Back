@@ -125,7 +125,8 @@ public final class JournalExcel {
 				posMachines(workbook.createSheet("Postes de caisse"), byMachine, styles);
 			}
 			// 3.2.0, step 5: the day's cash movements, their own sheet (never journal lines)
-			if (journal.getCashMovements() != null && !journal.getCashMovements().isEmpty()) {
+			if ((journal.getCashMovements() != null && !journal.getCashMovements().isEmpty())
+					|| (journal.getOpeningFloats() != null && !journal.getOpeningFloats().isEmpty())) {
 				cashMovements(workbook.createSheet("Mouvements de caisse"), journal, styles);
 			}
 			return bytes(workbook);
@@ -162,8 +163,29 @@ public final class JournalExcel {
 			r = movementTotal(sheet, r, "Total prélèvements (" + t.getPrelevementCount() + ")", -t.getPrelevementTotal(),
 					styles);
 			r = movementTotal(sheet, r, "Total dépenses (" + t.getDepenseCount() + ")", -t.getDepenseTotal(), styles);
-			movementTotal(sheet, r, "Net (entrées - sorties)", java.math.BigDecimal.valueOf(t.getInTotal())
+			r = movementTotal(sheet, r, "Net (entrées - sorties)", java.math.BigDecimal.valueOf(t.getInTotal())
 					.subtract(java.math.BigDecimal.valueOf(t.getOutTotal())).doubleValue(), styles);
+		}
+		// 3.2.0, the opening amount: the sessions opened that day with a float proposed, and their écart
+		if (journal.getOpeningFloats() != null && !journal.getOpeningFloats().isEmpty()) {
+			r++;
+			text(sheet.createRow(r++), 0, "Écarts d'ouverture", styles.bold);
+			r = headerAt(sheet, r, new String[] { "Heure", "Session", "Poste de caisse", "Caissier", "Fond proposé",
+					"Fond saisi", "Écart d'ouverture", "Proposé par la session" }, styles);
+			for (com.digithink.zsretail.store.cashmovement.dto.OpeningFloatDTO o : journal.getOpeningFloats()) {
+				Row row = sheet.createRow(r++);
+				date(row, 0, o.getOpenedAt(), styles.time);
+				text(row, 1, o.getSessionNumber());
+				text(row, 2, machineLabel(o.getPosMachineName()));
+				text(row, 3, o.getCashierName());
+				amount(row, 4, o.getProposedFloat(), styles.amount);
+				amount(row, 5, o.getOpeningCash(), styles.amount);
+				amount(row, 6, o.getOpeningGap(), styles.amount);
+				text(row, 7, o.getSourceSessionNumber());
+			}
+			Row total = sheet.createRow(r);
+			text(total, 0, "Total des écarts d'ouverture", styles.bold);
+			amount(total, 6, journal.getOpeningGapTotal(), styles.boldAmount);
 		}
 		autosize(sheet, MOVEMENT_HEADERS.length);
 	}
@@ -182,6 +204,9 @@ public final class JournalExcel {
 		}
 		if ("PRELEVEMENT".equals(type)) {
 			return "Prélèvement";
+		}
+		if (com.digithink.zsretail.store.cashmovement.service.DrawerHandoverService.CLOSING_TYPE.equals(type)) {
+			return "Prélèvement de clôture";
 		}
 		return "DEPENSE".equals(type) ? "Dépense" : type;
 	}

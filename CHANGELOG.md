@@ -29,6 +29,15 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   prints a warning for such a database; none of the current customers, pos_franchise_customer had false / 10).
 
 ### Enhancements
+- The opening amount (`docs/modules/cash-sessions.md`, "The drawer from one session to the next"): the verification
+  of a closed session requires `drawerWithdrawal {choice: ALL | NONE | AMOUNT, amount}` ("Retrait du tiroir", 400
+  `CLOSING_WITHDRAWAL_*` without or out of range, the session unchanged), on the cash the responsible counted; kept in
+  `cashier_session_closing_withdrawal` with a slip number when something was taken; outside the expected cash. The next
+  opening on the same drawer (the POS machine or the cashier, by `CASH_DRAWER_OWNER`) gets the amount left of the most
+  recent closed session only, when verified with something left: `GET /cashier-session/opening-proposal`, then
+  `cashier_session_opening_float` (the float, its source, the écart d'ouverture). Session details, tickets X / Z (session
+  and store), the Journal's day (type `PRELEVEMENT_CLOTURE`, not in the in / out totals; `openingFloats`, its Excel) and
+  the sessions list (`openingGap`) show them. Tests: `DrawerHandoverTest` (8).
 - Payment methods, step 1 (model and conversion; `docs/backend.md`, "Payment methods 3.2.0"):
   `PaymentMethod.type` nullable, one row per type kept by the filtered unique index `ux_payment_method_type` (not a JPA
   constraint any more); `PaymentMethodType` without `TICKET_RESTAURANT` and `CHEQUE_CADEAU` (8 values); new
@@ -236,6 +245,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   database at 3.1.2 (refused, untouched but for Hibernate's new nullable columns); `StartupOrderTest`.
 
 ### DB script
+- `db/3.2.0/update.sql` step 17, a store: `cashier_session_closing_withdrawal` (PK the session,
+  `fk_cashier_session_closing_withdrawal_session`, `_done_by`, index on `done_at`) and `cashier_session_opening_float`
+  (PK the session, `fk_cashier_session_opening_float_session`, `_source`). Parsed with `SET PARSEONLY ON`, not run.
 - `db/3.2.0/update.sql` (version 3.2.0): the unique constraint on `payment_method.type` dropped (name read), the column
   nullable, the filtered unique index `ux_payment_method_type`, the columns `behaviour` and `title_number_length`, then
   in one transaction the four lengths copied to their methods, Ticket Restaurant and Chèque Cadeau without type

@@ -176,8 +176,33 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 
 		CashierSession saved = save(session);
 		sessionPosMachineService.record(saved, machine);
+		// 3.2.0, the opening amount: the float left in the same drawer at its last verification, and the écart
+		if (drawerHandoverService != null) {
+			drawerHandoverService.recordOpening(saved, cashier, machine,
+					id -> cashierSessionRepository.findById(id).orElse(null));
+		}
 		return saved;
 	}
+
+	/**
+	 * 3.2.0, the opening amount: the float proposed to the user's next opening from this PC (the drawer of its POS machine
+	 * when the drawer belongs to the POS machine, else the user's); empty when none. Read-only: the opening computes it
+	 * again.
+	 */
+	public java.util.Optional<com.digithink.zsretail.store.cashmovement.dto.OpeningFloatDTO> openingProposal(
+			UserAccount cashier, String remoteAddress) {
+		if (drawerHandoverService == null) {
+			return java.util.Optional.empty();
+		}
+		return drawerHandoverService.proposalFor(cashier, sessionPosMachineService.machineAt(remoteAddress).orElse(null));
+	}
+
+	/**
+	 * 3.2.0, the opening amount: the floats left at the verifications and proposed at the openings. A service built
+	 * without it (a unit test of another rule) records none.
+	 */
+	@Autowired
+	private com.digithink.zsretail.store.cashmovement.service.DrawerHandoverService drawerHandoverService;
 
 	/**
 	 * Get expected cash (real cash) for a session by ID This is a public method
@@ -504,7 +529,8 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	 */
 	@Transactional(rollbackFor = Exception.class)
 	public CashierSession verifySession(Long sessionId, Double responsibleClosureCash, String verificationNotes,
-			UserAccount responsibleUser, List<Map<String, Object>> paymentDetails) throws Exception {
+			UserAccount responsibleUser, List<Map<String, Object>> paymentDetails, String withdrawalChoice,
+			Double withdrawalAmount) throws Exception {
 		// Pessimistic lock: serialize against admin payment-method changes that recompute realCash.
 		CashierSession session = cashierSessionRepository.findByIdForUpdate(sessionId)
 				.orElseThrow(() -> new IllegalArgumentException("Session not found"));
@@ -512,6 +538,14 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		if (session.getStatus() != SessionStatus.CLOSED) {
 			throw new IllegalStateException("Session must be closed before verification");
 		}
+
+		// 3.2.0, the opening amount: the required "Retrait du tiroir", checked against the cash the responsible counted
+		// before anything changes (CashMovementException, 400); outside the expected cash
+		String cashCode = paymentMethodRepository.findByType(PaymentMethodType.CLIENT_ESPECES)
+				.map(PaymentMethod::getCode).orElse(null);
+		com.digithink.zsretail.store.cashmovement.service.DrawerHandoverService.Answer withdrawal =
+				com.digithink.zsretail.store.cashmovement.service.DrawerHandoverService.check(withdrawalChoice,
+						withdrawalAmount, responsibleCash(paymentDetails, cashCode, responsibleClosureCash));
 
 		session.setResponsibleClosureCash(responsibleClosureCash);
 		session.setVerifiedBy(responsibleUser);
@@ -583,9 +617,32 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			log.warn("[verifySession] paymentDetails is null or empty — no RESPONSIBLE SCC rows will be saved");
 		}
 
+		if (drawerHandoverService != null) {
+			drawerHandoverService.record(session, responsibleUser, withdrawal);
+		}
+
 		log.info("[verifySession] session verified: {}, responsibleClosureCash={}", session.getSessionNumber(),
 				responsibleClosureCash);
 		return session;
+	}
+
+	/**
+	 * 3.2.0, the opening amount: the cash the responsible counted, the drawer's: his cash lines (the cash method's code);
+	 * a verification with a total only (no line) counts that total.
+	 */
+	static double responsibleCash(List<Map<String, Object>> paymentDetails, String cashCode, Double total) {
+		if (paymentDetails == null || paymentDetails.isEmpty()) {
+			return total == null ? 0.0 : total;
+		}
+		double cash = 0.0;
+		for (Map<String, Object> detail : paymentDetails) {
+			Object amount = detail.get("amount");
+			if (cashCode != null && cashCode.equals(detail.get("code")) && amount instanceof Number
+					&& ((Number) amount).doubleValue() > 0) {
+				cash += ((Number) amount).doubleValue();
+			}
+		}
+		return cash;
 	}
 
 	/**
@@ -799,6 +856,12 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		Map<Long, String> machineNames = sessionPosMachineService
 				.namesBySession(dtos.stream().map(SessionDashboardDTO::getId).collect(Collectors.toList()));
 		dtos.forEach(dto -> dto.setPosMachineName(machineNames.get(dto.getId())));
+		// 3.2.0, the opening amount: the écart d'ouverture of each session of the page (null: no float proposed)
+		if (drawerHandoverService != null) {
+			Map<Long, Double> gaps = drawerHandoverService
+					.openingGapsBySession(dtos.stream().map(SessionDashboardDTO::getId).collect(Collectors.toList()));
+			dtos.forEach(dto -> dto.setOpeningGap(gaps.get(dto.getId())));
+		}
 
 		Map<String, Object> result = new HashMap<>();
 		result.put("content", dtos);
@@ -999,6 +1062,10 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		// 3.2.0, POS machines step 5: the session's cash movements, oldest first (the cash line above holds them through
 		// the expected cash)
 		String machineName = sessionPosMachineService != null ? sessionPosMachineService.nameOf(session.getId()) : null;
+		// 3.2.0, the opening amount: the responsible's "Retrait du tiroir" and the float proposed at the opening (null:
+		// none, or nothing known for a session of before)
+		response.put("closingWithdrawal", drawerHandoverService == null ? null : drawerHandoverService.withdrawalOf(session));
+		response.put("openingFloat", drawerHandoverService == null ? null : drawerHandoverService.openingOf(session));
 		response.put("cashMovements", cashMovementRepository == null ? new ArrayList<>()
 				: cashMovementRepository.findByCashierSessionOrderByMovedAtAsc(session).stream()
 						.map(m -> com.digithink.zsretail.store.cashmovement.service.CashMovementService.dto(m, machineName))

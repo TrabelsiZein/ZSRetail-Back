@@ -463,6 +463,57 @@ list's difference), `DayJournalServiceTest.dayWithOnlyACashMovement`, `PosMachin
 refused), `SalesCopyMapperTest.sessionCashMovements`, `ConsolidatedSalesServiceTest.cashMovements` (the head office copy
 with and without the field), `ZZDataInitializerRolesTest.cashMovementRight`.
 
+## The drawer from one session to the next (3.2.0, the opening amount)
+
+What the responsible takes out of the drawer at the verification, and what he leaves in it as the float of the next
+session on the same drawer. Store only (`store.cashmovement`: `DrawerHandoverService`); nothing at the head office, to
+the ERP, no new right (the verification's). The cashier's closing window and its blind count do not change.
+
+**At the verification of a CLOSED session** (`POST /cashier-session/verify`), after the responsible's count, a
+**required** answer `drawerWithdrawal: {choice, amount}` ("Retrait du tiroir", none chosen by default):
+- `ALL` "Tout retirer": taken = the cash he counted, left = 0;
+- `NONE` "Rien retirer": taken = 0, left = the cash he counted;
+- `AMOUNT` "Retirer un montant": above 0 and not above the cash he counted (to the millime).
+
+The cash counted is the drawer's: his lines of the cash method (a verification with a total only, no line, counts that
+total). Checked before anything changes: 400 `CLOSING_WITHDRAWAL_REQUIRED`, `_CHOICE_INVALID`, `_AMOUNT_INVALID` (max);
+the session stays CLOSED. Kept in `cashier_session_closing_withdrawal` (`ClosingWithdrawal`, beside the session as
+`cashier_session_pos_machine`): choice, cash counted, taken, left, who, when, and the slip's number (`<session>-PC`)
+when something was taken. **Outside the session's expected cash**: the closing and the verification differences do not
+move. A verification cannot be redone (TERMINATED is refused, as before): the first answer stays.
+
+**The slip "Prélèvement de clôture"** (80 mm, `printClosingWithdrawalSlip`): number, date, session, POS machine,
+responsible, amount taken, amount left in the drawer, a signature line. Printed after the verification when something
+was taken ("Rien retirer": none); reprinted from the session's details.
+
+**At the next opening on the same drawer**: the drawer is the POS machine when it belongs to the POS machine
+(`CASH_DRAWER_OWNER`), else the cashier. Only the **most recent closed session** of that drawer counts (by its closing;
+never an older one): verified with an answer that left something → its amount left is proposed. Not verified, nothing
+left, or verified before this step (no answer): nothing is proposed, the opening is free as before.
+- `GET /cashier-session/opening-proposal` (the logged user, the PC's address): the float, its session and the time of
+  its verification, or `{}`. The opening page prefills the amount with it and says where it comes from.
+- `openSession` computes it again and keeps, in `cashier_session_opening_float` (`OpeningFloat`), the float proposed,
+  its source session and the **écart d'ouverture** (opening cash typed - proposed). Nothing is refused; no row (no écart)
+  when nothing was proposed.
+- A next session opened before the verification of the previous one: nothing proposed (the previous one was not
+  verified), no écart; once verified, that session's float is never proposed later (it is no longer the most recent).
+
+**Where it shows**: the session's details (the block "Retrait du tiroir" with the reprint, and "Fond d'ouverture" with
+the écart); the session ticket X / Z ("Remis à la clôture", "Laissé dans le tiroir", "Écart d'ouverture", each only
+when it exists: `closingWithdrawal`, `openingFloat`); the store ticket X / Z, the store, one POS machine and each group
+(`drawerHandover`: their sums); the Journal's day: the closing withdrawals that took something are lines of their own
+type `PRELEVEMENT_CLOTURE` in "Mouvements de caisse" (by their time, never in the drawer's in / out totals), and the
+sessions opened that day with a float and their écart (`openingFloats`, `openingGapTotal`), in the A4 print and the
+Excel sheet "Mouvements de caisse" too; the sessions list: the écart d'ouverture under the opening cash
+(`SessionDashboardDTO.openingGap`). A session verified before this step shows nothing of it.
+
+`db/3.2.0/update.sql` step 17 (the two tables and the index on `done_at`); Hibernate makes the tables at a start too.
+
+**Tests**: `DrawerHandoverTest` (the three choices on the drawer's cash, the amount's limits, the answer required and
+nothing changed without it, never redone; the proposal by the drawer of the cashier and of the POS machine, the most
+recent session only, the écart; a session verified before this step; the next session already open; the Journal's
+lines).
+
 ## Closed points
 
 - **The FREE_QUANTITY line stored an HT discount (fixed in 3.1.0).** For a "X bought, Y free" promotion the server adds

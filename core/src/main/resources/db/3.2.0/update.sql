@@ -370,6 +370,49 @@ IF OBJECT_ID(N'ho_session', N'U') IS NOT NULL AND COL_LENGTH('ho_session', 'cash
 	ALTER TABLE ho_session ADD cash_movements_out float NULL;
 GO
 
+-- 17) The opening amount, a store only (quick_quantity). Beside the session, as cashier_session_pos_machine (the core
+-- table cashier_session, also the head office's, is not changed): the responsible's "Retrait du tiroir" at the
+-- verification of a closed session (cashier_session_closing_withdrawal: the choice, the cash counted, taken and left,
+-- who, when, the slip's number when something was taken), and the float proposed at the next opening on the same drawer
+-- (cashier_session_opening_float: the float, its source session and the écart d'ouverture; a row only when a float was
+-- proposed). In Hibernate's form, constraints named as in the entities. Sessions verified before have no row (nothing
+-- known). Hibernate creates both at a start too (without the index). No data changed.
+IF OBJECT_ID(N'quick_quantity', N'U') IS NOT NULL AND OBJECT_ID(N'cashier_session_closing_withdrawal', N'U') IS NULL
+BEGIN
+	CREATE TABLE cashier_session_closing_withdrawal (
+		cashier_session_id bigint NOT NULL,
+		choice varchar(10) NOT NULL,
+		cash_counted float NOT NULL,
+		amount_taken float NOT NULL,
+		amount_left float NOT NULL,
+		done_by_id bigint NOT NULL,
+		done_at datetime2 NOT NULL,
+		slip_number varchar(40) NULL,
+		CONSTRAINT PK_cashier_session_closing_withdrawal PRIMARY KEY (cashier_session_id),
+		CONSTRAINT fk_cashier_session_closing_withdrawal_session FOREIGN KEY (cashier_session_id) REFERENCES cashier_session (id),
+		CONSTRAINT fk_cashier_session_closing_withdrawal_done_by FOREIGN KEY (done_by_id) REFERENCES user_account (id)
+	);
+END
+GO
+IF OBJECT_ID(N'cashier_session_closing_withdrawal', N'U') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_cashier_session_closing_withdrawal_done_at'
+		AND object_id = OBJECT_ID(N'cashier_session_closing_withdrawal'))
+	CREATE INDEX ix_cashier_session_closing_withdrawal_done_at ON cashier_session_closing_withdrawal (done_at);
+GO
+IF OBJECT_ID(N'quick_quantity', N'U') IS NOT NULL AND OBJECT_ID(N'cashier_session_opening_float', N'U') IS NULL
+BEGIN
+	CREATE TABLE cashier_session_opening_float (
+		cashier_session_id bigint NOT NULL,
+		proposed_float float NOT NULL,
+		source_session_id bigint NOT NULL,
+		opening_gap float NOT NULL,
+		CONSTRAINT PK_cashier_session_opening_float PRIMARY KEY (cashier_session_id),
+		CONSTRAINT fk_cashier_session_opening_float_session FOREIGN KEY (cashier_session_id) REFERENCES cashier_session (id),
+		CONSTRAINT fk_cashier_session_opening_float_source FOREIGN KEY (source_session_id) REFERENCES cashier_session (id)
+	);
+END
+GO
+
 UPDATE APP_VERSION SET version = '3.2.0';
 
 -- The notes of 3.2.0 are written again on each run (the script may run more than once). Written from CHANGELOG.md when

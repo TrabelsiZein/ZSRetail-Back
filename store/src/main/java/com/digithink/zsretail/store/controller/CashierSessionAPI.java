@@ -120,6 +120,23 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 		}
 	}
 
+	/**
+	 * 3.2.0, the opening amount: the float proposed to the logged user's opening from this PC (what the responsible left
+	 * in the same drawer at the verification of its most recent closed session): {proposedFloat, sourceSessionNumber,
+	 * sourceVerifiedAt, ...}, or {} when none (the opening is free).
+	 */
+	@GetMapping("/opening-proposal")
+	public ResponseEntity<?> getOpeningProposal(HttpServletRequest http) {
+		try {
+			UserAccount user = currentUserProvider.getCurrentUser();
+			return ResponseEntity.ok(service.openingProposal(user, http.getRemoteAddr()).<Object>map(p -> p)
+					.orElse(java.util.Collections.emptyMap()));
+		} catch (Exception e) {
+			log.error("CashierSessionAPI::getOpeningProposal:error: " + e.getMessage(), e);
+			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
 	@GetMapping("/current/ticket-count")
 	public ResponseEntity<?> getCurrentTicketCount() {
 		try {
@@ -413,8 +430,22 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			List<Map<String, Object>> paymentDetails = request.get("paymentDetails") instanceof List
 				? (List<Map<String, Object>>) request.get("paymentDetails") : null;
 
-			CashierSession verifiedSession = service.verifySession(sessionId, responsibleClosureCash, verificationNotes, currentUser, paymentDetails);
+			// 3.2.0, the opening amount: the required "Retrait du tiroir" {choice: ALL | NONE | AMOUNT, amount}
+			String withdrawalChoice = null;
+			Double withdrawalAmount = null;
+			if (request.get("drawerWithdrawal") instanceof Map) {
+				Map<?, ?> withdrawal = (Map<?, ?>) request.get("drawerWithdrawal");
+				withdrawalChoice = withdrawal.get("choice") != null ? String.valueOf(withdrawal.get("choice")) : null;
+				withdrawalAmount = withdrawal.get("amount") instanceof Number
+						? ((Number) withdrawal.get("amount")).doubleValue() : null;
+			}
+
+			CashierSession verifiedSession = service.verifySession(sessionId, responsibleClosureCash, verificationNotes,
+					currentUser, paymentDetails, withdrawalChoice, withdrawalAmount);
 			return ResponseEntity.ok(verifiedSession);
+		} catch (com.digithink.zsretail.store.cashmovement.CashMovementException e) {
+			log.info("CashierSessionAPI::verifySession refused: {}", e.getMessage());
+			return ResponseEntity.badRequest().body(e.body());
 		} catch (IllegalStateException e) {
 			log.error("CashierSessionAPI::verifySession:error: " + e.getMessage(), e);
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));

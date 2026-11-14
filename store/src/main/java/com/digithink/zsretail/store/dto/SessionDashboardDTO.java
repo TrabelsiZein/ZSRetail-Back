@@ -39,6 +39,8 @@ public class SessionDashboardDTO {
 	private String erpNo;
 	/** 3.2.0, POS machines step 2: the POS machine the session was opened on; null without one. */
 	private String posMachineName;
+	/** 3.2.0, the opening amount: opening cash - the float proposed; null when no float was proposed. */
+	private Double openingGap;
 
 	public static SessionDashboardDTO fromEntity(CashierSession session, Long salesCount, Double totalSalesAmount) {
 		return fromEntity(session, salesCount, totalSalesAmount, 0L, 0.0, 0.0, 0.0, null);
