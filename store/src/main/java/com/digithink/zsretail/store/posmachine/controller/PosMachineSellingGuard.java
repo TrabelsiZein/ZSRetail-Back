@@ -101,8 +101,8 @@ public class PosMachineSellingGuard implements HandlerInterceptor {
 
 	/** The English message of the refusal (the front shows serverErrors.OTHER_POS_MACHINE). */
 	public static String otherMachineMessage(String name) {
-		return "Your session is open on the POS machine '" + name + "': selling, putting a sale on hold and returns are"
-				+ " only possible there. Go back to '" + name + "', or close the session.";
+		return "Your session is open on the POS machine '" + name + "': selling, putting a sale on hold, returns and cash"
+				+ " movements are only possible there. Go back to '" + name + "', or close the session.";
 	}
 
 	/** True for a method of {@link #RESTRICTED}. */

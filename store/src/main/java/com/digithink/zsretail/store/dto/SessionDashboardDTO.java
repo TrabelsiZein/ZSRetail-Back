@@ -99,10 +99,10 @@ public class SessionDashboardDTO {
 		double simpleRetVal = simpleReturnsAmount != null ? simpleReturnsAmount : 0.0;
 		double totalSystemAmount = openingCashVal + salesVal - simpleRetVal + scannedFaceGap;
 		if (session.getPosUserClosureCash() != null) {
-			dto.setCashDifference(Math.round((session.getPosUserClosureCash() - totalSystemAmount) * 100.0) / 100.0);
+			dto.setCashDifference(com.digithink.zsretail.core.utils.Quantities.roundAmount(session.getPosUserClosureCash() - totalSystemAmount));
 		}
 		if (session.getResponsibleClosureCash() != null) {
-			dto.setResponsibleDifference(Math.round((session.getResponsibleClosureCash() - totalSystemAmount) * 100.0) / 100.0);
+			dto.setResponsibleDifference(com.digithink.zsretail.core.utils.Quantities.roundAmount(session.getResponsibleClosureCash() - totalSystemAmount));
 		}
 		
 		dto.setVerificationNotes(session.getVerificationNotes());

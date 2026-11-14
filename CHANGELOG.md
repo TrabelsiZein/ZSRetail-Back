@@ -204,6 +204,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `ConsolidatedSalesServiceTest`, `ZZDataInitializerRolesTest`; `PosMachineSellingGuardTest` classes the endpoint.
 
 ### Fixes
+- Sessions list (store and head office): "Diff." and "Diff. Resp" rounded to the millime (they were rounded to 2
+  decimals, so a 0.005 difference read 0.01); `Quantities.roundAmount`. The OTHER_POS_MACHINE message names the cash
+  movements too ("selling, putting a sale on hold, returns and cash movements").
 - `POST /cashier-session/close` with a body without `cashCountLines` (the old `{"actualCash": 50, "notes": "..."}`, or
   the till's `{notes}` when its closing window has no row) answered 500 "no transaction is in progress" since 1.8.0: that
   path called the closing from inside `CashierSessionService`, outside its transaction, and the closing's row lock needs

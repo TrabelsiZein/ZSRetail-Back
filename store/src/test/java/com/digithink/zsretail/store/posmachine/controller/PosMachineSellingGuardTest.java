@@ -172,8 +172,8 @@ class PosMachineSellingGuardTest {
 				assertEquals("OTHER_POS_MACHINE", body.get("reason"));
 				assertEquals("Caisse 1", body.get("posMachineName"));
 				assertEquals("Caisse 1", ((Map<String, Object>) body.get("params")).get("name"));
-				assertEquals("Your session is open on the POS machine 'Caisse 1': selling, putting a sale on hold and"
-						+ " returns are only possible there. Go back to 'Caisse 1', or close the session.", body.get("error"));
+				assertEquals("Your session is open on the POS machine 'Caisse 1': selling, putting a sale on hold, returns"
+						+ " and cash movements are only possible there. Go back to 'Caisse 1', or close the session.", body.get("error"));
 			}
 		}
 		assertEquals(PosMachineSellingGuard.RESTRICTED.get(SalesHeaderAPI.class).size(), refused.size(), "all refused");

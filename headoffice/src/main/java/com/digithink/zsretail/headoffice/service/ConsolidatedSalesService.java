@@ -493,15 +493,15 @@ public class ConsolidatedSalesService {
 		row.put("simpleReturnsAmount", totals.simpleReturnsAmount);
 		row.put("voucherReturnsAmount", totals.voucherReturnsAmount);
 		// Same as the store's session history: system = opening cash + sales - simple returns + the scanned tickets' face
-		// minus net (3.2.0: they are counted on their face), rounded to 2 decimals; no difference when the store did not
+		// minus net (3.2.0: they are counted on their face), rounded to the millime (3.2.0; was 2 decimals); no difference when the store did not
 		// send its scanned tickets' expected values (scannedFaceGap null)
 		double system = (session.getOpeningCash() == null ? 0.0 : session.getOpeningCash()) + totals.salesAmount
 				- totals.simpleReturnsAmount + (scannedFaceGap == null ? 0.0 : scannedFaceGap)
 				+ cashMovementsNet(session); // 3.2.0, step 5: the store's movements in - out (none from an older copy)
 		row.put("cashDifference", session.getPosUserClosureCash() == null || scannedFaceGap == null ? null
-				: Math.round((session.getPosUserClosureCash() - system) * 100.0) / 100.0);
+				: com.digithink.zsretail.core.utils.Quantities.roundAmount(session.getPosUserClosureCash() - system));
 		row.put("responsibleDifference", session.getResponsibleClosureCash() == null || scannedFaceGap == null ? null
-				: Math.round((session.getResponsibleClosureCash() - system) * 100.0) / 100.0);
+				: com.digithink.zsretail.core.utils.Quantities.roundAmount(session.getResponsibleClosureCash() - system));
 		row.put("verificationNotes", session.getVerificationNotes());
 		row.put("verifiedByName",
 				session.getVerifiedByName() != null ? session.getVerifiedByName() : session.getVerifiedByLogin());
