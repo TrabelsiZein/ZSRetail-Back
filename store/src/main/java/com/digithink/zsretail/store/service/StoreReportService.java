@@ -452,27 +452,47 @@ public class StoreReportService {
 	}
 
 	/**
-	 * 3.2.0, the opening amount: the sessions' amounts taken at the verification, left in the drawer and écarts
-	 * d'ouverture added up; each null when no session has one, the whole null when none has any.
+	 * 3.2.0, the opening amount: "Remis à la clôture" (the sessions' amounts taken at the verification, added up), "Laissé
+	 * dans le tiroir" (what is in the drawers at the end: per drawer, the POS machine or the cashier, only its last answer
+	 * by the sessions' closing) and the écarts d'ouverture added up; each null when no session has one, the whole null
+	 * when none has any.
 	 */
 	static SessionReportTicketDTO.DrawerHandover drawerHandover(List<SessionReportTicketDTO> reports) {
 		BigDecimal taken = null;
 		BigDecimal left = null;
 		BigDecimal gap = null;
+		Map<String, SessionReportTicketDTO> lastByDrawer = new LinkedHashMap<>();
 		for (SessionReportTicketDTO r : reports) {
 			if (r.getClosingWithdrawal() != null) {
 				taken = (taken == null ? BigDecimal.ZERO.setScale(3) : taken).add(bd(r.getClosingWithdrawal().getAmountTaken()));
-				left = (left == null ? BigDecimal.ZERO.setScale(3) : left).add(bd(r.getClosingWithdrawal().getAmountLeft()));
+				String drawer = r.getClosingWithdrawal().getDrawerKey() != null ? r.getClosingWithdrawal().getDrawerKey()
+						: "S" + r.getSessionId();
+				SessionReportTicketDTO last = lastByDrawer.get(drawer);
+				if (last == null || closedAfter(r, last)) {
+					lastByDrawer.put(drawer, r);
+				}
 			}
 			if (r.getOpeningFloat() != null) {
 				gap = (gap == null ? BigDecimal.ZERO.setScale(3) : gap).add(bd(r.getOpeningFloat().getOpeningGap()));
 			}
+		}
+		for (SessionReportTicketDTO last : lastByDrawer.values()) {
+			left = (left == null ? BigDecimal.ZERO.setScale(3) : left).add(bd(last.getClosingWithdrawal().getAmountLeft()));
 		}
 		if (taken == null && gap == null) {
 			return null;
 		}
 		return new SessionReportTicketDTO.DrawerHandover(taken == null ? null : taken.doubleValue(),
 				left == null ? null : left.doubleValue(), gap == null ? null : gap.doubleValue());
+	}
+
+	/** The session closed later (then the later verification, then the higher id): the drawer's last answer. */
+	private static boolean closedAfter(SessionReportTicketDTO a, SessionReportTicketDTO b) {
+		Comparator<SessionReportTicketDTO> order = Comparator
+				.comparing(SessionReportTicketDTO::getClosedAt, Comparator.nullsFirst(Comparator.naturalOrder()))
+				.thenComparing(r -> r.getClosingWithdrawal().getDoneAt(), Comparator.nullsFirst(Comparator.naturalOrder()))
+				.thenComparing(SessionReportTicketDTO::getSessionId, Comparator.nullsFirst(Comparator.naturalOrder()));
+		return order.compare(a, b) > 0;
 	}
 
 	// ─── Helpers ─────────────────────────────────────────────────────

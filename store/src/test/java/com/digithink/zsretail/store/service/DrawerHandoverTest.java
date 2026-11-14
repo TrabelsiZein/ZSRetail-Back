@@ -379,4 +379,58 @@ class DrawerHandoverTest {
 		assertNull(DayJournalService.cashMovementTotals(lines));
 		assertEquals(Collections.emptyList(), handover.closingLinesOfDay(all.getClosedAt().toLocalDate().minusDays(1)));
 	}
+
+	@Test
+	@DisplayName("A session without any payment (opened 100, apport 500, no sale): the responsible counts 600 in cash, takes"
+			+ " 500, 100 stays")
+	void sessionWithoutPayment() throws Exception {
+		CashierSession session = closed(amira, 10, null);
+		session.setOpeningCash(100.0);
+		service.verifySession(session.getId(), 600.0, null, karim, Arrays.asList(line("ESP", 600.0)), "AMOUNT", 500.0);
+		ClosingWithdrawal answer = withdrawals.get(session.getId());
+		assertEquals(600.0, answer.getCashCounted(), 1e-9, "the cash line, though the session took no cash payment");
+		assertEquals(500.0, answer.getAmountTaken(), 1e-9);
+		assertEquals(100.0, answer.getAmountLeft(), 1e-9);
+	}
+
+	@Test
+	@DisplayName("Day level: 'Laissé dans le tiroir' is what is in the drawers at the end (each drawer's last answer), 'Remis"
+			+ " à la clôture' a sum")
+	void leftPerDrawerAtTheEnd() {
+		List<com.digithink.zsretail.store.dto.SessionReportTicketDTO> reports = Arrays.asList(
+				report(1L, 10, "C1", 60.0, 200.0), // the drawer C1 at 10:00: 200 left
+				report(2L, 12, "C1", 190.0, 10.0), // C1 again at 12:00: 10 left (the last)
+				report(3L, 11, "C2", 0.0, 5.0)); // another drawer: 5 left
+		com.digithink.zsretail.store.dto.SessionReportTicketDTO.DrawerHandover day = StoreReportService.drawerHandover(reports);
+		assertEquals(250.0, day.getClosingTaken(), 1e-9, "a sum");
+		assertEquals(15.0, day.getClosingLeft(), 1e-9, "10 (C1's last) + 5 (C2), not 215");
+		assertNull(day.getOpeningGap());
+	}
+
+	private static com.digithink.zsretail.store.dto.SessionReportTicketDTO report(Long id, int hour, String drawer,
+			double taken, double left) {
+		com.digithink.zsretail.store.dto.SessionReportTicketDTO report = new com.digithink.zsretail.store.dto.SessionReportTicketDTO();
+		report.setSessionId(id);
+		report.setClosedAt(LocalDateTime.of(2026, 11, 14, hour, 0));
+		com.digithink.zsretail.store.cashmovement.dto.ClosingWithdrawalDTO w =
+				new com.digithink.zsretail.store.cashmovement.dto.ClosingWithdrawalDTO();
+		w.setAmountTaken(taken);
+		w.setAmountLeft(left);
+		w.setDrawerKey(drawer);
+		w.setDoneAt(LocalDateTime.of(2026, 11, 14, hour, 30));
+		report.setClosingWithdrawal(w);
+		return report;
+	}
+
+	@Test
+	@DisplayName("The drawer of an answer: the POS machine when the drawer belongs to it, else the cashier")
+	void drawerOfAnAnswer() throws Exception {
+		PosMachine caisse1 = rfid.machine("Caisse 1", "192.168.1.11", null);
+		CashierSession session = closed(amira, 10, caisse1);
+		verify(session, "NONE", null);
+		rfid.drawerOwner = DrawerOwner.CASHIER;
+		assertEquals("C1", handover.withdrawalOf(session).getDrawerKey());
+		rfid.drawerOwner = DrawerOwner.POS_MACHINE;
+		assertEquals("M" + caisse1.getId(), handover.withdrawalOf(session).getDrawerKey());
+	}
 }

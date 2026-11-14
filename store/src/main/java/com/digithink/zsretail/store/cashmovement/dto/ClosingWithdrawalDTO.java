@@ -31,4 +31,11 @@ public class ClosingWithdrawalDTO {
 
 	/** The slip's number; null when nothing was taken (no slip). */
 	private String slipNumber;
+
+	/**
+	 * The drawer the answer left its cash in (the POS machine when the drawer belongs to it, else the cashier): the store
+	 * ticket counts, per drawer, only its last answer as "Laissé dans le tiroir". Not sent.
+	 */
+	@com.fasterxml.jackson.annotation.JsonIgnore
+	private String drawerKey;
 }

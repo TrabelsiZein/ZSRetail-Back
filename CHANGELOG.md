@@ -213,6 +213,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `ConsolidatedSalesServiceTest`, `ZZDataInitializerRolesTest`; `PosMachineSellingGuardTest` classes the endpoint.
 
 ### Fixes
+- The opening amount, after the browser test: the store ticket's "Laissé dans le tiroir" is what is in the drawers at
+  the end (each drawer's last answer; it added every session up); the Journal's écarts d'ouverture keep only the
+  non-zero ones; `/{id}/details` gives the list's differences (the cash movements were missing) and its `openingGap`
+  (used by no screen, print or head office copy). Tests in `DrawerHandoverTest` (+3) and `CashMovementTest` (+1).
 - Sessions list (store and head office): "Diff." and "Diff. Resp" rounded to the millime (they were rounded to 2
   decimals, so a 0.005 difference read 0.01); `Quantities.roundAmount`. The OTHER_POS_MACHINE message names the cash
   movements too ("selling, putting a sale on hold, returns and cash movements").

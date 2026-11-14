@@ -182,9 +182,26 @@ public class DrawerHandoverService {
 
 	/** A session's answer; null without one (not verified, or verified before this step). */
 	public ClosingWithdrawalDTO withdrawalOf(CashierSession session) {
-		return session == null ? null
-				: withdrawals.findById(session.getId()).map(w -> dto(w, session, sessionMachines.nameOf(session.getId())))
-						.orElse(null);
+		if (session == null) {
+			return null;
+		}
+		return withdrawals.findById(session.getId()).map(w -> {
+			ClosingWithdrawalDTO dto = dto(w, session, sessionMachines.nameOf(session.getId()));
+			dto.setDrawerKey(drawerKey(session));
+			return dto;
+		}).orElse(null);
+	}
+
+	/**
+	 * The drawer of a session: "M" + its POS machine when the drawer belongs to the POS machine (a session without one is
+	 * its own drawer), else "C" + its cashier.
+	 */
+	String drawerKey(CashierSession session) {
+		if (sessionMachines.drawerOwner() == DrawerOwner.POS_MACHINE) {
+			return sessionMachines.machineOf(session.getId()).map(m -> "M" + m.getId()).orElse("S" + session.getId());
+		}
+		return session.getCashier() != null && session.getCashier().getId() != null ? "C" + session.getCashier().getId()
+				: "S" + session.getId();
 	}
 
 	/** A session's float proposed at its opening; null when none was proposed. */

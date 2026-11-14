@@ -581,4 +581,21 @@ class CashMovementTest {
 				0.0 + sessionService.cashMovementNet(karimSession));
 		assertEquals(0.0, row.getCashDifference(), 1e-9);
 	}
+
+	@Test
+	@DisplayName("The session's details give the list's differences (the movements on the system side) and its écart"
+			+ " d'ouverture")
+	void detailsAsTheList() throws Exception {
+		movementService.record(karim, request("APPORT", 500.0, null));
+		karimSession.setStatus(SessionStatus.CLOSED);
+		karimSession.setClosedAt(DAY.atTime(18, 0));
+		karimSession.setPosUserClosureCash(650.0); // 100 + 50 + 500
+		karimSession.setResponsibleClosureCash(640.0);
+		@SuppressWarnings("unchecked")
+		java.util.Map<String, Object> details = sessionService.getSessionDetails(karimSession.getId());
+		SessionDashboardDTO session = (SessionDashboardDTO) details.get("session");
+		assertEquals(0.0, session.getCashDifference(), 1e-9, "was +500: the apport left out");
+		assertEquals(-10.0, session.getResponsibleDifference(), 1e-9);
+		assertNull(session.getOpeningGap(), "no float proposed to this session");
+	}
 }

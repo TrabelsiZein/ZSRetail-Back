@@ -1045,8 +1045,12 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		Map<String, Object> response = new HashMap<>();
 		SessionDashboardDTO sessionDto = SessionDashboardDTO.fromEntity(session, salesCount, totalSalesAmount,
 				returnsCount, totalReturnsAmount, simpleReturnsAmount, voucherReturnsAmount, realCash,
-				scannedFaceGap(session));
+				scannedFaceGap(session) + cashMovementNet(session)); // 3.2.0: the list's computation, movements included
 		sessionDto.setPosMachineName(sessionPosMachineService.nameOf(session.getId())); // 3.2.0, POS machines step 2
+		if (drawerHandoverService != null) { // 3.2.0, the opening amount: the écart d'ouverture, as the list
+			sessionDto.setOpeningGap(drawerHandoverService.openingGapsBySession(java.util.Collections.singletonList(
+					session.getId())).get(session.getId()));
+		}
 		response.put("session", sessionDto);
 		response.put("salesCount", salesCount);
 		response.put("totalSalesAmount", totalSalesAmount); // Gross sales (sum of all sales)

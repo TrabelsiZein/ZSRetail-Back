@@ -162,7 +162,9 @@ public class DayJournalService {
 			movements.addAll(drawerHandoverService.closingLinesOfDay(date));
 			movements.sort(java.util.Comparator.comparing(com.digithink.zsretail.store.cashmovement.dto.CashMovementDTO::getMovedAt,
 					java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
-			openingFloats.addAll(drawerHandoverService.openingsOfDay(date));
+			// an écart of 0 is not an écart: only the openings that differ from the float proposed
+			drawerHandoverService.openingsOfDay(date).stream()
+					.filter(o -> o.getOpeningGap() != null && Math.abs(o.getOpeningGap()) >= 0.0005).forEach(openingFloats::add);
 		}
 		if (finished.isEmpty() && cancelled.isEmpty() && returns.isEmpty() && movements.isEmpty()
 				&& openingFloats.isEmpty()) {

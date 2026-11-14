@@ -501,11 +501,12 @@ left, or verified before this step (no answer): nothing is proposed, the opening
 **Where it shows**: the session's details (the block "Retrait du tiroir" with the reprint, and "Fond d'ouverture" with
 the écart); the session ticket X / Z ("Remis à la clôture", "Laissé dans le tiroir", "Écart d'ouverture", each only
 when it exists: `closingWithdrawal`, `openingFloat`); the store ticket X / Z, the store, one POS machine and each group
-(`drawerHandover`: their sums); the Journal's day: the closing withdrawals that took something are lines of their own
+(`drawerHandover`: "Remis à la clôture" a sum; "Laissé dans le tiroir" what is in the drawers at the end, each drawer's last answer, the POS machine or the cashier by `CASH_DRAWER_OWNER`; the écarts a sum; the lines under their own heading TIROIR); the Journal's day: the closing withdrawals that took something are lines of their own
 type `PRELEVEMENT_CLOTURE` in "Mouvements de caisse" (by their time, never in the drawer's in / out totals), and the
-sessions opened that day with a float and their écart (`openingFloats`, `openingGapTotal`), in the A4 print and the
+sessions opened that day with a float and an écart other than 0 (`openingFloats`, `openingGapTotal`), in the A4 print and the
 Excel sheet "Mouvements de caisse" too; the sessions list: the écart d'ouverture under the opening cash
-(`SessionDashboardDTO.openingGap`). A session verified before this step shows nothing of it.
+(`SessionDashboardDTO.openingGap`, an écart of 0 not shown). The session's details (`session` of `/{id}/details`) give the
+list's differences and écart. The verification's count always has the cash line, the cash method found by its type. A session verified before this step shows nothing of it.
 
 `db/3.2.0/update.sql` step 17 (the two tables and the index on `done_at`); Hibernate makes the tables at a start too.
 
