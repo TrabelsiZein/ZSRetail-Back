@@ -40,6 +40,7 @@ import com.digithink.zsretail.core.service.CompanyInformationService;
 import com.digithink.zsretail.store.dto.DayJournalDTO;
 import com.digithink.zsretail.store.dto.DayJournalDTO.JournalLine;
 import com.digithink.zsretail.store.dto.DayJournalDTO.MethodAmount;
+import com.digithink.zsretail.store.dto.SessionReportTicketDTO;
 import com.digithink.zsretail.store.dto.SessionReportTicketDTO.VatLine;
 
 /**
@@ -85,6 +86,44 @@ public class DayJournalService {
 	@Autowired
 	private CompanyInformationService companyInformationService;
 
+	/**
+	 * 3.2.0, POS machines step 5: the day's cash movements. A service built without it (a unit test of another rule) shows
+	 * none.
+	 */
+	@Autowired
+	private com.digithink.zsretail.store.cashmovement.service.CashMovementService cashMovementService;
+
+	/** The totals per type of the day's movements; null without any. */
+	static SessionReportTicketDTO.CashMovements cashMovementTotals(
+			List<com.digithink.zsretail.store.cashmovement.dto.CashMovementDTO> movements) {
+		if (movements.isEmpty()) {
+			return null;
+		}
+		SessionReportTicketDTO.CashMovements totals = new SessionReportTicketDTO.CashMovements();
+		BigDecimal apport = BigDecimal.ZERO.setScale(3);
+		BigDecimal prelevement = BigDecimal.ZERO.setScale(3);
+		BigDecimal depense = BigDecimal.ZERO.setScale(3);
+		for (com.digithink.zsretail.store.cashmovement.dto.CashMovementDTO m : movements) {
+			BigDecimal amount = bd(m.getAmount());
+			if ("APPORT".equals(m.getType())) {
+				totals.setApportCount(totals.getApportCount() + 1);
+				apport = apport.add(amount);
+			} else if ("PRELEVEMENT".equals(m.getType())) {
+				totals.setPrelevementCount(totals.getPrelevementCount() + 1);
+				prelevement = prelevement.add(amount);
+			} else {
+				totals.setDepenseCount(totals.getDepenseCount() + 1);
+				depense = depense.add(amount);
+			}
+		}
+		totals.setApportTotal(apport.doubleValue());
+		totals.setPrelevementTotal(prelevement.doubleValue());
+		totals.setDepenseTotal(depense.doubleValue());
+		totals.setInTotal(apport.doubleValue());
+		totals.setOutTotal(prelevement.add(depense).doubleValue());
+		return totals;
+	}
+
 	/** The journal without the gains (as before 3.1.2). */
 	@Transactional(readOnly = true)
 	public DayJournalDTO build(LocalDate date) {
@@ -105,7 +144,10 @@ public class DayJournalService {
 						from, to);
 		List<ReturnHeader> returns = returnHeaderRepository
 				.findByReturnDateGreaterThanEqualAndReturnDateLessThanOrderByReturnDateAsc(from, to);
-		if (finished.isEmpty() && cancelled.isEmpty() && returns.isEmpty()) {
+		// 3.2.0, POS machines step 5: the day's cash movements, by their own time (a day with only movements has a journal)
+		List<com.digithink.zsretail.store.cashmovement.dto.CashMovementDTO> movements = cashMovementService == null
+				? new ArrayList<>() : cashMovementService.linesOfDay(date);
+		if (finished.isEmpty() && cancelled.isEmpty() && returns.isEmpty() && movements.isEmpty()) {
 			throw new IllegalArgumentException("No ticket, return or cancelled ticket on " + date + ": no journal.");
 		}
 
@@ -126,6 +168,8 @@ public class DayJournalService {
 		DayJournalDTO dto = new DayJournalDTO();
 		dto.setDate(date);
 		dto.setStoreName(companyInformationService.get().getCompanyName());
+		dto.setCashMovements(movements);
+		dto.setCashMovementTotals(cashMovementTotals(movements));
 		List<JournalCosts.Result> gains = new ArrayList<>();
 		for (SalesHeader sale : finished) {
 			List<SalesLine> lines = linesByTicket.getOrDefault(sale.getId(), Collections.emptyList());

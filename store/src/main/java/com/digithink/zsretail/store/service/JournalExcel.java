@@ -124,8 +124,66 @@ public final class JournalExcel {
 			if (byMachine != null && byMachine.getPosMachines() != null) {
 				posMachines(workbook.createSheet("Postes de caisse"), byMachine, styles);
 			}
+			// 3.2.0, step 5: the day's cash movements, their own sheet (never journal lines)
+			if (journal.getCashMovements() != null && !journal.getCashMovements().isEmpty()) {
+				cashMovements(workbook.createSheet("Mouvements de caisse"), journal, styles);
+			}
 			return bytes(workbook);
 		}
+	}
+
+	// ─── Mouvements de caisse (3.2.0, POS machines step 5) ───────────
+
+	private static final String[] MOVEMENT_HEADERS = { "Heure", "N°", "Poste de caisse", "Session", "Caissier", "Type",
+			"Montant", "Note", "Autorisé par" };
+
+	/**
+	 * The sheet "Mouvements de caisse": the day's movements by their own time, an out amount negative, then a total row
+	 * per type and the net (in - out). Not journal lines: the journal sheet's payments still add up to its net.
+	 */
+	private static void cashMovements(Sheet sheet, DayJournalDTO journal, Styles styles) {
+		header(sheet, MOVEMENT_HEADERS, styles);
+		int r = 1;
+		for (com.digithink.zsretail.store.cashmovement.dto.CashMovementDTO m : journal.getCashMovements()) {
+			Row row = sheet.createRow(r++);
+			date(row, 0, m.getMovedAt(), styles.time);
+			text(row, 1, m.getNumber());
+			text(row, 2, machineLabel(m.getPosMachineName()));
+			text(row, 3, m.getSessionNumber());
+			text(row, 4, m.getCashierName());
+			text(row, 5, movementLabel(m.getType()));
+			amount(row, 6, "IN".equals(m.getDirection()) ? m.getAmount() : -m.getAmount(), styles.amount);
+			text(row, 7, m.getNote());
+			text(row, 8, m.getAuthorisedByName());
+		}
+		SessionReportTicketDTO.CashMovements t = journal.getCashMovementTotals();
+		if (t != null) {
+			r = movementTotal(sheet, r, "Total apports (" + t.getApportCount() + ")", t.getApportTotal(), styles);
+			r = movementTotal(sheet, r, "Total prélèvements (" + t.getPrelevementCount() + ")", -t.getPrelevementTotal(),
+					styles);
+			r = movementTotal(sheet, r, "Total dépenses (" + t.getDepenseCount() + ")", -t.getDepenseTotal(), styles);
+			movementTotal(sheet, r, "Net (entrées - sorties)", java.math.BigDecimal.valueOf(t.getInTotal())
+					.subtract(java.math.BigDecimal.valueOf(t.getOutTotal())).doubleValue(), styles);
+		}
+		autosize(sheet, MOVEMENT_HEADERS.length);
+	}
+
+	private static int movementTotal(Sheet sheet, int r, String label, Double value, Styles styles) {
+		Row row = sheet.createRow(r);
+		text(row, 0, label, styles.bold);
+		amount(row, 6, value, styles.boldAmount);
+		return r + 1;
+	}
+
+	/** The French name of a movement's type. */
+	static String movementLabel(String type) {
+		if ("APPORT".equals(type)) {
+			return "Apport";
+		}
+		if ("PRELEVEMENT".equals(type)) {
+			return "Prélèvement";
+		}
+		return "DEPENSE".equals(type) ? "Dépense" : type;
 	}
 
 	// ─── Par poste de caisse (3.2.0, POS machines step 3) ────────────
@@ -164,13 +222,15 @@ public final class JournalExcel {
 
 		// the subtotals
 		r = headerAt(sheet, r, new String[] { "Poste de caisse", "Sessions", "Tickets", "Annulés", "Total HT", "TVA",
-				"Timbre", "Total TTC", "Retours", "Net", "Fond de caisse" }, styles);
+				"Timbre", "Total TTC", "Retours", "Net", "Fond de caisse", "Apports", "Prélèvements", "Dépenses" }, styles);
 		for (PosMachineGroup group : ticket.getPosMachines()) {
 			r = subtotal(sheet.createRow(r), r, machineLabel(group.getPosMachineName()), group.getSessions().size(),
-					group.getSales(), group.getReturns(), group.getNetSales(), group.getOpeningCash(), styles, false);
+					group.getSales(), group.getReturns(), group.getNetSales(), group.getOpeningCash(),
+					group.getCashMovements(), styles, false);
 		}
 		r = subtotal(sheet.createRow(r), r, "Total magasin", ticket.getSessions().size(), ticket.getSales(),
-				ticket.getReturns(), ticket.getNetSales(), ticket.getOpeningCash(), styles, true);
+				ticket.getReturns(), ticket.getNetSales(), ticket.getOpeningCash(), ticket.getCashMovements(), styles,
+				true);
 		r++;
 
 		// the payments and the control per method
@@ -182,7 +242,7 @@ public final class JournalExcel {
 					styles, false);
 		}
 		methods(sheet, r, "Total magasin", ticket.getPayments(), ticket.getControl(), styles, true);
-		autosize(sheet, 11);
+		autosize(sheet, 14);
 	}
 
 	private static int headerAt(Sheet sheet, int r, String[] headers, Styles styles) {
@@ -194,7 +254,8 @@ public final class JournalExcel {
 	}
 
 	private static int subtotal(Row row, int r, String label, int sessions, SessionReportTicketDTO.Sales sales,
-			SessionReportTicketDTO.Returns returns, Double net, Double openingCash, Styles styles, boolean bold) {
+			SessionReportTicketDTO.Returns returns, Double net, Double openingCash,
+			SessionReportTicketDTO.CashMovements movements, Styles styles, boolean bold) {
 		CellStyle amount = bold ? styles.boldAmount : styles.amount;
 		text(row, 0, label, bold ? styles.bold : null);
 		count(row, 1, (long) sessions, bold ? styles.bold : null);
@@ -207,6 +268,12 @@ public final class JournalExcel {
 		amount(row, 8, returns.getTotalAmount(), amount);
 		amount(row, 9, net, amount);
 		amount(row, 10, openingCash, amount);
+		// 3.2.0, step 5: the cash movements of its sessions (empty cells without any)
+		if (movements != null) {
+			amount(row, 11, movements.getApportTotal(), amount);
+			amount(row, 12, movements.getPrelevementTotal(), amount);
+			amount(row, 13, movements.getDepenseTotal(), amount);
+		}
 		return r + 1;
 	}
 

@@ -35,6 +35,8 @@ import lombok.extern.log4j.Log4j2;
  * <li>else he passes the actions of his card's list when his own badge is valid (a code, not revoked, not expired),
  * except closing with a cash difference, which the server took from an admin or a badge only.</li>
  * </ul>
+ * The five are BadgePermission.STEP_C (the 3.2.0 cash movement is never given here: ZZDataInitializer and db/3.2.0 step
+ * 16 give it to ADMIN and RESPONSIBLE).
  * The role named ADMIN gets the five rights always (the 2.2.2 admin is never asked); a role without an active user gets
  * none. Rights are only added (a role created at this start keeps the five of its seed). The matrix is logged, the
  * retired setting row deleted, and the read-only row {@link #MARKER} written: the migration never runs again (the
@@ -117,7 +119,7 @@ public class TillRightsMigration {
 	/** The till rights of a role's permissions, short: "CL MR LD TD CS" in the enum's order, "-" for none. */
 	static String tillRightsOf(Collection<String> permissions) {
 		List<String> held = new ArrayList<>();
-		for (BadgePermission action : BadgePermission.values()) {
+		for (BadgePermission action : BadgePermission.STEP_C) {
 			if (permissions.contains(action.key())) {
 				held.add(action.key().substring("till:".length()));
 			}
@@ -134,7 +136,7 @@ public class TillRightsMigration {
 		Map<Long, Set<BadgePermission>> rights = new LinkedHashMap<>();
 		for (AppRole role : roles) {
 			if (ADMIN_ROLE.equals(role.getName())) {
-				rights.put(role.getId(), EnumSet.allOf(BadgePermission.class));
+				rights.put(role.getId(), EnumSet.copyOf(BadgePermission.STEP_C));
 				continue;
 			}
 			Set<BadgePermission> common = null;
@@ -158,7 +160,7 @@ public class TillRightsMigration {
 	/** The actions this user passed before step C without being asked for a badge (the rule of the class comment). */
 	static Set<BadgePermission> passedToday(Card card, boolean alwaysShow) {
 		if (card.admin) {
-			return EnumSet.allOf(BadgePermission.class);
+			return EnumSet.copyOf(BadgePermission.STEP_C);
 		}
 		if (alwaysShow || !card.validBadge) {
 			return EnumSet.noneOf(BadgePermission.class);
@@ -177,7 +179,7 @@ public class TillRightsMigration {
 		}
 		for (String token : list.split(",")) {
 			String name = token.trim();
-			for (BadgePermission action : BadgePermission.values()) {
+			for (BadgePermission action : BadgePermission.STEP_C) {
 				if (action.name().equals(name)) {
 					parsed.add(action);
 				}

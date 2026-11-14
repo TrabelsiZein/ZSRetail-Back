@@ -34,6 +34,16 @@ public class DayJournalDTO {
 
 	private Totals totals;
 
+	/**
+	 * 3.2.0, POS machines step 5: the day's cash movements by their own time (not journal lines: the payments of the
+	 * lines still add up to net), oldest first; empty without any.
+	 */
+	private List<com.digithink.zsretail.store.cashmovement.dto.CashMovementDTO> cashMovements = new ArrayList<>();
+
+	/** Their totals per type; absent without any. */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private SessionReportTicketDTO.CashMovements cashMovementTotals;
+
 	@Data
 	@NoArgsConstructor
 	public static class JournalLine {

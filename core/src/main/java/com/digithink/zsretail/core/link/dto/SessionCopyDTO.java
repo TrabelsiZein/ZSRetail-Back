@@ -59,4 +59,10 @@ public class SessionCopyDTO {
 	 * difference then. Empty: no scanned-tickets method in the session.
 	 */
 	private List<SessionScannedCopyDTO> scannedTickets;
+
+	/**
+	 * 3.2.0, POS machines step 5: the session's cash movements in and out (zeros without any). Null from a store before
+	 * 3.2.0: the head office counts no movement then, as before.
+	 */
+	private SessionCashMovementsCopyDTO cashMovements;
 }

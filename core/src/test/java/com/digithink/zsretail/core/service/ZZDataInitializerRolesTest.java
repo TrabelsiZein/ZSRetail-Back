@@ -138,6 +138,7 @@ class ZZDataInitializerRolesTest {
 		Set<String> expected = new HashSet<>(staticSet("ADMIN_PERMISSIONS"));
 		expected.add(CASHIER_INTERFACE);
 		expected.addAll(TILL_RIGHTS);
+		expected.add(CASH_MOVEMENT); // 3.2.0, POS machines step 5
 		expected.addAll(POS_MACHINES); // 3.2.0: the POS machines page, every store
 		if (standalone) {
 			expected.addAll(INVENTORY);
@@ -281,6 +282,28 @@ class ZZDataInitializerRolesTest {
 		assertTrue(Collections.disjoint(TILL_RIGHTS, staticSet("HEAD_OFFICE_ADMIN_PERMISSIONS")));
 	}
 
+	/** 3.2.0, POS machines step 5: the right to record a cash movement at the till. */
+	private static final String CASH_MOVEMENT = "till:cash-movement";
+
+	@Test
+	@DisplayName("3.2.0, step 5: till:cash-movement on ADMIN and RESPONSIBLE of a new store, never POS_USER; ADMIN of a store"
+			+ " of before gets it at the start; never on a head office")
+	void cashMovementRight() throws Exception {
+		assertEquals(Collections.singleton(CASH_MOVEMENT), staticSet("CASH_MOVEMENT_PERMISSIONS"));
+		assertFalse(TILL_RIGHTS.contains(CASH_MOVEMENT), "not one of the five of step C");
+		for (boolean[] flags : STORE_PROFILES) {
+			Map<String, AppRole> roles = seedRoles(new MockEnvironment(), flags[0], Collections.emptyMap());
+			assertTrue(roles.get("ADMIN").getPermissions().contains(CASH_MOVEMENT));
+			assertTrue(roles.get("RESPONSIBLE").getPermissions().contains(CASH_MOVEMENT));
+			assertFalse(roles.get("POS_USER").getPermissions().contains(CASH_MOVEMENT), "a cashier asks a badge");
+		}
+		Map<String, AppRole> before = existingRoles("read:home");
+		seedRoles(new MockEnvironment(), false, before, new ArrayList<>());
+		assertTrue(before.get("ADMIN").getPermissions().contains(CASH_MOVEMENT), "ADMIN of before, at the start");
+		Map<String, AppRole> headOffice = seedRoles(headOffice(), true, Collections.emptyMap());
+		assertFalse(headOffice.get("ADMIN").getPermissions().contains(CASH_MOVEMENT), "head office");
+	}
+
 	@Test
 	@DisplayName("Store linked to a head office (headoffice.url): ADMIN gets today's permissions plus read:admin-holink-status; other roles as today")
 	void linkedStoreAdminGetsHeadOfficeLink() throws Exception {
@@ -365,6 +388,7 @@ class ZZDataInitializerRolesTest {
 		before.addAll(API_CHECKED);
 		before.addAll(SCANNED_TICKETS);
 		before.addAll(POS_MACHINES);
+		before.add(CASH_MOVEMENT); // 3.2.0, step 5: given to ADMIN at each start
 		assertEquals(before, store.get("ADMIN").getPermissions());
 
 		// A head office of before (as Happyness): read:admin-headoffice-license with the other missing head office pages
@@ -433,6 +457,7 @@ class ZZDataInitializerRolesTest {
 		rfidStore.get("ADMIN").getPermissions().addAll(SCANNED_TICKETS);
 		rfidStore.get("ADMIN").getPermissions().addAll(RFID);
 		rfidStore.get("ADMIN").getPermissions().addAll(POS_MACHINES);
+		rfidStore.get("ADMIN").getPermissions().add(CASH_MOVEMENT); // 3.2.0, step 5: given to ADMIN at each start
 		List<String> saves = new ArrayList<>();
 		seedRoles(new MockEnvironment().withProperty("rfid.enabled", "true"), false, rfidStore, saves);
 		assertTrue(saves.isEmpty(), "saved: " + saves);
@@ -465,6 +490,7 @@ class ZZDataInitializerRolesTest {
 		expected.addAll(API_CHECKED);
 		expected.addAll(SCANNED_TICKETS);
 		expected.addAll(POS_MACHINES);
+		expected.add(CASH_MOVEMENT); // 3.2.0, step 5: given to ADMIN at each start
 		expected.addAll(RFID);
 		assertEquals(expected, existing.get("ADMIN").getPermissions());
 		List<String> nextStart = new ArrayList<>();
@@ -476,6 +502,7 @@ class ZZDataInitializerRolesTest {
 		offStore.get("ADMIN").getPermissions().addAll(API_CHECKED);
 		offStore.get("ADMIN").getPermissions().addAll(SCANNED_TICKETS);
 		offStore.get("ADMIN").getPermissions().addAll(POS_MACHINES);
+		offStore.get("ADMIN").getPermissions().add(CASH_MOVEMENT); // 3.2.0, step 5: given to ADMIN at each start
 		List<String> offSaves = new ArrayList<>();
 		seedRoles(new MockEnvironment(), false, offStore, offSaves);
 		assertTrue(offSaves.isEmpty(), "RFID off, saved: " + offSaves);
@@ -506,6 +533,7 @@ class ZZDataInitializerRolesTest {
 				expected.addAll(API_CHECKED);
 				expected.addAll(SCANNED_TICKETS);
 				expected.addAll(POS_MACHINES);
+				expected.add(CASH_MOVEMENT); // 3.2.0, step 5: given to ADMIN at each start
 				if (flags[0]) {
 					expected.addAll(INVENTORY);
 					expected.addAll(COST);
@@ -556,6 +584,7 @@ class ZZDataInitializerRolesTest {
 		toppedUp.addAll(API_CHECKED);
 		toppedUp.addAll(SCANNED_TICKETS);
 		toppedUp.addAll(POS_MACHINES);
+		toppedUp.add(CASH_MOVEMENT); // 3.2.0, step 5: given to ADMIN at each start
 		toppedUp.addAll(INVENTORY);
 		toppedUp.addAll(COST);
 		toppedUp.addAll(STORE_ORDERS);

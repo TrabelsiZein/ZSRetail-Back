@@ -331,12 +331,12 @@ class AppConfigAPITest {
 	}
 
 	@Test
-	@DisplayName("Step B: tillActions is the registry, the five BadgePermission constants with their till:* keys in order, on every store; empty on a head office")
+	@DisplayName("Step B: tillActions is the registry, the six BadgePermission constants (3.2.0: CASH_MOVEMENT) with their till:* keys in order, on every store; empty on a head office")
 	void tillActions() throws Exception {
 		List<String> codes = Arrays.asList("CONSULT_CUSTOMER_LIST", "MAKE_RETURN", "APPLY_LINE_DISCOUNT",
-				"APPLY_TOTAL_DISCOUNT", "CLOSE_SESSION_WITH_DISCREPANCY");
+				"APPLY_TOTAL_DISCOUNT", "CLOSE_SESSION_WITH_DISCREPANCY", "CASH_MOVEMENT");
 		List<String> keys = Arrays.asList("till:consult-customer-list", "till:make-return", "till:apply-line-discount",
-				"till:apply-total-discount", "till:close-session-with-discrepancy");
+				"till:apply-total-discount", "till:close-session-with-discrepancy", "till:cash-movement");
 		for (AppConfigDTO store : Arrays.asList(standalone(), dynamics(), linkedStore())) {
 			List<String> actualCodes = new ArrayList<>();
 			List<String> actualKeys = new ArrayList<>();
@@ -349,7 +349,7 @@ class AppConfigAPITest {
 			assertEquals(codes, actualCodes, "codes");
 			assertEquals(keys, actualKeys, "keys");
 			// step D: the customer list is the one action no request checks
-			assertEquals(Arrays.asList(false, true, true, true, true), actualChecked, "checkedOnRequest");
+			assertEquals(Arrays.asList(false, true, true, true, true, true), actualChecked, "checkedOnRequest");
 			for (BadgePermission action : BadgePermission.values()) {
 				assertEquals("till:" + action.name().toLowerCase().replace('_', '-'), action.key(), action.name());
 			}

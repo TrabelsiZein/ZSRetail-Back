@@ -181,7 +181,21 @@ public final class SalesCopyMapper {
 	 */
 	public static SessionCopyDTO session(CashierSession session, List<SessionCashCount> counts,
 			Map<String, ScannedTicketsSummary.Method> scanned) {
+		return session(session, counts, scanned, null);
+	}
+
+	/**
+	 * 3.2.0, POS machines step 5: the same with the session's cash movements in and out (cashMovements; zeros without
+	 * any). movements null: the field is left out (the head office then counts no movement, as for an older store).
+	 */
+	public static SessionCopyDTO session(CashierSession session, List<SessionCashCount> counts,
+			Map<String, ScannedTicketsSummary.Method> scanned,
+			com.digithink.zsretail.store.cashmovement.service.CashMovementTotals movements) {
 		SessionCopyDTO copy = new SessionCopyDTO();
+		if (movements != null) {
+			copy.setCashMovements(new com.digithink.zsretail.core.link.dto.SessionCashMovementsCopyDTO(
+					movements.getIn().doubleValue(), movements.getOut().doubleValue()));
+		}
 		copy.setSessionNumber(session.getSessionNumber());
 		copy.setStatus(name(session.getStatus()));
 		UserAccount cashier = session.getCashier();

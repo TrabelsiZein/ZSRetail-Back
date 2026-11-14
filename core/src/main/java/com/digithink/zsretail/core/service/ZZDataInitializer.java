@@ -204,6 +204,7 @@ public class ZZDataInitializer {
 			wanted.addAll(API_CHECKED_ADMIN_PERMISSIONS);
 			wanted.addAll(SCANNED_TICKETS_ADMIN_PERMISSIONS); // 3.2.0, step 7: the scanned tickets taken
 			wanted.addAll(POS_MACHINES_ADMIN_PERMISSIONS); // 3.2.0: the POS machines page, RFID or not
+			wanted.addAll(CASH_MOVEMENT_PERMISSIONS); // 3.2.0, POS machines step 5: the cash movements at the till
 			// 3.1.1: the "Head office" pages (Jobs, Communications, Data exchanged) on a store linked after its database was
 			// created (its ADMIN role was made without them)
 			if (applicationModeService.isHeadOfficeLinked()) {
@@ -278,6 +279,7 @@ public class ZZDataInitializer {
 		}
 		permissions.add("read:cashier-interface");
 		permissions.addAll(TILL_PERMISSIONS); // step C: the five till rights, on every role of a new store
+		permissions.addAll(CASH_MOVEMENT_PERMISSIONS); // 3.2.0, POS machines step 5
 		permissions.addAll(POS_MACHINES_ADMIN_PERMISSIONS); // 3.2.0: the POS machines page, RFID or not
 		if (!applicationModeService.isSupplyFromErp()) {
 			permissions.addAll(INVENTORY_ADMIN_PERMISSIONS);
@@ -305,8 +307,16 @@ public class ZZDataInitializer {
 	 * database, the cashier's included (the store restricts them on the Roles page). Never on a head office (no till),
 	 * never added to a role of before at a start: TillRightsMigration gives those once, from the users' badges.
 	 */
-	static final Set<String> TILL_PERMISSIONS = Arrays.stream(BadgePermission.values()).map(BadgePermission::key)
+	static final Set<String> TILL_PERMISSIONS = BadgePermission.STEP_C.stream().map(BadgePermission::key)
 			.collect(Collectors.toCollection(HashSet::new));
+
+	/**
+	 * 3.2.0, POS machines step 5: the right to record a cash movement (till:cash-movement). ADMIN and RESPONSIBLE of a new
+	 * store database; ADMIN of every store at each start (an administrator is never asked for a badge for it); a role of
+	 * before gets it from db/3.2.0/update.sql step 16 (ADMIN and RESPONSIBLE). Never the cashier's by default.
+	 */
+	static final Set<String> CASH_MOVEMENT_PERMISSIONS = new HashSet<>(
+			Arrays.asList(BadgePermission.CASH_MOVEMENT.key()));
 
 	/**
 	 * Head office only: one permission per head office route, "read:" + the route's meta.resource in ZSRetail-Front
@@ -485,6 +495,7 @@ public class ZZDataInitializer {
 					"read:verify-session", "read:admin-scanned-tickets"));
 	static {
 		RESPONSIBLE_PERMISSIONS.addAll(TILL_PERMISSIONS); // step C: a role of a store only
+		RESPONSIBLE_PERMISSIONS.addAll(CASH_MOVEMENT_PERMISSIONS); // 3.2.0, POS machines step 5 (not the cashier's)
 	}
 
 	private static final java.util.Set<String> POS_PERMISSIONS = new java.util.HashSet<>(

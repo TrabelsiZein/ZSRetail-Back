@@ -4,7 +4,10 @@ The design of 3.1.0 (till authorisation, steps S to E). A till right belongs to 
 lends its owner's role rights at the till; the server checks the rights on the requests that do the actions, and logs
 every pass. The history of the steps is at the end.
 
-## The five actions
+## The six actions
+
+Five since 3.1.0 (step C: `BadgePermission.STEP_C`), the sixth, `CASH_MOVEMENT`, since 3.2.0 (POS machines step 5:
+`cash-sessions.md`, "Cash movements").
 
 `BadgePermission` (core) is the one registry: the constant name is what the database stores and what the till sends,
 `key()` the role permission, `checkedOnRequest()` whether one request does the action (step D). `GET /config` serves
@@ -18,6 +21,7 @@ list of its own (labels: i18n `pos.badge.permissions.<code lower case>`).
 | `APPLY_LINE_DISCOUNT` | `till:apply-line-discount` | the line discount dialog (till) | each manual line discount of a sale or pending request |
 | `APPLY_TOTAL_DISCOUNT` | `till:apply-total-discount` | the total discount dialog (payment page) | the manual header discount of a sale or pending request |
 | `CLOSE_SESSION_WITH_DISCREPANCY` | `till:close-session-with-discrepancy` | closing a session whose counted cash differs from the expected cash | the close |
+| `CASH_MOVEMENT` (3.2.0) | `till:cash-movement` | the till's "Mouvement de caisse" (cash out of / into the drawer) | `POST /cash-movement` (`TillRightsGuard.checkCashMovement`: the role, else the grant; the movement keeps who authorised it) |
 
 ## The rights are the role's
 
@@ -28,6 +32,11 @@ list of its own (labels: i18n `pos.badge.permissions.<code lower case>`).
   the role on each request, has the last word (a 403 asks for a badge).
 - A new store database gives the five rights to every role (ADMIN, RESPONSIBLE, POS_USER: `ZZDataInitializer`
   `TILL_PERMISSIONS`); a store restricts them on the Roles page. A head office has none.
+- 3.2.0, `till:cash-movement`: ADMIN and RESPONSIBLE of a new store database, never POS_USER (a cashier asks a badge);
+  ADMIN of every store at each start (`CASH_MOVEMENT_PERMISSIONS`, `addMissingPermissions`); the roles ADMIN and
+  RESPONSIBLE of a database of before from `db/3.2.0/update.sql` step 16. The migration of step C
+  (`TillRightsMigration`) gives the five only, never this one. Listed on the Roles page in "Actions de caisse" with the
+  five (from `tillActions`).
 - **Administrator** (step E): the user of the system role named `ADMIN` (`core.security.SystemRoles`; the frontend's
   `isAdminUser` in `@/auth/utils`). A custom role is never one, whatever its permissions. The administrator has no
   till exception: he passes because his role holds the five rights. He alone gives or removes the ADMIN role, and opens

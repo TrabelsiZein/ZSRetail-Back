@@ -185,6 +185,23 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   active users; a field not sent keeps the machine's value, so no save (a rename included) turns "Seulement" into "Tous";
   "Tous" keeps no list. No foreign key to `user_account` (core deletes a user and knows no store table). Tests:
   `CashierSessionPosMachineTest` (+7).
+- POS machines, step 5, cash movements (`docs/modules/cash-sessions.md`, "Cash movements"): `POST /cash-movement`
+  (`store.cashmovement`) records PRELEVEMENT / DEPENSE (note required) / APPORT on the logged user's own open session
+  (amount above 0 to the millime; never edited or deleted; numbered `<session>-Mnn`; who did it and who authorised it).
+  The sixth till action `CASH_MOVEMENT` (`till:cash-movement`, checked on the request by
+  `TillRightsGuard.checkCashMovement`: the role or a badge grant, logged as the others); with the drawer of the POS
+  machine, refused from another PC as a sale (`PosMachineSellingGuard`, 409). The expected cash
+  (`calculateRealCash`) adds the apports and subtracts the prélèvements and the dépenses; the sessions list's
+  differences and the head office's follow. Session ticket X / Z, store ticket X / Z (store, one POS machine, groups):
+  the block `cashMovements` (absent without any). The Journal's day: the movements by their own time and their totals
+  (`DayJournalDTO.cashMovements`), never journal lines; a day with only a movement has a journal; its Excel a sheet
+  "Mouvements de caisse", "Postes de caisse" columns Apports / Prélèvements / Dépenses. Session details:
+  `cashMovements`. Head office: the session copy's optional `cashMovements {inTotal, outTotal}`
+  (`SessionCashMovementsCopyDTO`, `ho_session.cash_movements_in/out`); a copy without it counts none. Nothing to the
+  ERP (the session export sends the payments only). Rights: ADMIN and RESPONSIBLE of a new store (never POS_USER),
+  ADMIN at each start; `BadgePermission.STEP_C` keeps the step C seed and its migration at the five. Tests:
+  `CashMovementTest` (10) and one each in `DayJournalServiceTest`, `SalesCopyMapperTest`,
+  `ConsolidatedSalesServiceTest`, `ZZDataInitializerRolesTest`; `PosMachineSellingGuardTest` classes the endpoint.
 
 ### Fixes
 - `POST /cashier-session/close` with a body without `cashCountLines` (the old `{"actualCash": 50, "notes": "..."}`, or
@@ -246,7 +263,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   default 0, "Tous les utilisateurs" for every existing machine; when Hibernate added it first, nullable, its empty rows
   are set to 0, then the default and NOT NULL) and the table `pos_machine_user` (`pos_machine_id`, `user_account_id`,
   primary key on both, `fk_pos_machine_user_machine` to `pos_machine`, no foreign key to `user_account`). Separate
-  batches; parsed with `SET PARSEONLY ON`, not run.
+  batches; parsed with `SET PARSEONLY ON`, not run. Step 16 (POS machines step 5): a store, the table `cash_movement`
+  (Hibernate's form: `uk_cash_movement_number`, `fk_cash_movement_session`, `fk_cash_movement_done_by`,
+  `fk_cash_movement_authorised_by`, indexes `ix_cash_movement_session`, `ix_cash_movement_moved_at`) and
+  `till:cash-movement` given to the roles ADMIN and RESPONSIBLE where missing (a role removed from it gets it back only
+  if the script runs again); a head office, `ho_session.cash_movements_in` and `cash_movements_out` (float, nullable).
+  Parsed with `SET PARSEONLY ON`, not run.
 
 ### Config
 - Table management leaves General setup (`docs/modules/table-management.md`): the properties

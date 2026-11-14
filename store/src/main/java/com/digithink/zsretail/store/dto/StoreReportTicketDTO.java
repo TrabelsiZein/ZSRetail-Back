@@ -59,6 +59,13 @@ public class StoreReportTicketDTO {
 	private List<ScannedTickets> scannedTickets = new ArrayList<>();
 
 	/**
+	 * 3.2.0, POS machines step 5: MOUVEMENTS DE CAISSE, the sessions' cash movements added up per type; absent from the
+	 * JSON when none of the sessions has one.
+	 */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private SessionReportTicketDTO.CashMovements cashMovements;
+
+	/**
 	 * Z only (null on a ticket X): how many of the sessions had a payment method changed after their closing (the
 	 * session ticket's modifiedAfterClosing).
 	 */
@@ -105,6 +112,9 @@ public class StoreReportTicketDTO {
 		private Double openingCash;
 		private List<ControlLine> control = new ArrayList<>();
 		private List<ScannedTickets> scannedTickets = new ArrayList<>();
+		/** 3.2.0, step 5: its sessions' cash movements added up; absent without any. */
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private SessionReportTicketDTO.CashMovements cashMovements;
 		/** Z only, null on a ticket X. */
 		private Long modifiedAfterClosingCount;
 	}

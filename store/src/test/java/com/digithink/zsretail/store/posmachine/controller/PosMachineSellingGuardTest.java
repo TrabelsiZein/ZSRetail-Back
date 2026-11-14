@@ -28,6 +28,7 @@ import org.springframework.web.servlet.handler.MappedInterceptor;
 import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.model.enumeration.SessionStatus;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.store.cashmovement.controller.CashMovementAPI;
 import com.digithink.zsretail.store.controller.CashierSessionAPI;
 import com.digithink.zsretail.store.controller.ReturnHeaderAPI;
 import com.digithink.zsretail.store.controller.SalesHeaderAPI;
@@ -100,7 +101,7 @@ class PosMachineSellingGuardTest {
 	@DisplayName("Endpoint guard: every write endpoint of SalesHeaderAPI and ReturnHeaderAPI is restricted or not, never both,"
 			+ " and every name classed is an endpoint")
 	void everyEndpointClassed() {
-		for (Class<?> controller : Arrays.asList(SalesHeaderAPI.class, ReturnHeaderAPI.class)) {
+		for (Class<?> controller : Arrays.asList(SalesHeaderAPI.class, ReturnHeaderAPI.class, CashMovementAPI.class)) {
 			Set<String> mapped = writeMappings(controller);
 			Set<String> restricted = PosMachineSellingGuard.RESTRICTED.get(controller);
 			Set<String> notRestricted = PosMachineSellingGuard.NOT_RESTRICTED.get(controller);
@@ -177,6 +178,9 @@ class PosMachineSellingGuardTest {
 		}
 		assertEquals(PosMachineSellingGuard.RESTRICTED.get(SalesHeaderAPI.class).size(), refused.size(), "all refused");
 		assertEquals(409, call(ReturnHeaderAPI.class, "processReturn", "192.168.1.99").getStatus(), "an unregistered PC too");
+		// 3.2.0, step 5: a cash movement, as a sale: the same 409 from another PC, passed from the session's machine
+		assertEquals(409, call(CashMovementAPI.class, "record", "192.168.1.12").getStatus(), "a cash movement");
+		assertEquals(null, call(CashMovementAPI.class, "record", "192.168.1.11"), "from the session's POS machine");
 		for (String name : PosMachineSellingGuard.NOT_RESTRICTED.get(SalesHeaderAPI.class)) {
 			assertEquals(null, call(SalesHeaderAPI.class, name, "192.168.1.12"), name);
 		}

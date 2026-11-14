@@ -47,7 +47,10 @@ import com.digithink.zsretail.core.support.TestModes;
  */
 public class TillRightsMigrationTest {
 
-	private static final Set<BadgePermission> ALL = EnumSet.allOf(BadgePermission.class);
+	/** The five actions of step C, the only ones the migration gives (3.2.0: never CASH_MOVEMENT). */
+	private static final BadgePermission[] STEP_C = BadgePermission.STEP_C.toArray(new BadgePermission[0]);
+
+	private static final Set<BadgePermission> ALL = EnumSet.copyOf(BadgePermission.STEP_C);
 	private static final Set<BadgePermission> NONE = EnumSet.noneOf(BadgePermission.class);
 
 	private static Set<BadgePermission> of(BadgePermission... actions) {
@@ -74,7 +77,7 @@ public class TillRightsMigrationTest {
 	void adminAndSetting() {
 		assertEquals(ALL, TillRightsMigration.passedToday(card(1L, true, true, false), false));
 		assertEquals(ALL, TillRightsMigration.passedToday(card(1L, true, true, false), true));
-		assertEquals(NONE, TillRightsMigration.passedToday(card(2L, true, false, true, BadgePermission.values()), true));
+		assertEquals(NONE, TillRightsMigration.passedToday(card(2L, true, false, true, STEP_C), true));
 	}
 
 	@Test
@@ -82,10 +85,10 @@ public class TillRightsMigrationTest {
 	void cardListWithAValidBadge() {
 		assertEquals(of(BadgePermission.CONSULT_CUSTOMER_LIST, BadgePermission.MAKE_RETURN,
 				BadgePermission.APPLY_LINE_DISCOUNT, BadgePermission.APPLY_TOTAL_DISCOUNT),
-				TillRightsMigration.passedToday(card(2L, true, false, true, BadgePermission.values()), false));
+				TillRightsMigration.passedToday(card(2L, true, false, true, STEP_C), false));
 		assertEquals(of(BadgePermission.MAKE_RETURN), TillRightsMigration.passedToday(
 				card(2L, true, false, true, BadgePermission.MAKE_RETURN), false));
-		assertEquals(NONE, TillRightsMigration.passedToday(card(2L, true, false, false, BadgePermission.values()), false));
+		assertEquals(NONE, TillRightsMigration.passedToday(card(2L, true, false, false, STEP_C), false));
 		assertEquals(NONE, TillRightsMigration.passedToday(card(2L, true, false, true), false));
 	}
 
@@ -106,13 +109,13 @@ public class TillRightsMigrationTest {
 		AppRole cashier = role(3, "POS_USER");
 		AppRole empty = role(4, "VIDE");
 		List<Card> cards = Arrays.asList(
-				card(2L, true, false, true, BadgePermission.values()),
+				card(2L, true, false, true, STEP_C),
 				card(2L, true, false, true, BadgePermission.MAKE_RETURN, BadgePermission.APPLY_TOTAL_DISCOUNT,
 						BadgePermission.CONSULT_CUSTOMER_LIST),
 				card(2L, false, false, false), // inactive, no badge: ignored
 				card(3L, true, false, false, BadgePermission.MAKE_RETURN), // a cashier without a badge
 				card(3L, true, false, true, BadgePermission.MAKE_RETURN),
-				card(4L, false, true, true, BadgePermission.values()), // the only user of VIDE is inactive
+				card(4L, false, true, true, STEP_C), // the only user of VIDE is inactive
 				card(null, true, true, true)); // no role: ignored
 
 		Map<Long, Set<BadgePermission>> rights = TillRightsMigration.rightsByRole(
@@ -143,7 +146,7 @@ public class TillRightsMigrationTest {
 		assertEquals("-", TillRightsMigration.tillRightsOf(Collections.singleton("read:home")));
 		assertEquals("consult-customer-list make-return apply-line-discount apply-total-discount"
 				+ " close-session-with-discrepancy", TillRightsMigration.tillRightsOf(
-						Arrays.stream(BadgePermission.values()).map(BadgePermission::key).collect(Collectors.toList())));
+						Arrays.stream(STEP_C).map(BadgePermission::key).collect(Collectors.toList())));
 		assertEquals("make-return apply-total-discount", TillRightsMigration.tillRightsOf(Arrays.asList(
 				"till:apply-total-discount", "read:home", "till:make-return")));
 	}
@@ -276,7 +279,7 @@ public class TillRightsMigrationTest {
 
 		run.migration(jdbc, TestModes.standalone()).run();
 
-		assertEquals(keys(BadgePermission.values()), run.tillRights("ADMIN"));
+		assertEquals(keys(STEP_C), run.tillRights("ADMIN"));
 		assertEquals(keys(BadgePermission.CONSULT_CUSTOMER_LIST, BadgePermission.MAKE_RETURN,
 				BadgePermission.APPLY_TOTAL_DISCOUNT), run.tillRights("RESPONSIBLE"));
 		assertEquals(Collections.emptySet(), run.tillRights("POS_USER"));
@@ -304,7 +307,7 @@ public class TillRightsMigrationTest {
 
 		run.migration(jdbc, TestModes.standalone()).run();
 
-		assertEquals(keys(BadgePermission.values()), run.tillRights("ADMIN"));
+		assertEquals(keys(STEP_C), run.tillRights("ADMIN"));
 		for (String other : new String[] { "RESPONSIBLE", "POS_USER", "CONTROLE", "VIDE" }) {
 			assertEquals(Collections.emptySet(), run.tillRights(other), other);
 		}
@@ -332,14 +335,14 @@ public class TillRightsMigrationTest {
 	void onlyAdded() {
 		JdbcTemplate jdbc = database(true);
 		Run run = new Run();
-		run.roles.add(role(1, "ADMIN", keys(BadgePermission.values()).toArray(new String[0])));
-		run.roles.add(role(3, "POS_USER", keys(BadgePermission.values()).toArray(new String[0])));
+		run.roles.add(role(1, "ADMIN", keys(STEP_C).toArray(new String[0])));
+		run.roles.add(role(3, "POS_USER", keys(STEP_C).toArray(new String[0])));
 		run.roles.forEach(role -> roleRow(jdbc, role));
 		user(jdbc, 3L, true, null, null, false, null, "POS_USER"); // asked for a badge today
 
 		run.migration(jdbc, TestModes.standalone()).run();
 
-		assertEquals(keys(BadgePermission.values()), run.tillRights("POS_USER"), "nothing removed");
+		assertEquals(keys(STEP_C), run.tillRights("POS_USER"), "nothing removed");
 		assertTrue(run.savedRoles.isEmpty(), "saved: " + run.savedRoles);
 		assertTrue(run.settings.containsKey(TillRightsMigration.MARKER));
 	}
@@ -364,7 +367,7 @@ public class TillRightsMigrationTest {
 		assertTrue(cards.get(1).listed.isEmpty());
 
 		migration.run();
-		assertEquals(keys(BadgePermission.values()), run.tillRights("ADMIN"));
+		assertEquals(keys(STEP_C), run.tillRights("ADMIN"));
 		assertEquals(Collections.emptySet(), run.tillRights("RESPONSIBLE"));
 	}
 

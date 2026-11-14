@@ -167,6 +167,43 @@ public class TillRightsGuard {
 	}
 
 	/**
+	 * 3.2.0, POS machines step 5: a cash movement. The logged user's role holds CASH_MOVEMENT → it passes, logged (ROLE),
+	 * authorised by the user; else a valid grant of a badge scan for this session → it passes, the grant used and the
+	 * pass logged (BADGE), authorised by the badge's owner; else {@link TillRightRequiredException} (403).
+	 */
+	public Pass checkCashMovement(String token, UserAccount user, CashierSession session, String ref) {
+		BadgePermission action = BadgePermission.CASH_MOVEMENT;
+		if (badgeService.roleHolds(user, action)) {
+			badgeService.logRolePass(user, action, idOf(session));
+			return new Pass(com.digithink.zsretail.core.model.enumeration.GrantedBy.ROLE, user);
+		}
+		TillGrant grant = tillGrantService.valid(token, action, idOf(session), null);
+		tillGrantService.consume(grant, ref, null);
+		badgeService.logBadgePass(grant.getScannedBy(), grant.getBadgeOwner(), grant.getBadgeCode(), action,
+				idOf(session));
+		return new Pass(com.digithink.zsretail.core.model.enumeration.GrantedBy.BADGE, grant.getBadgeOwner());
+	}
+
+	/** 3.2.0, step 5: how a cash movement passed: ROLE (the user himself) or BADGE (the badge's owner). */
+	public static final class Pass {
+		private final com.digithink.zsretail.core.model.enumeration.GrantedBy grantedBy;
+		private final UserAccount authorisedBy;
+
+		public Pass(com.digithink.zsretail.core.model.enumeration.GrantedBy grantedBy, UserAccount authorisedBy) {
+			this.grantedBy = grantedBy;
+			this.authorisedBy = authorisedBy;
+		}
+
+		public com.digithink.zsretail.core.model.enumeration.GrantedBy getGrantedBy() {
+			return grantedBy;
+		}
+
+		public UserAccount getAuthorisedBy() {
+			return authorisedBy;
+		}
+	}
+
+	/**
 	 * Closing a session with a cash difference. True when it passes: the logged user confirmed the difference and his
 	 * role holds the right (ROLE), or a valid grant came (BADGE, used). False when neither a confirmation nor a grant
 	 * came: the caller shows the difference (CASH_DISCREPANCY). {@link TillRightRequiredException} when a confirmation

@@ -142,6 +142,9 @@ final class HoSalesCopyMapper {
 		target.setRealCash(copy.getRealCash());
 		target.setPosUserClosureCash(copy.getPosUserClosureCash());
 		target.setResponsibleClosureCash(copy.getResponsibleClosureCash());
+		// 3.2.0, step 5: the session's cash movements in and out; an older copy has none (null: no movement counted)
+		target.setCashMovementsIn(copy.getCashMovements() != null ? copy.getCashMovements().getInTotal() : null);
+		target.setCashMovementsOut(copy.getCashMovements() != null ? copy.getCashMovements().getOutTotal() : null);
 		target.setVerifiedByLogin(copy.getVerifiedByLogin());
 		target.setVerifiedByName(copy.getVerifiedByName());
 		target.setVerifiedAt(copy.getVerifiedAt());

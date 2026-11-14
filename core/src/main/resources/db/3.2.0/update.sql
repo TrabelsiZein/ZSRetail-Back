@@ -317,6 +317,59 @@ BEGIN
 END
 GO
 
+-- 16) POS machines step 5, the cash movements (cash taken out of / put into the drawer). A store (quick_quantity): the
+-- table cash_movement in Hibernate's form (constraints and indexes named as in the entity CashMovement), and the right
+-- till:cash-movement given to the roles ADMIN and RESPONSIBLE where they lack it (never POS_USER: a cashier asks a
+-- badge; a role removed from it on the Roles page gets it back only if this script runs again). A head office
+-- (ho_session): the two columns of the session copies' movements, in and out, nullable (a copy of before has none).
+-- Hibernate creates the table and the columns at a start too (the table without its indexes). No other data changed.
+IF OBJECT_ID(N'quick_quantity', N'U') IS NOT NULL AND OBJECT_ID(N'cash_movement', N'U') IS NULL
+BEGIN
+	CREATE TABLE cash_movement (
+		id bigint IDENTITY(1,1) NOT NULL,
+		active bit NULL,
+		created_at datetime2 NULL,
+		created_by varchar(255) NULL,
+		updated_at datetime2 NULL,
+		updated_by varchar(255) NULL,
+		movement_number varchar(40) NOT NULL,
+		cashier_session_id bigint NOT NULL,
+		type varchar(20) NOT NULL,
+		amount float NOT NULL,
+		note varchar(255) NULL,
+		done_by_id bigint NOT NULL,
+		authorised_by_id bigint NOT NULL,
+		granted_by varchar(10) NOT NULL,
+		moved_at datetime2 NOT NULL,
+		CONSTRAINT PK_cash_movement PRIMARY KEY (id),
+		CONSTRAINT uk_cash_movement_number UNIQUE (movement_number),
+		CONSTRAINT fk_cash_movement_session FOREIGN KEY (cashier_session_id) REFERENCES cashier_session (id),
+		CONSTRAINT fk_cash_movement_done_by FOREIGN KEY (done_by_id) REFERENCES user_account (id),
+		CONSTRAINT fk_cash_movement_authorised_by FOREIGN KEY (authorised_by_id) REFERENCES user_account (id)
+	);
+END
+GO
+IF OBJECT_ID(N'cash_movement', N'U') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_cash_movement_session' AND object_id = OBJECT_ID(N'cash_movement'))
+	CREATE INDEX ix_cash_movement_session ON cash_movement (cashier_session_id);
+GO
+IF OBJECT_ID(N'cash_movement', N'U') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_cash_movement_moved_at' AND object_id = OBJECT_ID(N'cash_movement'))
+	CREATE INDEX ix_cash_movement_moved_at ON cash_movement (moved_at);
+GO
+IF OBJECT_ID(N'quick_quantity', N'U') IS NOT NULL
+	INSERT INTO app_role_permission (role_id, permission_key)
+	SELECT r.id, 'till:cash-movement' FROM app_role r
+	WHERE r.name IN ('ADMIN', 'RESPONSIBLE')
+		AND NOT EXISTS (SELECT 1 FROM app_role_permission p WHERE p.role_id = r.id AND p.permission_key = 'till:cash-movement');
+GO
+IF OBJECT_ID(N'ho_session', N'U') IS NOT NULL AND COL_LENGTH('ho_session', 'cash_movements_in') IS NULL
+	ALTER TABLE ho_session ADD cash_movements_in float NULL;
+GO
+IF OBJECT_ID(N'ho_session', N'U') IS NOT NULL AND COL_LENGTH('ho_session', 'cash_movements_out') IS NULL
+	ALTER TABLE ho_session ADD cash_movements_out float NULL;
+GO
+
 UPDATE APP_VERSION SET version = '3.2.0';
 
 -- The notes of 3.2.0 are written again on each run (the script may run more than once). Written from CHANGELOG.md when

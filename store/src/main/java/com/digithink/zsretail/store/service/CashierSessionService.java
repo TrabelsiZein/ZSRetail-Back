@@ -197,7 +197,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	 * expected cash amount based on transactions. Can be used for both OPENED and
 	 * CLOSED sessions.
 	 * 
-	 * Formula: realCash = openingCash + cash sales - change given - simple returns
+	 * Formula: realCash = openingCash + cash sales - change given - simple returns (3.2.0, step 5: + cash movements in - out)
 	 * (cash refunds)
 	 * 
 	 * Note: - real_cash = realCash (calculated expected amount based on
@@ -244,9 +244,26 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			}
 		}
 
+		// 3.2.0, POS machines step 5: the cash movements: + the apports, - the prélèvements and the dépenses
+		realCash += cashMovementNet(session);
+
 		// 3.1.0 (test log I-07): to the millime, as stored, so the closing check compares the same value (no 0.0002)
 		return Quantities.roundAmount(realCash);
 	}
+
+	/**
+	 * 3.2.0, POS machines step 5: the session's cash movements in - out (0 without any). Also the sessions list's system
+	 * amount (getSessionHistory). A service built without the repository (a unit test of another rule) counts none.
+	 */
+	double cashMovementNet(CashierSession session) {
+		return cashMovementRepository == null || session == null ? 0.0
+				: com.digithink.zsretail.store.cashmovement.service.CashMovementTotals
+						.of(cashMovementRepository.findByCashierSessionOrderByMovedAtAsc(session)).getNet().doubleValue();
+	}
+
+	/** 3.2.0, POS machines step 5: the cash movements of the sessions (the expected cash, the details). */
+	@Autowired
+	private com.digithink.zsretail.store.cashmovement.repository.CashMovementRepository cashMovementRepository;
 
 	/**
 	 * Recompute and persist the expected cash (realCash) for a CLOSED session. For an
@@ -773,8 +790,10 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			Double realCash = session.getRealCash() != null && session.getStatus() == SessionStatus.CLOSED
 					? session.getRealCash()
 					: calculatedRealCash;
+			// 3.2.0, step 5: the system side adds the cash movements in - out (as the expected cash)
 			return SessionDashboardDTO.fromEntity(session, salesCount, totalSalesAmount, returnsCount,
-					totalReturnsAmount, simpleReturnsAmount, voucherReturnsAmount, realCash, scannedFaceGap(session));
+					totalReturnsAmount, simpleReturnsAmount, voucherReturnsAmount, realCash,
+					scannedFaceGap(session) + cashMovementNet(session));
 		}).collect(Collectors.toList());
 		// 3.2.0, POS machines step 2: the POS machine of each session of the page, one query
 		Map<Long, String> machineNames = sessionPosMachineService
@@ -977,6 +996,13 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		response.put("paymentHeaders", paymentHeaders);
 		response.put("paymentSummary", paymentSummary);
 		response.put("hasPerMethodRespClosure", hasPerMethodRespClosure);
+		// 3.2.0, POS machines step 5: the session's cash movements, oldest first (the cash line above holds them through
+		// the expected cash)
+		String machineName = sessionPosMachineService != null ? sessionPosMachineService.nameOf(session.getId()) : null;
+		response.put("cashMovements", cashMovementRepository == null ? new ArrayList<>()
+				: cashMovementRepository.findByCashierSessionOrderByMovedAtAsc(session).stream()
+						.map(m -> com.digithink.zsretail.store.cashmovement.service.CashMovementService.dto(m, machineName))
+						.collect(Collectors.toList()));
 
 		return response;
 	}

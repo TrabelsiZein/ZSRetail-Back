@@ -19,6 +19,6 @@ public class PosMachineWebConfig implements WebMvcConfigurer {
 
 	@Override
 	public void addInterceptors(InterceptorRegistry registry) {
-		registry.addInterceptor(guard).addPathPatterns("/sales-header/**", "/return-header/**");
+		registry.addInterceptor(guard).addPathPatterns("/sales-header/**", "/return-header/**", "/cash-movement/**");
 	}
 }

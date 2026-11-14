@@ -48,6 +48,8 @@ import com.digithink.zsretail.store.model.SessionCashCount;
 import com.digithink.zsretail.store.repository.PaymentChangeLogRepository;
 import com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository;
 import com.digithink.zsretail.store.repository.SessionCashCountRepository;
+import com.digithink.zsretail.store.cashmovement.repository.CashMovementRepository;
+import com.digithink.zsretail.store.cashmovement.service.CashMovementTotals;
 import com.digithink.zsretail.store.posmachine.service.SessionPosMachineService;
 
 /**
@@ -109,6 +111,23 @@ public class SessionReportService {
 	/** 3.2.0, POS machines step 2: the POS machine of the session, in the ticket's header. */
 	@Autowired
 	private SessionPosMachineService sessionPosMachineService;
+
+	/**
+	 * 3.2.0, POS machines step 5: the session's cash movements. A service built without it (a unit test of another rule)
+	 * counts none.
+	 */
+	@Autowired
+	private CashMovementRepository cashMovementRepository;
+
+	/** The block of these totals; null without any movement (the block is absent). */
+	public static SessionReportTicketDTO.CashMovements cashMovements(CashMovementTotals totals) {
+		if (totals == null || totals.isEmpty()) {
+			return null;
+		}
+		return new SessionReportTicketDTO.CashMovements(totals.getApportCount(), totals.getApportTotal().doubleValue(),
+				totals.getPrelevementCount(), totals.getPrelevementTotal().doubleValue(), totals.getDepenseCount(),
+				totals.getDepenseTotal().doubleValue(), totals.getIn().doubleValue(), totals.getOut().doubleValue());
+	}
 
 	/** The ticket X or Z of a session; IllegalArgumentException when the session does not exist. */
 	@Transactional(readOnly = true)
@@ -188,6 +207,10 @@ public class SessionReportService {
 			dto.getControl().add(withTickets(controlLine(key, methods, expected.getOrDefault(key, 0.0), counted),
 					methods, expectedTickets, counted != null ? posTickets : null));
 		}
+
+		// 3.2.0, POS machines step 5: MOUVEMENTS DE CAISSE (none: absent); the cash line above holds them already
+		dto.setCashMovements(cashMovements(cashMovementRepository == null ? null
+				: CashMovementTotals.of(cashMovementRepository.findByCashierSessionOrderByMovedAtAsc(session))));
 
 		if (session.getStatus() == SessionStatus.TERMINATED) {
 			Verification verification = verification(session, keys, methods, expected, respCounted);

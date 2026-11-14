@@ -21,6 +21,7 @@ import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.store.controller.ReturnHeaderAPI;
 import com.digithink.zsretail.store.controller.SalesHeaderAPI;
+import com.digithink.zsretail.store.cashmovement.controller.CashMovementAPI;
 import com.digithink.zsretail.store.posmachine.model.PosMachine;
 import com.digithink.zsretail.store.posmachine.service.SessionPosMachineService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,7 +31,7 @@ import lombok.extern.log4j.Log4j2;
 /**
  * 3.2.0, POS machines step 2, part B, rule 3: when the drawer belongs to the POS machine, a user whose open session has
  * a POS machine sells, puts a sale on hold and returns only from that machine's address. One check in front of the
- * selling endpoints (registered on /sales-header/** and /return-header/** by PosMachineWebConfig), the sale and return
+ * selling endpoints (registered on /sales-header/**, /return-header/** and, step 5, /cash-movement/** by PosMachineWebConfig), the sale and return
  * code untouched: a request from another address is answered 409 {"error", "reason": "OTHER_POS_MACHINE", "code",
  * "params": {"name"}, "posMachineName"} before the controller runs. Never restricted: the drawer of the cashier, a user
  * without an open session (the endpoint refuses as before), a session without a POS machine, every endpoint not in
@@ -46,12 +47,14 @@ public class PosMachineSellingGuard implements HandlerInterceptor {
 	public static final Map<Class<?>, Set<String>> RESTRICTED = classes(
 			SalesHeaderAPI.class, names("processSale", "completePendingSale", "splitAndPay", // selling
 					"savePendingSale", "updatePendingSale", "cancelPendingSale", "transferTable"), // a sale on hold
-			ReturnHeaderAPI.class, names("processReturn")); // a return
+			ReturnHeaderAPI.class, names("processReturn"), // a return
+			CashMovementAPI.class, names("record")); // step 5: cash out of / into the drawer
 
 	/** The other mapped methods (the reads aside): after the sale, or the generic CRUD the till does not use. */
 	public static final Map<Class<?>, Set<String>> NOT_RESTRICTED = classes(
 			SalesHeaderAPI.class, names("changePaymentMethod", "prepareInvoice", "create", "update", "deleteById"),
-			ReturnHeaderAPI.class, names("create", "update", "deleteById"));
+			ReturnHeaderAPI.class, names("create", "update", "deleteById"),
+			CashMovementAPI.class, names());
 
 	private final SessionPosMachineService sessionMachines;
 	private final CurrentUserProvider currentUserProvider;
@@ -116,11 +119,13 @@ public class PosMachineSellingGuard implements HandlerInterceptor {
 		return Collections.unmodifiableSet(new HashSet<>(Arrays.asList(names)));
 	}
 
-	private static Map<Class<?>, Set<String>> classes(Class<?> first, Set<String> firstNames, Class<?> second,
-			Set<String> secondNames) {
+	/** Pairs of a controller and its method names. */
+	@SuppressWarnings("unchecked")
+	private static Map<Class<?>, Set<String>> classes(Object... controllersAndNames) {
 		Map<Class<?>, Set<String>> map = new LinkedHashMap<>();
-		map.put(first, firstNames);
-		map.put(second, secondNames);
+		for (int i = 0; i + 1 < controllersAndNames.length; i += 2) {
+			map.put((Class<?>) controllersAndNames[i], (Set<String>) controllersAndNames[i + 1]);
+		}
 		return Collections.unmodifiableMap(map);
 	}
 }

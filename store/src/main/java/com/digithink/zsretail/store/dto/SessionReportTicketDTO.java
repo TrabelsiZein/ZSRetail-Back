@@ -6,6 +6,7 @@ import java.util.List;
 
 import com.digithink.zsretail.core.model.enumeration.SessionStatus;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -53,6 +54,13 @@ public class SessionReportTicketDTO {
 
 	/** Step 6: one block per scanned-tickets method with tickets in the session, in the till's order. */
 	private List<ScannedTickets> scannedTickets = new ArrayList<>();
+
+	/**
+	 * 3.2.0, POS machines step 5: MOUVEMENTS DE CAISSE, the session's cash movements per type (number and total). Absent
+	 * from the JSON when the session has none. The cash line of CONTRÔLE already holds them (the expected cash).
+	 */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private CashMovements cashMovements;
 
 	/** The responsible's verification, only for a TERMINATED session. */
 	private Verification verification;
@@ -196,5 +204,23 @@ public class SessionReportTicketDTO {
 		/** Without RESPONSIBLE rows: responsibleClosureCash. */
 		private Double totalCounted;
 		private Double totalDifference;
+	}
+
+	/**
+	 * 3.2.0, POS machines step 5: the cash movements of the session (or, on the store ticket, of its sessions) per type:
+	 * APPORT in, PRELEVEMENT and DEPENSE out; inTotal and outTotal their sums.
+	 */
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class CashMovements {
+		private long apportCount;
+		private Double apportTotal;
+		private long prelevementCount;
+		private Double prelevementTotal;
+		private long depenseCount;
+		private Double depenseTotal;
+		private Double inTotal;
+		private Double outTotal;
 	}
 }

@@ -1,6 +1,6 @@
 # POS machines
 
-**Status**: 3.2.0, steps 1 to 4 of 5 (branch `release/3.2.0`). A POS machine ("poste de caisse", the physical PC a cashier
+**Status**: 3.2.0, steps 1 to 5 of 5 (all done) (branch `release/3.2.0`). A POS machine ("poste de caisse", the physical PC a cashier
 works on) declared with a name and the address the back end sees for it. It came with RFID in 3.1.0 (`rfid.md`), where
 it links a PC to its reader; since 3.2.0 it exists on **every store**, with or without RFID. First customer asking for
 it beyond RFID: ZEN.
@@ -13,7 +13,7 @@ it beyond RFID: ZEN.
 | 2 | A: the session keeps the POS machine it was opened on (its tickets and returns through it); B: one choice, "the drawer belongs to" the cashier or the POS machine | done |
 | 3 | The day per POS machine: the Journal's day grouped, the store ticket X / Z of one machine | done |
 | 4 | The users of a POS machine ("Tous les utilisateurs" or "Seulement" with its list), applied at the opening with the drawer of the POS machine | done; "declared machines only" and "one open session per machine" came with step 2 B, as fixed rules of one choice |
-| 5 | Cash taken out of the drawer | to come |
+| 5 | Cash movements: cash taken out of (PRELEVEMENT, DEPENSE) or put into (APPORT) the drawer, in the expected cash; with the drawer of the POS machine, only from the session's machine | done (`cash-sessions.md`, "Cash movements") |
 
 Step 1 changes no session, ticket, ticket X or Z, or POS screen: selling behaves as before. Step 2 part A records and
 shows the machine of each session and refuses nothing at the till. Part B refuses only when a store chooses "the drawer

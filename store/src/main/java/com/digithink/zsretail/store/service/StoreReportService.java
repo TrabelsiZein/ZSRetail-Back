@@ -180,6 +180,7 @@ public class StoreReportService {
 		dto.setPayments(all.getPayments());
 		dto.setControl(all.getControl());
 		dto.setScannedTickets(all.getScannedTickets());
+		dto.setCashMovements(all.getCashMovements());
 		dto.setModifiedAfterClosingCount(all.getModifiedAfterClosingCount());
 		if (machine != null) {
 			dto.setPosMachineId(machine.getId());
@@ -243,6 +244,7 @@ public class StoreReportService {
 		block.setPayments(payments(reports, order));
 		block.setControl(control(reports, order, z));
 		block.setScannedTickets(scannedTickets(reports, order));
+		block.setCashMovements(cashMovements(reports));
 		if (z) {
 			block.setModifiedAfterClosingCount(
 					reports.stream().filter(SessionReportTicketDTO::isModifiedAfterClosing).count());
@@ -413,6 +415,38 @@ public class StoreReportService {
 			});
 		});
 		return sorted(byCode, order, s -> false);
+	}
+
+	/**
+	 * 3.2.0, POS machines step 5: the sessions' MOUVEMENTS DE CAISSE added up per type (counts and totals); null when no
+	 * session has a movement.
+	 */
+	static SessionReportTicketDTO.CashMovements cashMovements(List<SessionReportTicketDTO> reports) {
+		SessionReportTicketDTO.CashMovements sum = null;
+		BigDecimal[] totals = { BigDecimal.ZERO.setScale(3), BigDecimal.ZERO.setScale(3), BigDecimal.ZERO.setScale(3) };
+		for (SessionReportTicketDTO r : reports) {
+			SessionReportTicketDTO.CashMovements m = r.getCashMovements();
+			if (m == null) {
+				continue;
+			}
+			if (sum == null) {
+				sum = new SessionReportTicketDTO.CashMovements();
+			}
+			sum.setApportCount(sum.getApportCount() + m.getApportCount());
+			sum.setPrelevementCount(sum.getPrelevementCount() + m.getPrelevementCount());
+			sum.setDepenseCount(sum.getDepenseCount() + m.getDepenseCount());
+			totals[0] = totals[0].add(bd(m.getApportTotal()));
+			totals[1] = totals[1].add(bd(m.getPrelevementTotal()));
+			totals[2] = totals[2].add(bd(m.getDepenseTotal()));
+		}
+		if (sum != null) {
+			sum.setApportTotal(totals[0].doubleValue());
+			sum.setPrelevementTotal(totals[1].doubleValue());
+			sum.setDepenseTotal(totals[2].doubleValue());
+			sum.setInTotal(totals[0].doubleValue());
+			sum.setOutTotal(totals[1].add(totals[2]).doubleValue());
+		}
+		return sum;
 	}
 
 	// ─── Helpers ─────────────────────────────────────────────────────

@@ -30,6 +30,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import com.digithink.zsretail.core.dto.DashboardTodayDTO;
+import com.digithink.zsretail.core.link.dto.SessionCashMovementsCopyDTO;
 import com.digithink.zsretail.core.link.dto.SessionCopyDTO;
 import com.digithink.zsretail.core.link.dto.SessionCountCopyDTO;
 import com.digithink.zsretail.core.link.dto.SessionScannedCopyDTO;
@@ -608,6 +609,32 @@ class ConsolidatedSalesServiceTest {
 		HoSalesCopyMapper.apply(session, copy);
 		assertTrue(session.getScanned().isEmpty());
 		assertNull(content(service.sessions(query(1L, null, null, "S8", null))).get(0).get("cashDifference"));
+	}
+
+	@Test
+	@DisplayName("3.2.0, step 5: the copy's cash movements (in, out) are on the list's system side; a copy without them as before")
+	void cashMovements() {
+		HoSession session = session(rs01, "S5", LocalDateTime.of(2026, 11, 14, 8, 0), "CLOSED");
+		ticket(rs01, "T-5", LocalDateTime.of(2026, 11, 14, 9, 0), "COMPLETED", 170, "S5");
+		SessionCopyDTO copy = new SessionCopyDTO();
+		copy.setSessionNumber("S5");
+		copy.setStatus("CLOSED");
+		copy.setOpenedAt(session.getOpenedAt());
+		copy.setOpeningCash(100.0);
+		copy.setRealCash(240.0); // the store's expected cash: 100 + 170 + 10 - 40
+		copy.setPosUserClosureCash(240.0);
+		copy.setCashMovements(new SessionCashMovementsCopyDTO(10.0, 40.0));
+		HoSalesCopyMapper.apply(session, copy); // as the receiver stores it
+		assertEquals(10.0, session.getCashMovementsIn());
+		assertEquals(40.0, session.getCashMovementsOut());
+		assertEquals(0.0, content(service.sessions(query(1L, null, null, "S5", null))).get(0).get("cashDifference"),
+				"240 counted against 100 + 170 + 10 - 40");
+
+		copy.setCashMovements(null); // a store before 3.2.0
+		HoSalesCopyMapper.apply(session, copy);
+		assertNull(session.getCashMovementsIn());
+		assertEquals(-30.0, content(service.sessions(query(1L, null, null, "S5", null))).get(0).get("cashDifference"),
+				"no movement counted, as before: 240 - (100 + 170)");
 	}
 
 	private static SessionCountCopyDTO countCopy(String counterType, String code, int quantity, double total) {

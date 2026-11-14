@@ -21,6 +21,8 @@ import com.digithink.zsretail.core.repository.ReturnHeaderRepository;
 import com.digithink.zsretail.core.repository.ReturnLineRepository;
 import com.digithink.zsretail.core.repository.SalesHeaderRepository;
 import com.digithink.zsretail.core.repository.SalesLineRepository;
+import com.digithink.zsretail.store.cashmovement.repository.CashMovementRepository;
+import com.digithink.zsretail.store.cashmovement.service.CashMovementTotals;
 import com.digithink.zsretail.store.holink.dto.SalesDocumentRef;
 import com.digithink.zsretail.store.holink.enumeration.SalesCopyType;
 import com.digithink.zsretail.store.holink.service.SalesCopyMapper;
@@ -60,11 +62,14 @@ public class JpaSalesDocumentSource implements SalesDocumentSource {
 	private final CashierSessionRepository sessions;
 	private final SessionCashCountRepository cashCounts;
 	private final ScannedTicketPaymentRepository scannedTickets;
+	/** 3.2.0, POS machines step 5: the session copy's cash movements in and out. */
+	private final CashMovementRepository cashMovements;
 
 	public JpaSalesDocumentSource(SalesHeaderRepository salesHeaders, SalesLineRepository salesLines,
 			PaymentRepository payments, ReturnHeaderRepository returnHeaders, ReturnLineRepository returnLines,
 			CashierSessionRepository sessions, SessionCashCountRepository cashCounts,
-			ScannedTicketPaymentRepository scannedTickets) {
+			ScannedTicketPaymentRepository scannedTickets, CashMovementRepository cashMovements) {
+		this.cashMovements = cashMovements;
 		this.salesHeaders = salesHeaders;
 		this.salesLines = salesLines;
 		this.payments = payments;
@@ -118,9 +123,11 @@ public class JpaSalesDocumentSource implements SalesDocumentSource {
 			default:
 				return sessions.findById(localId)
 						// 3.2.0: with the expected values of its scanned tickets, as the session details read them
+						// 3.2.0, step 5: and its cash movements in and out
 						.map(session -> SalesCopyMapper.session(session, cashCounts.findByCashierSession(session),
 								ScannedTicketsSummary.byMethodCode(scannedTickets.findByCashierSession(session,
-										Arrays.asList(TransactionStatus.PENDING, TransactionStatus.CANCELLED)))))
+										Arrays.asList(TransactionStatus.PENDING, TransactionStatus.CANCELLED))),
+								CashMovementTotals.of(cashMovements.findByCashierSessionOrderByMovedAtAsc(session))))
 						.orElse(null);
 		}
 	}

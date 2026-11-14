@@ -389,6 +389,80 @@ day per POS machine".
 that called the transactional one from inside the service, outside its transaction: the closing's row lock (1.8.0)
 answered 500 "no transaction is in progress". That method is removed. `CloseSessionBodyTest`.
 
+## Cash movements (3.2.0, POS machines step 5)
+
+Cash taken out of the drawer or put into it during a session, so that the closing shows no false difference. Store only
+(`store.cashmovement`); nothing at the head office but the session copy's totals (below), nothing to the ERP.
+
+**Three fixed types** (`CashMovementType`): `PRELEVEMENT` (out: the safe, the bank, the owner), `DEPENSE` (out: a small
+expense; the note is required), `APPORT` (in: change added). Amount above 0, rounded to the millime (0.0004 refused);
+note optional (at most 255 characters) except for a dépense. No managed list of reasons, no limit amount, and **no check
+of the amount against the cash expected**: the till never knows that amount (the count stays blind), and a prélèvement
+larger than the drawer simply shows as a difference at the closing.
+
+**The table** `cash_movement` (`CashMovement`): `movement_number` (the session's number and the rank in it,
+`SESSION261114001-M01`, unique; the session row is locked while a movement is recorded, as at the closing, so two
+movements never take the same rank and a movement never slips past the expected cash computed at the closing),
+`cashier_session_id`, `type`, `amount`, `note`, `done_by_id` (the logged user), `authorised_by_id` (the user himself when
+his role holds the right, else the badge's owner), `granted_by` (`ROLE`, `BADGE`), `moved_at`. The POS machine is the
+session's (`cashier_session_pos_machine`), not stored again. Never edited, never deleted (no endpoint does it; the API is
+not a `_BaseController`): a mistake is corrected by the opposite movement. `db/3.2.0/update.sql` step 16; Hibernate makes
+it at a start too.
+
+**`POST /cash-movement`** (`CashMovementAPI`, `CashMovementService.record`): `{type, amount, note, sessionId, tillGrant}`.
+- Only on the logged user's own OPENED session: without one 400 `CASH_MOVEMENT_NO_OPEN_SESSION`; a `sessionId` that is
+  not it 400 `CASH_MOVEMENT_NOT_YOUR_SESSION` (another user's session, a session closed meanwhile).
+- The right `till:cash-movement` (`BadgePermission.CASH_MOVEMENT`, the sixth till action, `badge-permissions.md`): the
+  role holds it → passes, logged (ROLE); else the grant of a badge scan for this session → passes, used once, logged
+  (BADGE); else 403 `TILL_RIGHT_REQUIRED` (the till then asks a badge and sends again).
+- With the drawer of the POS machine: refused from another PC than the session's POS machine, as a sale
+  (`PosMachineSellingGuard`, 409 `OTHER_POS_MACHINE`; `pos-machines.md`).
+- The other refusals (400, code and values): `CASH_MOVEMENT_TYPE_INVALID`, `_AMOUNT_INVALID`, `_NOTE_REQUIRED`,
+  `_NOTE_TOO_LONG` (max).
+- The answer is the slip (`CashMovementDTO`): number, time, type, direction (IN / OUT), amount, note, session, cashier,
+  POS machine, authorised by. No balance and no session total.
+
+**The expected cash** (`CashierSessionService.calculateRealCash`): opening cash + cash payments - change - simple
+returns **+ the apports - the prélèvements - the dépenses**. So the closing's cash check, the stored `realCash`, the
+session details' cash row, the CONTRÔLE cash line of the tickets X / Z (session, store, one POS machine) and the head
+office's details (the store's `realCash`) hold them. The one place that computed a cash difference another way, the
+sessions list's "Diff." and "Diff. Resp" (`SessionDashboardDTO.fromEntity`: closure total - (opening + sales - cash
+returns + the scanned tickets' face - net)), adds the movements' in - out to its system side; the head office's sessions
+list (`ConsolidatedSalesService`) adds the copy's in - out the same way. The sessions report has no difference. The
+ERP's session export sends the payments by method only (no expected cash, no count): nothing to change there.
+
+**Where they show** (no new page, no new ticket):
+- Session ticket X / Z (and the Z of the cashier's closing): the block MOUVEMENTS DE CAISSE after PAIEMENTS (apports,
+  prélèvements, dépenses: number and total each, the outs negative), absent without any
+  (`SessionReportTicketDTO.cashMovements`, `NON_NULL`). `CASHIER_CLOSING_TICKET` = `DECLARED`: unchanged.
+- Store ticket X / Z, the store or one POS machine, and each POS machine's group: the sessions' blocks added up
+  (`StoreReportService.cashMovements`). The Journal's day shows them in the Contrôle card and in each machine's
+  subtotal; the A4 print's "Par poste de caisse" and the Excel's "Postes de caisse" (columns Apports, Prélèvements,
+  Dépenses) too: by the sessions' closing, as the groups.
+- The Journal's day (`DayJournalDTO.cashMovements`, `cashMovementTotals`): the movements **by their own time** (time, POS
+  machine, session, cashier, type, amount, note, authorised by) and their totals, below the journal's lines; never lines
+  of the journal (its payments still add up to its net). A day with only a movement has a journal (no line). The A4 print
+  adds the block "Mouvements de caisse"; the Excel a sheet "Mouvements de caisse" (an out negative, a total per type and
+  the net).
+- The session's details (Sessions page): its movements (`cashMovements` of `GET /cashier-session/{id}/details`).
+- Head office: the session copy carries `cashMovements: {inTotal, outTotal}` (`SessionCashMovementsCopyDTO`, zeros
+  without any); the head office keeps them on `ho_session` (`cash_movements_in`, `cash_movements_out`). A copy without
+  the field (a store before 3.2.0) counts no movement, as before. No list of movements at the head office.
+
+**The till** (`views/pos/CashMovementModal.vue`): the button "Mouvement de caisse" of the POS screen (greyed on another PC
+than the session's POS machine) opens a wide popup with sections: Sortie / Entrée, the type (Prélèvement or Dépense;
+Apport), the amount, the note (required for a dépense); Save asks the right (`requireTillAction('CASH_MOVEMENT')`), sends
+the request (a 403 asks a badge again, `withTillRights`), then prints the 80 mm slip (`printCashMovementSlip`: store,
+title, type, number, date and time, POS machine, session, cashier, authorised by, amount, note, a signature line).
+
+**Tests**: `CashMovementTest` (the expected cash with each type; the slip, its number, the role's pass logged; refused
+without the right, passed with a badge grant, the grant used once, a grant of another action refused; refused on a
+closed session and with another user's session; the request's checks; the closing's cash check; the session ticket's
+block and its CONTRÔLE; the store ticket, its groups and one POS machine; the Journal's day and its sheet; the sessions
+list's difference), `DayJournalServiceTest.dayWithOnlyACashMovement`, `PosMachineSellingGuardTest` (the other POS machine
+refused), `SalesCopyMapperTest.sessionCashMovements`, `ConsolidatedSalesServiceTest.cashMovements` (the head office copy
+with and without the field), `ZZDataInitializerRolesTest.cashMovementRight`.
+
 ## Closed points
 
 - **The FREE_QUANTITY line stored an HT discount (fixed in 3.1.0).** For a "X bought, Y free" promotion the server adds

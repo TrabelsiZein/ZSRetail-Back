@@ -394,6 +394,35 @@ class DayJournalServiceTest {
 	}
 
 	@Test
+	@DisplayName("3.2.0, step 5: a day with only a cash movement has a journal: no line, the movement and its totals; the"
+			+ " lines' payments never hold a movement")
+	void dayWithOnlyACashMovement() throws Exception {
+		standardDay();
+		com.digithink.zsretail.store.cashmovement.dto.CashMovementDTO movement =
+				new com.digithink.zsretail.store.cashmovement.dto.CashMovementDTO();
+		movement.setType("PRELEVEMENT");
+		movement.setDirection("OUT");
+		movement.setAmount(40.0);
+		movement.setMovedAt(DAY.plusDays(1).atTime(9, 0));
+		inject(service, "cashMovementService",
+				new com.digithink.zsretail.store.cashmovement.service.CashMovementService(null, null, null, null) {
+					@Override
+					public List<com.digithink.zsretail.store.cashmovement.dto.CashMovementDTO> linesOfDay(LocalDate date) {
+						return date.equals(DAY.plusDays(1)) ? new ArrayList<>(Arrays.asList(movement)) : new ArrayList<>();
+					}
+				});
+		DayJournalDTO next = service.build(DAY.plusDays(1));
+		assertTrue(next.getLines().isEmpty());
+		assertEquals(1, next.getCashMovements().size());
+		assertEquals(40.0, next.getCashMovementTotals().getOutTotal(), 1e-9);
+		assertTrue(next.getTotals().getPayments().isEmpty(), "not in the payments: they add up to net");
+
+		DayJournalDTO day = service.build(DAY);
+		assertTrue(day.getCashMovements().isEmpty());
+		assertNull(day.getCashMovementTotals());
+	}
+
+	@Test
 	@DisplayName("Excel: one sheet, the header row, one row per line, the totals row (net under Total TTC), 3 decimals")
 	void excel() throws Exception {
 		standardDay();

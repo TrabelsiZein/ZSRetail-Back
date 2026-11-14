@@ -511,6 +511,31 @@ class SalesCopyMapperTest {
 		assertNull(mapper.readValue(old, SessionCopyDTO.class).getScannedTickets());
 	}
 
+	@Test
+	@DisplayName("3.2.0, step 5: the session copy carries its cash movements in and out (zeros without any); the 3-argument"
+			+ " copy and an older store send no field (read as null)")
+	void sessionCashMovements() throws Exception {
+		java.util.List<com.digithink.zsretail.store.cashmovement.model.CashMovement> movements = new java.util.ArrayList<>();
+		for (Object[] m : new Object[][] { { "APPORT", 20.0 }, { "PRELEVEMENT", 50.0 }, { "DEPENSE", 4.5 } }) {
+			com.digithink.zsretail.store.cashmovement.model.CashMovement movement =
+					new com.digithink.zsretail.store.cashmovement.model.CashMovement();
+			movement.setType(com.digithink.zsretail.store.cashmovement.model.CashMovementType.valueOf((String) m[0]));
+			movement.setAmount((Double) m[1]);
+			movements.add(movement);
+		}
+		SessionCopyDTO copy = SalesCopyMapper.session(session(IDS[0], "SES-2026-0116"), null, Collections.emptyMap(),
+				com.digithink.zsretail.store.cashmovement.service.CashMovementTotals.of(movements));
+		assertEquals(20.0, copy.getCashMovements().getInTotal(), 0.0);
+		assertEquals(54.5, copy.getCashMovements().getOutTotal(), 0.0);
+		SessionCopyDTO none = SalesCopyMapper.session(session(IDS[0], "SES-2026-0117"), null, Collections.emptyMap(),
+				com.digithink.zsretail.store.cashmovement.service.CashMovementTotals.of(Collections.emptyList()));
+		assertEquals(0.0, none.getCashMovements().getInTotal(), 0.0, "zeros, not null: a 3.2.0 store");
+		assertNull(SalesCopyMapper.session(session(IDS[0], "SES-2026-0118"), null, Collections.emptyMap()).getCashMovements());
+		String old = mapper.writeValueAsString(copy).replaceAll(",\"cashMovements\":\\{[^}]*\\}", "");
+		assertFalse(old.contains("cashMovements"), old);
+		assertNull(mapper.readValue(old, SessionCopyDTO.class).getCashMovements());
+	}
+
 	private static ScannedTicketPayment scannedTicket(PaymentMethod method, String face, String counted, String applied) {
 		Payment payment = new Payment();
 		payment.setPaymentMethod(method);

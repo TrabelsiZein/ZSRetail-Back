@@ -66,6 +66,16 @@ public class HoSession extends _BaseEntity {
 
 	private Double responsibleClosureCash;
 
+	/**
+	 * 3.2.0, POS machines step 5: the store's cash movements of the session, in (apports) and out (prélèvements,
+	 * dépenses); null from a store before 3.2.0 (no movement counted). The sessions list adds in - out to its system side.
+	 */
+	@Column(name = "cash_movements_in")
+	private Double cashMovementsIn;
+
+	@Column(name = "cash_movements_out")
+	private Double cashMovementsOut;
+
 	private String verifiedByLogin;
 
 	private String verifiedByName;

@@ -461,6 +461,16 @@ public class ConsolidatedSalesService {
 		return row;
 	}
 
+	/**
+	 * 3.2.0, POS machines step 5: the store's cash movements of the session, in - out, as the store's sessions list adds
+	 * them; 0 for a copy without them (a store before 3.2.0).
+	 */
+	static double cashMovementsNet(HoSession session) {
+		double in = session.getCashMovementsIn() == null ? 0.0 : session.getCashMovementsIn();
+		double out = session.getCashMovementsOut() == null ? 0.0 : session.getCashMovementsOut();
+		return java.math.BigDecimal.valueOf(in).subtract(java.math.BigDecimal.valueOf(out)).doubleValue();
+	}
+
 	private static Map<String, Object> sessionRow(HoSession session, Map<Long, Store> storesById,
 			SessionTotals totals, Double scannedFaceGap) {
 		Map<String, Object> row = new LinkedHashMap<>();
@@ -486,7 +496,8 @@ public class ConsolidatedSalesService {
 		// minus net (3.2.0: they are counted on their face), rounded to 2 decimals; no difference when the store did not
 		// send its scanned tickets' expected values (scannedFaceGap null)
 		double system = (session.getOpeningCash() == null ? 0.0 : session.getOpeningCash()) + totals.salesAmount
-				- totals.simpleReturnsAmount + (scannedFaceGap == null ? 0.0 : scannedFaceGap);
+				- totals.simpleReturnsAmount + (scannedFaceGap == null ? 0.0 : scannedFaceGap)
+				+ cashMovementsNet(session); // 3.2.0, step 5: the store's movements in - out (none from an older copy)
 		row.put("cashDifference", session.getPosUserClosureCash() == null || scannedFaceGap == null ? null
 				: Math.round((session.getPosUserClosureCash() - system) * 100.0) / 100.0);
 		row.put("responsibleDifference", session.getResponsibleClosureCash() == null || scannedFaceGap == null ? null
