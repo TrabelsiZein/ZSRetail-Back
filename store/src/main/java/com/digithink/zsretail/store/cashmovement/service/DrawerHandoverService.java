@@ -94,7 +94,7 @@ public class DrawerHandoverService {
 	public static Answer check(String rawChoice, Double rawAmount, double cashCounted) {
 		if (rawChoice == null || rawChoice.trim().isEmpty()) {
 			throw new CashMovementException("CLOSING_WITHDRAWAL_REQUIRED", "Say what is taken out of the drawer at the"
-					+ " verification: everything, nothing or an amount.");
+					+ " final closing: everything, nothing or an amount.");
 		}
 		ClosingChoice choice;
 		try {

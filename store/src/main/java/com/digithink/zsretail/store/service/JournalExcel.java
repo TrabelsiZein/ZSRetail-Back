@@ -230,7 +230,7 @@ public final class JournalExcel {
 		r++;
 
 		// the sessions
-		r = headerAt(sheet, r, new String[] { "Poste de caisse", "Session", "Caissier", "Ouverture", "Clôture",
+		r = headerAt(sheet, r, new String[] { "Poste de caisse", "Session", "Caissier", "Ouverture", "Fermeture",
 				"Statut" }, styles);
 		for (PosMachineGroup group : ticket.getPosMachines()) {
 			for (SessionRow s : group.getSessions()) {
@@ -352,11 +352,11 @@ public final class JournalExcel {
 		}
 		switch (status) {
 			case OPENED:
-				return "Ouvert";
+				return "Ouverte";
 			case CLOSED:
-				return "Fermé";
+				return "Fermée";
 			default:
-				return "Terminé";
+				return "Clôturée";
 		}
 	}
 

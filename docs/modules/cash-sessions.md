@@ -1,5 +1,12 @@
 # Cash sessions: tickets X and Z
 
+**Vocabulary (3.2.0).** A session has two closing steps, always named the same on the screens, tickets and messages:
+the **cashier closes** it, "Fermer la session" / "Fermée" (en "Close session" / "Closed", ar إغلاق الجلسة / مغلقة;
+status `CLOSED`, `closedAt`); the **responsible does the final closing**, "Clôturer la session" / "Clôturée" (en "Final
+closing" / "Finally closed", ar الإقفال النهائي / مقفلة نهائيًا; status `TERMINATED`, the counts `RESPONSIBLE`). The
+code keeps its names: "verify" / "verification" in this file, in the keys, the endpoint `/cashier-session/verify`, the
+permission `read:verify-session` and the setting `VERIFY_PREVIOUS_SESSION_BEFORE_OPENING` mean the final closing.
+
 **Status**: 3.1.0. Step A (backend, `478ed95`) and step B (the print code and the buttons of the two session pages,
 front `45cfd32`) done; step 2: the cashier's closing ticket is the ticket Z (setting `CASHIER_CLOSING_TICKET`).
 3.2.0, step 6: scanned-tickets methods at closing and on the tickets X / Z ("Scanned tickets" below).

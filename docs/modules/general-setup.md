@@ -69,7 +69,7 @@ empty sub-families in the POS screen".
 ## Cashier closing ticket (3.1.0)
 
 A store setting (General Setup, payment methods section, SELECT, created at start-up on a store only, `Z`):
-`CASHIER_CLOSING_TICKET`, label "Ticket de clôture caissier", options `Z` "Ticket Z complet" and `DECLARED` "Montants
+`CASHIER_CLOSING_TICKET`, label "Ticket de fermeture caissier" (3.2.0 vocabulary; before "Ticket de clôture caissier"), options `Z` "Ticket Z complet" and `DECLARED` "Montants
 déclarés seulement" (`SetupField` prop `optionLabels`: a SELECT shows a label per value; the other SELECT shows its
 values as before). Sent by `GET /config` as `cashierClosingTicket` (`DECLARED` in any case, else `Z`, also when the row
 is absent; null on a head office), read in the front through the getter `appConfig/closingPrintsTicketZ`; saving the
@@ -95,8 +95,8 @@ in the language of the screen (before: only the codes of the rows). Tests: `Cash
 
 A store setting (General Setup, tab "Caisse et clôture", after `CASH_DRAWER_OWNER`, BOOLEAN, created at start-up on a
 store only, `false`; never on a head office): `VERIFY_PREVIOUS_SESSION_BEFORE_OPENING`
-(`AppConfigAPI.VERIFY_PREVIOUS_SESSION_BEFORE_OPENING`, 3.2.0, the differences, step A), label "Vérifier la session
-précédente avant une nouvelle ouverture". On: a session does not open while the previous session of its drawer (the POS
+(`AppConfigAPI.VERIFY_PREVIOUS_SESSION_BEFORE_OPENING`, 3.2.0, the differences, step A), label "Exiger la clôture de la
+session précédente avant une nouvelle ouverture" (the responsible's final closing, `cash-sessions.md`, "Vocabulary"). On: a session does not open while the previous session of its drawer (the POS
 machine or the cashier, as `CASH_DRAWER_OWNER`) is closed and not verified (409 `PREVIOUS_SESSION_NOT_VERIFIED`). Off
 (an existing store): nothing refused, the fact only kept and shown. `cash-sessions.md`, "The previous session not
 verified".

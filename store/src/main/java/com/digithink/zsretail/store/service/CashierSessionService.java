@@ -173,7 +173,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			throw new com.digithink.zsretail.store.posmachine.DrawerRuleException("PREVIOUS_SESSION_NOT_VERIFIED",
 					"The previous session of this drawer, " + previous.getSessionNumber()
 							+ (previousMachine != null ? " (POS machine '" + previousMachine + "')" : "")
-							+ ", is closed but not verified yet: a responsible verifies it before a new session opens.",
+							+ ", is closed but not finally closed yet: a responsible does its final closing before a new session opens.",
 					"session", previous.getSessionNumber(), "posMachine", previousMachine != null ? previousMachine : "—");
 		}
 
@@ -570,7 +570,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 				.orElseThrow(() -> new IllegalArgumentException("Session not found"));
 
 		if (session.getStatus() != SessionStatus.CLOSED) {
-			throw new IllegalStateException("Session must be closed before verification");
+			throw new IllegalStateException("Session must be closed before its final closing");
 		}
 
 		// 3.2.0, the opening amount: the required "Retrait du tiroir", checked against the cash the responsible counted

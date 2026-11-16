@@ -29,6 +29,13 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   prints a warning for such a database; none of the current customers, pos_franchise_customer had false / 10).
 
 ### Enhancements
+- Vocabulary of the two session steps (labels only, `docs/modules/cash-sessions.md`, "Vocabulary"): the cashier
+  closes the session ("Fermer" / "Fermée", CLOSED), the responsible does the final closing ("Clôturer" / "Clôturée",
+  TERMINATED; English "Final closing" / "Finally closed"). The server's English texts of `PREVIOUS_SESSION_NOT_VERIFIED`,
+  `CLOSING_WITHDRAWAL_REQUIRED`, the "closed before its final closing" and "finally closed" refusals; the Journal Excel's
+  statuses "Ouverte / Fermée / Clôturée" and the column "Fermeture" of the store ticket sheet; the description of the
+  setting `VERIFY_PREVIOUS_SESSION_BEFORE_OPENING` for a new database (an existing row keeps its text: the initializer
+  only inserts). No key, enum, database value, permission key or endpoint changes.
 - The differences, step A (`docs/modules/cash-sessions.md`, "The previous session not verified"): the previous
   session of the drawer (the opening proposal's rule) closed and not verified. Store setting
   `VERIFY_PREVIOUS_SESSION_BEFORE_OPENING` (off): on, `openSession` refuses with 409 `PREVIOUS_SESSION_NOT_VERIFIED`

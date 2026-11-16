@@ -1177,7 +1177,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 			throw new IllegalStateException("Only completed tickets can be modified");
 		}
 		if (session.getStatus() == SessionStatus.TERMINATED) {
-			throw new IllegalStateException("Session is terminated; payment method can no longer be changed");
+			throw new IllegalStateException("Session is finally closed; payment method can no longer be changed");
 		}
 		// NOTE: we intentionally gate on the SESSION (payment-export) sync state, NOT on
 		// SalesHeader.synchronizationStatus. Payment method only reaches NAV via the session

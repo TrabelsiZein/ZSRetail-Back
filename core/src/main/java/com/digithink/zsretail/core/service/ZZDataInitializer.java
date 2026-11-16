@@ -1190,7 +1190,7 @@ public class ZZDataInitializer {
 					false, ConfigType.SELECT, "CASHIER,POS_MACHINE");
 			// 3.2.0, the differences, step A: off by default (an existing store keeps opening as before); a store only
 			ensureConfig(AppConfigAPI.VERIFY_PREVIOUS_SESSION_BEFORE_OPENING, "false",
-					"If true, a session does not open while the previous session of its drawer (the POS machine or the cashier, as CASH_DRAWER_OWNER) is closed and not yet verified.",
+					"If true, a session does not open while the previous session of its drawer (the POS machine or the cashier, as CASH_DRAWER_OWNER) is closed and its final closing not yet done.",
 					false, ConfigType.BOOLEAN);
 		}
 
