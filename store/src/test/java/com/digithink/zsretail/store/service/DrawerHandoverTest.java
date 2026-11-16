@@ -68,6 +68,9 @@ class DrawerHandoverTest {
 	private final List<CashierSession> sessions = new ArrayList<>();
 	private final Map<Long, ClosingWithdrawal> withdrawals = new LinkedHashMap<>();
 	private final Map<Long, OpeningFloat> openings = new LinkedHashMap<>();
+	/** Step A: the openings made while the previous session was not verified, and the store's settings. */
+	private final Map<Long, com.digithink.zsretail.store.cashmovement.model.OpeningUnverified> unverifiedRows = new LinkedHashMap<>();
+	private final Map<String, String> settings = new HashMap<>();
 	private final List<SessionCashCount> counts = new ArrayList<>();
 	private final PaymentMethod cash = new PaymentMethod();
 	private final PaymentMethod meal = new PaymentMethod();
@@ -147,7 +150,18 @@ class DrawerHandoverTest {
 					return UNHANDLED;
 			}
 		});
-		handover = new DrawerHandoverService(withdrawalRepo, openingRepo, rfid.sessionMachineService);
+		com.digithink.zsretail.store.cashmovement.repository.OpeningUnverifiedRepository unverifiedRepo = proxy(
+				com.digithink.zsretail.store.cashmovement.repository.OpeningUnverifiedRepository.class, (m, a) -> {
+					if ("save".equals(m)) {
+						com.digithink.zsretail.store.cashmovement.model.OpeningUnverified row =
+								(com.digithink.zsretail.store.cashmovement.model.OpeningUnverified) a[0];
+						row.setSessionId(row.getSession().getId());
+						unverifiedRows.put(row.getSessionId(), row);
+						return row;
+					}
+					return "findById".equals(m) ? Optional.ofNullable(unverifiedRows.get(a[0])) : UNHANDLED;
+				});
+		handover = new DrawerHandoverService(withdrawalRepo, openingRepo, rfid.sessionMachineService, unverifiedRepo);
 
 		ApplicationModeService mode = new ApplicationModeService();
 		inject(mode, ApplicationModeService.class, "environment", new MockEnvironment());
@@ -176,6 +190,15 @@ class DrawerHandoverTest {
 						return a[0];
 					}
 					return UNHANDLED;
+				}));
+		inject(service, CashierSessionService.class, "generalSetupRepository", proxy(
+				com.digithink.zsretail.core.repository.GeneralSetupRepository.class, (m, a) -> {
+					if (!"findByCode".equals(m)) return UNHANDLED;
+					if (!settings.containsKey(a[0])) return Optional.empty();
+					com.digithink.zsretail.core.model.GeneralSetup row = new com.digithink.zsretail.core.model.GeneralSetup();
+					row.setCode((String) a[0]);
+					row.setValeur(settings.get(a[0]));
+					return Optional.of(row);
 				}));
 		inject(service, _BaseService.class, "currentUserProvider", new CurrentUserProvider() {
 			@Override
@@ -341,7 +364,9 @@ class DrawerHandoverTest {
 		rfid.drawerOwner = DrawerOwner.CASHIER;
 		verify(closed(amira, 9, null), "NONE", null); // an older session left 100
 		CashierSession recent = closed(amira, 11, null); // closed, not verified
-		assertFalse(service.openingProposal(amira, null).isPresent(), "the most recent is not verified");
+		assertNull(service.openingProposal(amira, null).get().getProposedFloat(), "the most recent is not verified");
+		assertEquals(recent.getSessionNumber(), service.openingProposal(amira, null).get().getUnverifiedPrevious()
+				.getPreviousSessionNumber(), "step A: it says so");
 		verify(recent, "ALL", null); // verified, nothing left
 		assertFalse(service.openingProposal(amira, null).isPresent(), "nothing left in the drawer");
 	}
@@ -420,6 +445,86 @@ class DrawerHandoverTest {
 		w.setDoneAt(LocalDateTime.of(2026, 11, 14, hour, 30));
 		report.setClosingWithdrawal(w);
 		return report;
+	}
+
+	// ─── Step A of the differences: the previous session not verified ──
+
+	private static final String VERIFY_PREVIOUS = "VERIFY_PREVIOUS_SESSION_BEFORE_OPENING";
+
+	@Test
+	@DisplayName("Step A, setting off: the opening goes on, the unverified previous session is kept on the new one and the"
+			+ " proposal says it (nothing proposed)")
+	void unverifiedPreviousSettingOff() throws Exception {
+		rfid.drawerOwner = DrawerOwner.CASHIER;
+		CashierSession previous = closed(amira, 10, null); // closed, not verified
+		OpeningFloatDTO proposal = service.openingProposal(amira, null).get();
+		assertNull(proposal.getProposedFloat(), "nothing proposed");
+		assertEquals(previous.getSessionNumber(), proposal.getUnverifiedPrevious().getPreviousSessionNumber());
+		assertEquals(previous.getClosedAt(), proposal.getUnverifiedPrevious().getPreviousClosedAt());
+		assertEquals(Boolean.FALSE, proposal.getVerifyPreviousRequired());
+
+		CashierSession next = service.openSession(amira, 50.0, null);
+		assertEquals(SessionStatus.OPENED, next.getStatus());
+		assertEquals(previous, unverifiedRows.get(next.getId()).getPreviousSession(), "the fact kept");
+		assertEquals(previous.getSessionNumber(), handover.unverifiedOf(next).getPreviousSessionNumber());
+		assertFalse(openings.containsKey(next.getId()), "no float proposed, no écart");
+	}
+
+	@Test
+	@DisplayName("Step A, setting on: refused (409 code PREVIOUS_SESSION_NOT_VERIFIED naming the session); opened once it"
+			+ " is verified")
+	void unverifiedPreviousSettingOn() throws Exception {
+		rfid.drawerOwner = DrawerOwner.CASHIER;
+		settings.put(VERIFY_PREVIOUS, "true");
+		CashierSession previous = closed(amira, 10, null);
+		assertEquals(Boolean.TRUE, service.openingProposal(amira, null).get().getVerifyPreviousRequired());
+		com.digithink.zsretail.store.posmachine.DrawerRuleException refused = assertThrows(
+				com.digithink.zsretail.store.posmachine.DrawerRuleException.class, () -> service.openSession(amira, 50.0, null));
+		assertEquals("PREVIOUS_SESSION_NOT_VERIFIED", refused.getCode());
+		assertEquals(previous.getSessionNumber(), refused.getParams().get("session"));
+		assertEquals("—", refused.getParams().get("posMachine"), "no POS machine known");
+		assertTrue(refused.getMessage().contains(previous.getSessionNumber()), refused.getMessage());
+		assertEquals(1, sessions.size(), "nothing opened");
+
+		verify(previous, "NONE", null);
+		CashierSession next = service.openSession(amira, 100.0, null);
+		assertEquals(SessionStatus.OPENED, next.getStatus());
+		assertFalse(unverifiedRows.containsKey(next.getId()));
+		assertEquals(100.0, openings.get(next.getId()).getProposedFloat(), 1e-9, "the proposal works again");
+	}
+
+	@Test
+	@DisplayName("Step A, the drawer of the POS machine: the machine's previous session counts, whoever opens; the message"
+			+ " names the machine; another machine is free")
+	void unverifiedPreviousOnMachine() throws Exception {
+		rfid.drawerOwner = DrawerOwner.POS_MACHINE;
+		settings.put(VERIFY_PREVIOUS, "true");
+		PosMachine caisse1 = rfid.machine("Caisse 1", "192.168.1.11", null);
+		rfid.machine("Caisse 2", "192.168.1.12", null);
+		CashierSession previous = closed(amira, 10, caisse1);
+		com.digithink.zsretail.store.posmachine.DrawerRuleException refused = assertThrows(
+				com.digithink.zsretail.store.posmachine.DrawerRuleException.class,
+				() -> service.openSession(sami, 50.0, "192.168.1.11"));
+		assertEquals("Caisse 1", refused.getParams().get("posMachine"));
+		assertEquals(previous.getSessionNumber(), refused.getParams().get("session"));
+		assertEquals("Caisse 1", service.openingProposal(sami, "192.168.1.11").get().getUnverifiedPrevious()
+				.getPreviousPosMachineName());
+		CashierSession other = service.openSession(amira, 20.0, "192.168.1.12");
+		assertEquals(SessionStatus.OPENED, other.getStatus(), "Caisse 2's drawer has no previous session");
+	}
+
+	@Test
+	@DisplayName("Step A: the first session of a drawer, a verified previous session, and an older unverified one behind a"
+			+ " verified one: nothing said, nothing refused")
+	void nothingToSay() throws Exception {
+		rfid.drawerOwner = DrawerOwner.CASHIER;
+		settings.put(VERIFY_PREVIOUS, "true");
+		assertFalse(service.openingProposal(amira, null).isPresent(), "the first session of the drawer");
+		closed(sami, 9, null); // an older one, never verified
+		verify(closed(sami, 11, null), "ALL", null); // the most recent, verified, nothing left
+		assertFalse(service.openingProposal(sami, null).isPresent(), "the older unverified one does not count");
+		CashierSession next = service.openSession(sami, 30.0, null);
+		assertFalse(unverifiedRows.containsKey(next.getId()));
 	}
 
 	@Test

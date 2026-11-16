@@ -35,4 +35,15 @@ public class OpeningFloatDTO {
 	private Double openingCash;
 	/** openingCash - proposedFloat; null on a proposal. */
 	private Double openingGap;
+
+	/**
+	 * 3.2.0, the differences, step A, on a proposal: the previous session of the drawer when it is closed and not verified
+	 * (then nothing is proposed: proposedFloat null). Absent otherwise.
+	 */
+	@com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+	private OpeningUnverifiedDTO unverifiedPrevious;
+
+	/** Step A, with unverifiedPrevious: true when the store refuses the opening (VERIFY_PREVIOUS_SESSION_BEFORE_OPENING). */
+	@com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+	private Boolean verifyPreviousRequired;
 }

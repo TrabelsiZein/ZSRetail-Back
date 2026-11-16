@@ -413,6 +413,23 @@ BEGIN
 END
 GO
 
+-- 18) The differences, step A, a store only (quick_quantity): a session opened while the previous session of its drawer
+-- was closed and not yet verified keeps that fact beside it (cashier_session_opening_unverified: the session, the
+-- previous one), so a later page can list them over a period. In Hibernate's form, constraints named as in the entity
+-- (OpeningUnverified); Hibernate creates it at a start too. The setting VERIFY_PREVIOUS_SESSION_BEFORE_OPENING (off) is
+-- created by the start, as CASH_DRAWER_OWNER. No data changed.
+IF OBJECT_ID(N'quick_quantity', N'U') IS NOT NULL AND OBJECT_ID(N'cashier_session_opening_unverified', N'U') IS NULL
+BEGIN
+	CREATE TABLE cashier_session_opening_unverified (
+		cashier_session_id bigint NOT NULL,
+		previous_session_id bigint NOT NULL,
+		CONSTRAINT PK_cashier_session_opening_unverified PRIMARY KEY (cashier_session_id),
+		CONSTRAINT fk_cashier_session_opening_unverified_session FOREIGN KEY (cashier_session_id) REFERENCES cashier_session (id),
+		CONSTRAINT fk_cashier_session_opening_unverified_previous FOREIGN KEY (previous_session_id) REFERENCES cashier_session (id)
+	);
+END
+GO
+
 UPDATE APP_VERSION SET version = '3.2.0';
 
 -- The notes of 3.2.0 are written again on each run (the script may run more than once). Written from CHANGELOG.md when

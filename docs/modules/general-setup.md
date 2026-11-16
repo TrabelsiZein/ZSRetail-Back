@@ -93,6 +93,14 @@ with `{error, code, params}` (any other refusal keeps its plain message), and th
 in the language of the screen (before: only the codes of the rows). Tests: `CashDrawerSettingCheckTest`,
 `GeneralSetupCodedRefusalTest`.
 
+A store setting (General Setup, tab "Caisse et clôture", after `CASH_DRAWER_OWNER`, BOOLEAN, created at start-up on a
+store only, `false`; never on a head office): `VERIFY_PREVIOUS_SESSION_BEFORE_OPENING`
+(`AppConfigAPI.VERIFY_PREVIOUS_SESSION_BEFORE_OPENING`, 3.2.0, the differences, step A), label "Vérifier la session
+précédente avant une nouvelle ouverture". On: a session does not open while the previous session of its drawer (the POS
+machine or the cashier, as `CASH_DRAWER_OWNER`) is closed and not verified (409 `PREVIOUS_SESSION_NOT_VERIFIED`). Off
+(an existing store): nothing refused, the fact only kept and shown. `cash-sessions.md`, "The previous session not
+verified".
+
 ## POS screens: amounts with 3 decimals (2.2.2)
 
 **3.1.0 (test log I-06): the till always shows 3 decimals, as the receipt.** The getter `appConfig/posAmountDecimals`

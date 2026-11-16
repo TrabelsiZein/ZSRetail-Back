@@ -162,6 +162,21 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		}
 		PosMachine machine = sessionPosMachineService.machineForOpening(cashier, remoteAddress);
 
+		// 3.2.0, the differences, step A: after the POS machine's rules (the drawer is known only then): the previous
+		// session of the drawer closed and not yet verified refuses the opening when the store asks for it (409), and is
+		// kept on the new session otherwise
+		java.util.Optional<CashierSession> unverifiedPrevious = drawerHandoverService == null ? java.util.Optional.empty()
+				: drawerHandoverService.unverifiedPrevious(cashier, machine);
+		if (unverifiedPrevious.isPresent() && verifyPreviousSessionRequired()) {
+			CashierSession previous = unverifiedPrevious.get();
+			String previousMachine = sessionPosMachineService.nameOf(previous.getId());
+			throw new com.digithink.zsretail.store.posmachine.DrawerRuleException("PREVIOUS_SESSION_NOT_VERIFIED",
+					"The previous session of this drawer, " + previous.getSessionNumber()
+							+ (previousMachine != null ? " (POS machine '" + previousMachine + "')" : "")
+							+ ", is closed but not verified yet: a responsible verifies it before a new session opens.",
+					"session", previous.getSessionNumber(), "posMachine", previousMachine != null ? previousMachine : "—");
+		}
+
 		CashierSession session = new CashierSession();
 		session.setCashier(cashier);
 		session.setOpeningCash(openingCash);
@@ -180,8 +195,16 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		if (drawerHandoverService != null) {
 			drawerHandoverService.recordOpening(saved, cashier, machine,
 					id -> cashierSessionRepository.findById(id).orElse(null));
+			unverifiedPrevious.ifPresent(previous -> drawerHandoverService.recordUnverified(saved, previous));
 		}
 		return saved;
+	}
+
+	/** 3.2.0, the differences, step A: VERIFY_PREVIOUS_SESSION_BEFORE_OPENING is on (off without its row). */
+	boolean verifyPreviousSessionRequired() {
+		return generalSetupRepository != null && generalSetupRepository
+				.findByCode(com.digithink.zsretail.core.controller.AppConfigAPI.VERIFY_PREVIOUS_SESSION_BEFORE_OPENING)
+				.map(GeneralSetup::getValeur).map(v -> "true".equalsIgnoreCase(v.trim())).orElse(false);
 	}
 
 	/**
@@ -194,7 +217,18 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		if (drawerHandoverService == null) {
 			return java.util.Optional.empty();
 		}
-		return drawerHandoverService.proposalFor(cashier, sessionPosMachineService.machineAt(remoteAddress).orElse(null));
+		PosMachine machine = sessionPosMachineService.machineAt(remoteAddress).orElse(null);
+		// 3.2.0, the differences, step A: the previous session of the drawer closed and not verified: nothing proposed,
+		// said (and whether the store refuses the opening)
+		java.util.Optional<CashierSession> unverified = drawerHandoverService.unverifiedPrevious(cashier, machine);
+		if (unverified.isPresent()) {
+			com.digithink.zsretail.store.cashmovement.dto.OpeningFloatDTO answer =
+					new com.digithink.zsretail.store.cashmovement.dto.OpeningFloatDTO();
+			answer.setUnverifiedPrevious(drawerHandoverService.unverifiedDto(unverified.get()));
+			answer.setVerifyPreviousRequired(verifyPreviousSessionRequired());
+			return java.util.Optional.of(answer);
+		}
+		return drawerHandoverService.proposalFor(cashier, machine);
 	}
 
 	/**
@@ -1070,6 +1104,8 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		// none, or nothing known for a session of before)
 		response.put("closingWithdrawal", drawerHandoverService == null ? null : drawerHandoverService.withdrawalOf(session));
 		response.put("openingFloat", drawerHandoverService == null ? null : drawerHandoverService.openingOf(session));
+		// 3.2.0, the differences, step A: opened while the previous session of its drawer was not verified (null: no)
+		response.put("openingUnverified", drawerHandoverService == null ? null : drawerHandoverService.unverifiedOf(session));
 		response.put("cashMovements", cashMovementRepository == null ? new ArrayList<>()
 				: cashMovementRepository.findByCashierSessionOrderByMovedAtAsc(session).stream()
 						.map(m -> com.digithink.zsretail.store.cashmovement.service.CashMovementService.dto(m, machineName))

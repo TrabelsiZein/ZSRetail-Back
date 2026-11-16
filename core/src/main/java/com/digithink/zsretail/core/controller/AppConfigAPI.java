@@ -61,6 +61,12 @@ public class AppConfigAPI {
 	 */
 	public static final String CASH_DRAWER_OWNER = "CASH_DRAWER_OWNER";
 
+	/**
+	 * 3.2.0, the differences, step A (store only, off by default): a session does not open while the previous session of
+	 * its drawer is closed and not yet verified (docs/modules/cash-sessions.md).
+	 */
+	public static final String VERIFY_PREVIOUS_SESSION_BEFORE_OPENING = "VERIFY_PREVIOUS_SESSION_BEFORE_OPENING";
+
 	/** CASHIER_CLOSING_TICKET read: "DECLARED" in any case, else "Z"; null on a head office (no till). */
 	String cashierClosingTicket() {
 		if (applicationModeService.isHeadOffice()) {

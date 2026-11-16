@@ -1188,6 +1188,10 @@ public class ZZDataInitializer {
 					// description: general_setup.description is varchar(255); the full text is the page's help
 					"Who the cash drawer belongs to: CASHIER (nothing refused) or POS_MACHINE (sessions only on registered, active POS machines, one each; selling only on the session's one). Not changed while a session is open.",
 					false, ConfigType.SELECT, "CASHIER,POS_MACHINE");
+			// 3.2.0, the differences, step A: off by default (an existing store keeps opening as before); a store only
+			ensureConfig(AppConfigAPI.VERIFY_PREVIOUS_SESSION_BEFORE_OPENING, "false",
+					"If true, a session does not open while the previous session of its drawer (the POS machine or the cashier, as CASH_DRAWER_OWNER) is closed and not yet verified.",
+					false, ConfigType.BOOLEAN);
 		}
 
 		// Table management: the properties pos.table-management.* since 3.2.0 (AppConfigAPI), no General setup row (the

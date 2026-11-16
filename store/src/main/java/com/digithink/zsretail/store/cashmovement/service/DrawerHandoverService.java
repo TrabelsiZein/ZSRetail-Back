@@ -24,11 +24,14 @@ import com.digithink.zsretail.store.cashmovement.CashMovementException;
 import com.digithink.zsretail.store.cashmovement.dto.CashMovementDTO;
 import com.digithink.zsretail.store.cashmovement.dto.ClosingWithdrawalDTO;
 import com.digithink.zsretail.store.cashmovement.dto.OpeningFloatDTO;
+import com.digithink.zsretail.store.cashmovement.dto.OpeningUnverifiedDTO;
 import com.digithink.zsretail.store.cashmovement.model.ClosingChoice;
 import com.digithink.zsretail.store.cashmovement.model.ClosingWithdrawal;
 import com.digithink.zsretail.store.cashmovement.model.OpeningFloat;
+import com.digithink.zsretail.store.cashmovement.model.OpeningUnverified;
 import com.digithink.zsretail.store.cashmovement.repository.ClosingWithdrawalRepository;
 import com.digithink.zsretail.store.cashmovement.repository.OpeningFloatRepository;
+import com.digithink.zsretail.store.cashmovement.repository.OpeningUnverifiedRepository;
 import com.digithink.zsretail.store.posmachine.DrawerOwner;
 import com.digithink.zsretail.store.posmachine.model.PosMachine;
 import com.digithink.zsretail.store.posmachine.service.SessionPosMachineService;
@@ -54,12 +57,15 @@ public class DrawerHandoverService {
 	private final ClosingWithdrawalRepository withdrawals;
 	private final OpeningFloatRepository openings;
 	private final SessionPosMachineService sessionMachines;
+	/** Step A: the openings made while the previous session of the drawer was not verified (null: none kept). */
+	private final OpeningUnverifiedRepository unverified;
 
 	/** The time of a withdrawal; a test sets its own. */
 	Clock clock = Clock.systemDefaultZone();
 
 	public DrawerHandoverService(ClosingWithdrawalRepository withdrawals, OpeningFloatRepository openings,
-			SessionPosMachineService sessionMachines) {
+			SessionPosMachineService sessionMachines, OpeningUnverifiedRepository unverified) {
+		this.unverified = unverified;
 		this.withdrawals = withdrawals;
 		this.openings = openings;
 		this.sessionMachines = sessionMachines;
@@ -134,6 +140,29 @@ public class DrawerHandoverService {
 	 * something: its amount left. Empty otherwise (not verified, nothing left, verified before this step, no machine).
 	 */
 	public Optional<OpeningFloatDTO> proposalFor(UserAccount cashier, PosMachine machine) {
+		Optional<CashierSession> previous = previousOfDrawer(cashier, machine);
+		if (!previous.isPresent() || previous.get().getStatus() != SessionStatus.TERMINATED) {
+			return Optional.empty();
+		}
+		CashierSession source = previous.get();
+		Optional<ClosingWithdrawal> answer = withdrawals.findById(source.getId());
+		if (!answer.isPresent() || answer.get().getAmountLeft() == null || answer.get().getAmountLeft() <= 0) {
+			return Optional.empty();
+		}
+		OpeningFloatDTO proposal = new OpeningFloatDTO();
+		proposal.setProposedFloat(answer.get().getAmountLeft());
+		proposal.setSourceSessionId(source.getId());
+		proposal.setSourceSessionNumber(source.getSessionNumber());
+		proposal.setSourceVerifiedAt(answer.get().getDoneAt());
+		return Optional.of(proposal);
+	}
+
+	/**
+	 * The previous session of the drawer: the most recent closed (CLOSED or TERMINATED) session of the POS machine when the
+	 * drawer belongs to the POS machine (none without a machine), else of the cashier; never an older one. Empty for the
+	 * first session of a drawer.
+	 */
+	public Optional<CashierSession> previousOfDrawer(UserAccount cashier, PosMachine machine) {
 		List<CashierSession> last;
 		if (sessionMachines.drawerOwner() == DrawerOwner.POS_MACHINE) {
 			if (machine == null || machine.getId() == null) {
@@ -146,20 +175,44 @@ public class DrawerHandoverService {
 			}
 			last = withdrawals.lastClosedOfCashier(cashier, CLOSED, PageRequest.of(0, 1));
 		}
-		if (last.isEmpty() || last.get(0).getStatus() != SessionStatus.TERMINATED) {
-			return Optional.empty();
+		return last.isEmpty() ? Optional.empty() : Optional.of(last.get(0));
+	}
+
+	/**
+	 * 3.2.0, the differences, step A: the previous session of the drawer when it is CLOSED and not yet verified (not
+	 * TERMINATED); empty otherwise (verified, or the first session of the drawer).
+	 */
+	public Optional<CashierSession> unverifiedPrevious(UserAccount cashier, PosMachine machine) {
+		return previousOfDrawer(cashier, machine).filter(s -> s.getStatus() == SessionStatus.CLOSED);
+	}
+
+	/** Step A: keeps on a session just opened that the previous session of its drawer was not verified. */
+	public void recordUnverified(CashierSession session, CashierSession previous) {
+		if (unverified == null || session == null || previous == null) {
+			return;
 		}
-		CashierSession source = last.get(0);
-		Optional<ClosingWithdrawal> answer = withdrawals.findById(source.getId());
-		if (!answer.isPresent() || answer.get().getAmountLeft() == null || answer.get().getAmountLeft() <= 0) {
-			return Optional.empty();
+		OpeningUnverified row = new OpeningUnverified();
+		row.setSession(session);
+		row.setPreviousSession(previous);
+		unverified.save(row);
+	}
+
+	/** Step A: the previous session as the screens show it (number, closing time, POS machine). */
+	public OpeningUnverifiedDTO unverifiedDto(CashierSession previous) {
+		OpeningUnverifiedDTO dto = new OpeningUnverifiedDTO();
+		dto.setPreviousSessionId(previous.getId());
+		dto.setPreviousSessionNumber(previous.getSessionNumber());
+		dto.setPreviousClosedAt(previous.getClosedAt());
+		dto.setPreviousPosMachineName(sessionMachines.nameOf(previous.getId()));
+		return dto;
+	}
+
+	/** Step A: what was kept at a session's opening about an unverified previous session; null when nothing. */
+	public OpeningUnverifiedDTO unverifiedOf(CashierSession session) {
+		if (unverified == null || session == null) {
+			return null;
 		}
-		OpeningFloatDTO proposal = new OpeningFloatDTO();
-		proposal.setProposedFloat(answer.get().getAmountLeft());
-		proposal.setSourceSessionId(source.getId());
-		proposal.setSourceSessionNumber(source.getSessionNumber());
-		proposal.setSourceVerifiedAt(answer.get().getDoneAt());
-		return Optional.of(proposal);
+		return unverified.findById(session.getId()).map(row -> unverifiedDto(row.getPreviousSession())).orElse(null);
 	}
 
 	/** At the opening of a session: its float proposed and the écart, when a float was proposed; nothing otherwise. */

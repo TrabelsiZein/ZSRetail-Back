@@ -29,6 +29,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   prints a warning for such a database; none of the current customers, pos_franchise_customer had false / 10).
 
 ### Enhancements
+- The differences, step A (`docs/modules/cash-sessions.md`, "The previous session not verified"): the previous
+  session of the drawer (the opening proposal's rule) closed and not verified. Store setting
+  `VERIFY_PREVIOUS_SESSION_BEFORE_OPENING` (off): on, `openSession` refuses with 409 `PREVIOUS_SESSION_NOT_VERIFIED`
+  (session, posMachine), after the POS machine's rules; off, nothing refused. Either way the new session keeps the fact
+  (`cashier_session_opening_unverified`); `GET /cashier-session/opening-proposal` answers `unverifiedPrevious` and
+  `verifyPreviousRequired`; the session's details `openingUnverified`. Tests: `DrawerHandoverTest` (+4).
 - The opening amount (`docs/modules/cash-sessions.md`, "The drawer from one session to the next"): the verification
   of a closed session requires `drawerWithdrawal {choice: ALL | NONE | AMOUNT, amount}` ("Retrait du tiroir", 400
   `CLOSING_WITHDRAWAL_*` without or out of range, the session unchanged), on the cash the responsible counted; kept in
@@ -249,6 +255,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   database at 3.1.2 (refused, untouched but for Hibernate's new nullable columns); `StartupOrderTest`.
 
 ### DB script
+- `db/3.2.0/update.sql` step 18, a store: `cashier_session_opening_unverified` (PK the session,
+  `fk_cashier_session_opening_unverified_session`, `_previous`). Not yet syntax-checked: SQL Server was stopped.
 - `db/3.2.0/update.sql` step 17, a store: `cashier_session_closing_withdrawal` (PK the session,
   `fk_cashier_session_closing_withdrawal_session`, `_done_by`, index on `done_at`) and `cashier_session_opening_float`
   (PK the session, `fk_cashier_session_opening_float_session`, `_source`). Parsed with `SET PARSEONLY ON`, not run.
@@ -290,6 +298,7 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   Parsed with `SET PARSEONLY ON`, not run.
 
 ### Config
+- `VERIFY_PREVIOUS_SESSION_BEFORE_OPENING` (BOOLEAN, store only, created off at the start): the differences, step A.
 - Table management leaves General setup (`docs/modules/table-management.md`): the properties
   `pos.table-management.enabled` (absent: false) and `pos.table-management.table-count` (absent or not a positive number:
   10), read by `AppConfigAPI` into the same `/config` fields; the store type file states the defaults, an installation

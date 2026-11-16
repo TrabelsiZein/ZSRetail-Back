@@ -510,6 +510,26 @@ list's differences and écart. The verification's count always has the cash line
 
 `db/3.2.0/update.sql` step 17 (the two tables and the index on `done_at`); Hibernate makes the tables at a start too.
 
+**The previous session not verified (3.2.0, the differences, step A).** "The previous session" of a drawer is the one of
+the opening proposal: the most recent closed session of the drawer (`DrawerHandoverService.previousOfDrawer`), never an
+older one. When it is CLOSED and not yet verified:
+- General setup `VERIFY_PREVIOUS_SESSION_BEFORE_OPENING` (store only, off by default, tab "Caisse et clôture" after
+  `CASH_DRAWER_OWNER`, `general-setup.md`) **on**: `openSession` is refused, 409 `PREVIOUS_SESSION_NOT_VERIFIED`
+  (session, posMachine: "—" when none is known). The check runs after the POS machine's rules (the cashier's own open
+  session, rule 1, the machine's users, rule 2), since the drawer is known only once the machine is; it opens once the
+  previous session is verified. **Off**: the opening goes on, as before.
+- Either way, the session opened keeps the fact in `cashier_session_opening_unverified` (`OpeningUnverified`: the
+  session, the unverified previous session): stored rather than computed later, because the drawer of a past session
+  depends on `CASH_DRAWER_OWNER` as it was then; a later page lists these sessions over a period from it.
+- `GET /cashier-session/opening-proposal` answers `unverifiedPrevious` (`previousSessionId`, `previousSessionNumber`,
+  `previousClosedAt`, `previousPosMachineName`) and `verifyPreviousRequired` (the setting), with no float proposed. The
+  opening page says it in orange (setting off) or in red with Open off (setting on).
+- The session's details: `openingUnverified` (the same fields), shown in the block "Fond d'ouverture". Nothing on the
+  tickets X / Z.
+- `db/3.2.0/update.sql` step 18 creates the table (Hibernate at a start too); the start creates the setting, off.
+
+The tickets X / Z print no "Écart d'ouverture" of 0 (the proposal followed), as the Sessions list and the Journal.
+
 **Tests**: `DrawerHandoverTest` (the three choices on the drawer's cash, the amount's limits, the answer required and
 nothing changed without it, never redone; the proposal by the drawer of the cashier and of the POS machine, the most
 recent session only, the écart; a session verified before this step; the next session already open; the Journal's
