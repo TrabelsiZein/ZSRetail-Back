@@ -366,6 +366,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `till:cash-movement` given to the roles ADMIN and RESPONSIBLE where missing (a role removed from it gets it back only
   if the script runs again); a head office, `ho_session.cash_movements_in` and `cash_movements_out` (float, nullable).
   Parsed with `SET PARSEONLY ON`, not run.
+- `db/3.2.0/update.sql`, release notes: the first 3.2.0 note (IMPROVE), the reorganised store menu (the settings pages
+  in the user menu at the top right; Paramètres, Siège and ERP redistributed into Utilisateurs, Achats, Synchronisation).
+  Rewritten on each run after the existing `DELETE`; the other notes are still written when the version is closed.
 
 ### Config
 - `VERIFY_PREVIOUS_SESSION_BEFORE_OPENING` (BOOLEAN, store only, created off at the start): the differences, step A.

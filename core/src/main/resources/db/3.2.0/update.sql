@@ -471,6 +471,9 @@ UPDATE APP_VERSION SET version = '3.2.0';
 -- the version is closed.
 DELETE FROM APP_RELEASE_NOTES WHERE version = '3.2.0';
 
+INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
+('3.2.0', 'IMPROVE', N'Menu du magasin réorganisé : Configuration générale, Informations Société, Licence et Import de données passent du menu latéral au menu utilisateur, en haut à droite ; les groupes Paramètres, Siège et ERP sont répartis dans Utilisateurs, Achats et Synchronisation.');
+
 GO
 
 SET NOEXEC OFF;
