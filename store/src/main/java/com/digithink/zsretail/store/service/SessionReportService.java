@@ -337,6 +337,14 @@ public class SessionReportService {
 	 * stored since 3.1.0 (SalesHeaderService.freeLineDiscountAmount), and the right one for the lines stored before
 	 * with unitPrice x quantity, an HT amount.
 	 */
+	/**
+	 * 3.2.0, the differences, step C: a line's discount as the tickets X / Z add it (REMISES): lineDiscount, 0 for the
+	 * fiscal stamp line. The page "Écarts de caisse" reads it so its discounts never differ from the X / Z.
+	 */
+	public static double ticketXzLineDiscount(SalesLine line) {
+		return ReturnHeaderService.isTaxStamp(line.getItem()) ? 0.0 : lineDiscount(line);
+	}
+
 	static double lineDiscount(SalesLine line) {
 		boolean free = line.getLineTotalIncludingVat() != null && line.getLineTotalIncludingVat() == 0.0
 				&& line.getDiscountPercentage() != null && line.getDiscountPercentage() == 100.0

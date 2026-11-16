@@ -13,9 +13,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.digithink.zsretail.core.model.BadgeScanLog;
 import com.digithink.zsretail.core.model.CashierSession;
 import com.digithink.zsretail.core.model.ReturnHeader;
 import com.digithink.zsretail.core.model.SalesHeader;
+import com.digithink.zsretail.core.model.SalesLine;
+import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
+import com.digithink.zsretail.store.cashdifference.CashWatchRepository;
 import com.digithink.zsretail.store.cashmovement.model.CashMovement;
 import com.digithink.zsretail.store.cashmovement.model.OpeningFloat;
 import com.digithink.zsretail.store.cashmovement.model.OpeningUnverified;
@@ -47,6 +51,10 @@ public final class InMemorySessionFigures {
 	public final Map<Long, PosMachine> machineOf = new HashMap<>();
 	public final List<OpeningFloat> openings = new ArrayList<>();
 	public final List<OpeningUnverified> unverified = new ArrayList<>();
+	/** Step C: the sales lines (their discounts) and the till authorisations' log. */
+	public final List<SalesLine> lines = new ArrayList<>();
+	public final List<BadgeScanLog> badgeLogs = new ArrayList<>();
+
 	/** The repository's calls, by method name. */
 	public final Map<String, Integer> calls = new HashMap<>();
 
@@ -95,6 +103,55 @@ public final class InMemorySessionFigures {
 								|| (machineOf.get(s.getId()) != null && machineId.equals(machineOf.get(s.getId()).getId())))
 						.sorted(Comparator.comparing(CashierSession::getOpenedAt).thenComparing(CashierSession::getId)
 								.reversed())
+						.collect(Collectors.toList());
+			}
+			default:
+				return UNHANDLED;
+		}
+	});
+
+	/** Step C: CashWatchRepository's four grouped queries, as their JPQL reads. */
+	public final CashWatchRepository watchRepository = proxy(CashWatchRepository.class, (m, a) -> {
+		calls.merge(m, 1, Integer::sum);
+		Collection<?> ids = (Collection<?>) a[0];
+		switch (m) {
+			case "cancelledTickets": {
+				Map<Long, Object[]> bySession = new java.util.LinkedHashMap<>();
+				sales.stream().filter(s -> ids.contains(s.getCashierSession().getId()) && s.getStatus() == a[1])
+						.forEach(s -> {
+							Object[] row = bySession.computeIfAbsent(s.getCashierSession().getId(),
+									id -> new Object[] { id, 0L, null });
+							row[1] = (Long) row[1] + 1;
+							row[2] = s.getTotalAmount() == null ? row[2]
+									: (row[2] == null ? 0.0 : (Double) row[2]) + s.getTotalAmount();
+						});
+				return new ArrayList<>(bySession.values());
+			}
+			case "discountedLines": {
+				Collection<?> excluded = (Collection<?>) a[1];
+				return lines.stream().filter(l -> {
+					SalesHeader sale = l.getSalesHeader();
+					boolean discounted = (l.getDiscountAmount() != null && l.getDiscountAmount() != 0.0)
+							|| (l.getDiscountPercentage() != null && l.getDiscountPercentage() == 100.0);
+					return ids.contains(sale.getCashierSession().getId()) && !excluded.contains(sale.getStatus()) && discounted;
+				}).map(l -> new Object[] { l.getSalesHeader().getId(), l.getSalesHeader().getCashierSession().getId(),
+						l.getDiscountAmount(), l.getDiscountSource(), l.getLineTotalIncludingVat(), l.getDiscountPercentage(),
+						l.getUnitPriceIncludingVat(), l.getQuantity(), l.getItem() != null ? l.getItem().getItemCode() : null })
+						.collect(Collectors.toList());
+			}
+			case "discountedTickets": {
+				Collection<?> excluded = (Collection<?>) a[1];
+				return sales.stream().filter(s -> ids.contains(s.getCashierSession().getId())
+						&& !excluded.contains(s.getStatus()) && s.getDiscountAmount() != null && s.getDiscountAmount() != 0.0)
+						.map(s -> new Object[] { s.getId(), s.getCashierSession().getId(), s.getDiscountAmount(),
+								s.getDiscountSource() })
+						.collect(Collectors.toList());
+			}
+			case "refusedAuthorisations": {
+				Map<Long, Long> bySession = new java.util.LinkedHashMap<>();
+				badgeLogs.stream().filter(b -> b.getSessionId() != null && ids.contains(b.getSessionId())
+						&& Boolean.FALSE.equals(b.getSuccess())).forEach(b -> bySession.merge(b.getSessionId(), 1L, Long::sum));
+				return bySession.entrySet().stream().map(e -> new Object[] { e.getKey(), e.getValue() })
 						.collect(Collectors.toList());
 			}
 			default:

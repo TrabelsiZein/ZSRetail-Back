@@ -19,7 +19,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.digithink.zsretail.core.model.BadgeScanLog;
 import com.digithink.zsretail.core.model.CashierSession;
+import com.digithink.zsretail.core.model.Item;
+import com.digithink.zsretail.core.model.SalesLine;
+import com.digithink.zsretail.store.cashdifference.CashDifferencesDTO.WatchRow;
+import com.digithink.zsretail.store.cashmovement.model.CashMovement;
+import com.digithink.zsretail.store.cashmovement.model.CashMovementType;
 import com.digithink.zsretail.core.model.ReturnHeader;
 import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.UserAccount;
@@ -58,6 +64,7 @@ class CashDifferencesTest {
 		InMemorySessionFigures.set(service, "figures", db.repository);
 		InMemorySessionFigures.set(service, "sessionFigures", db.service);
 		InMemorySessionFigures.set(service, "drawerHandoverService", db.handover);
+		InMemorySessionFigures.set(service, "watchRepository", db.watchRepository);
 	}
 
 	// ─── The five reasons, each alone ────────────────────────────────
@@ -122,7 +129,9 @@ class CashDifferencesTest {
 		assertEquals(0, result.getListedSessions());
 		assertTrue(result.getContent().isEmpty());
 		assertEquals(0, result.getTotal().getSessions());
-		assertTrue(result.getCashiers().isEmpty());
+		// step C: every cashier of the period has a row of "Par caissier", zeros when nothing
+		assertEquals(2, result.getCashiers().size());
+		assertTrue(result.getCashiers().stream().allMatch(r -> r.getSessions() == 0 && r.getClosingTotal() == 0.0));
 	}
 
 	@Test
@@ -386,6 +395,283 @@ class CashDifferencesTest {
 				assertEquals(!show, summary.startsWith("Sessions en attente de clôture : 2"), summary);
 			}
 		}
+	}
+
+	// ─── Step C, the block "À surveiller" ────────────────────────────
+
+	@Test
+	@DisplayName("À surveiller: each column on a known session (tickets, cancelled, returns, discounts and their manual"
+			+ " part, dépenses, prélèvements, refused authorisations)")
+	void watchColumns() {
+		knownSession(amira, 3);
+		CashDifferencesDTO result = all(true);
+		WatchRow row = result.getWatch().get(0);
+		assertEquals("Amira", row.getCashierName());
+		assertEquals(4, row.getTickets(), "the fixture's ticket and T2, T3, T4");
+		assertEquals(1, row.getCancelledCount());
+		assertEquals(30.0, row.getCancelledAmount(), 1e-9);
+		assertEquals(2, row.getReturnsCount());
+		assertEquals(25.0, row.getReturnsAmount(), 1e-9, "simple 10 + voucher 15");
+		assertEquals(3, row.getDiscountTickets(), "T2 (ticket), T3 (lines), T4 (free line)");
+		assertEquals(14.0, row.getDiscountAmount(), 1e-9, "5 + 2 + 1 + 6, the stamp line's left out");
+		assertEquals(2, row.getManualDiscountTickets());
+		assertEquals(6.0, row.getManualDiscountAmount(), 1e-9, "T2's 5 + T3's line 1");
+		assertEquals(1, row.getExpenseCount());
+		assertEquals(7.5, row.getExpenseAmount(), 1e-9);
+		assertEquals(1, row.getWithdrawalCount());
+		assertEquals(100.0, row.getWithdrawalAmount(), 1e-9, "the apport is not an out");
+		assertEquals(2, row.getRefusedAuthorisations(), "a success, a refusal without session not counted");
+		assertEquals(0, row.getHiddenSessions());
+		assertEquals(copyNamed(row, null, null), copyNamed(result.getWatchTotal(), null, null),
+				"one cashier: the total is his row");
+	}
+
+	@Test
+	@DisplayName("À surveiller: attributed to the session's cashier; the filters (period, POS machine, cashier); the total"
+			+ " is the rows' sum; a cashier with nothing has a row of zeros, in 'Par caissier' too")
+	void watchAttributionFiltersTotal() {
+		knownSession(amira, 3);
+		CashierSession b = knownSession(bilel, 10);
+		CashierSession empty = terminated(user(3L, "Chokri"), 12, 100.0, 100.0);
+		db.sales.removeIf(sale -> sale.getCashierSession() == empty);
+		CashierSession october = knownSession(amira, 0);
+		october.setOpenedAt(LocalDate.of(2026, 10, 31).atTime(20, 0));
+		db.machineOf.put(b.getId(), m2);
+
+		CashDifferencesDTO result = all(true);
+		assertEquals(cashierIds(result.getCashiers()), watchIds(result.getWatch()), "the same cashiers, the same order");
+		assertEquals(3, result.getWatch().size());
+		WatchRow chokri = result.getWatch().get(2); // by name: Amira, Bilel, Chokri
+		assertEquals("Chokri", chokri.getCashierName());
+		assertEquals(new WatchRow(), copyNamed(chokri, null, null), "zeros");
+		WatchRow total = result.getWatchTotal();
+		assertEquals(8, total.getTickets(), "October left out");
+		assertEquals(28.0, total.getDiscountAmount(), 1e-9);
+		assertEquals(4, total.getRefusedAuthorisations());
+		assertEquals(sumRows(result.getWatch()), copyNamed(total, null, null), "the total is the rows' sum");
+
+		CashDifferencesDTO onlyAmira = read(new CashDifferencesService.Filter(FROM, TO, null, amira.getId(), true));
+		assertEquals(1, onlyAmira.getWatch().size());
+		assertEquals(4, onlyAmira.getWatchTotal().getTickets());
+		CashDifferencesDTO onM2 = read(new CashDifferencesService.Filter(FROM, TO, m2.getId(), null, true));
+		assertEquals(1, onM2.getWatch().size());
+		assertEquals("Bilel", onM2.getWatch().get(0).getCashierName());
+		CashDifferencesDTO day10 = read(new CashDifferencesService.Filter(LocalDate.of(2026, 11, 10),
+				LocalDate.of(2026, 11, 10), null, null, true));
+		assertEquals(4, day10.getWatchTotal().getTickets());
+	}
+
+	@Test
+	@DisplayName("À surveiller: the switch showPending changes nothing in it")
+	void watchIgnoresTheSwitch() {
+		knownSession(amira, 3);
+		session(bilel, 4, SessionStatus.CLOSED, 150.0, null);
+		CashDifferencesDTO off = service.all(new CashDifferencesService.Filter(FROM, TO, null, null, false), true);
+		CashDifferencesDTO on = service.all(new CashDifferencesService.Filter(FROM, TO, null, null, true), true);
+		assertEquals(on.getWatch(), off.getWatch());
+		assertEquals(on.getWatchTotal(), off.getWatchTotal());
+		assertEquals(2, off.getWatch().size(), "Bilel's only-waiting session is not listed, his row is there");
+	}
+
+	@Test
+	@DisplayName("À surveiller without 'Voir montants session': a session not clôturée shows its counts, not the amounts"
+			+ " of its returns, dépenses and prélèvements (they enter the expected cash)")
+	void watchHiddenAmounts() {
+		CashierSession closed = knownSession(amira, 3);
+		closed.setStatus(SessionStatus.CLOSED);
+		closed.setResponsibleClosureCash(null);
+		knownSession(bilel, 4);
+		CashDifferencesDTO hidden = all(false);
+		assertEquals(1, hidden.getWatchHiddenSessions());
+		WatchRow amiraRow = hidden.getWatch().get(0);
+		assertEquals(1, amiraRow.getHiddenSessions());
+		assertEquals(2, amiraRow.getReturnsCount());
+		assertEquals(0.0, amiraRow.getReturnsAmount(), 1e-9);
+		assertEquals(1, amiraRow.getExpenseCount());
+		assertEquals(0.0, amiraRow.getExpenseAmount(), 1e-9);
+		assertEquals(0.0, amiraRow.getWithdrawalAmount(), 1e-9);
+		assertEquals(14.0, amiraRow.getDiscountAmount(), 1e-9, "not in the expected cash: shown");
+		assertEquals(30.0, amiraRow.getCancelledAmount(), 1e-9);
+		WatchRow bilelRow = hidden.getWatch().get(1);
+		assertEquals(25.0, bilelRow.getReturnsAmount(), 1e-9, "clôturée: shown");
+		assertEquals(25.0, hidden.getWatchTotal().getReturnsAmount(), 1e-9);
+		CashDifferencesDTO visible = all(true);
+		assertEquals(0, visible.getWatchHiddenSessions());
+		assertEquals(50.0, visible.getWatchTotal().getReturnsAmount(), 1e-9);
+	}
+
+	@Test
+	@DisplayName("À surveiller: one query per kind for the whole period, never one per session")
+	void watchOneQueryPerKind() {
+		for (int day = 1; day <= 12; day++) {
+			knownSession(day % 2 == 0 ? amira : bilel, day);
+		}
+		all(true);
+		for (String query : new String[] { "cancelledTickets", "discountedLines", "discountedTickets",
+				"refusedAuthorisations", "saleAmounts", "cashMovements" }) {
+			assertEquals(1, db.calls.get(query), query);
+		}
+	}
+
+	@Test
+	@DisplayName("The Excel has the sheet 'À surveiller' with the cashiers' rows and the total")
+	void watchExcel() throws Exception {
+		knownSession(amira, 3);
+		knownSession(bilel, 4);
+		byte[] file = CashDifferencesExcel.of(all(true));
+		try (org.apache.poi.xssf.usermodel.XSSFWorkbook book = new org.apache.poi.xssf.usermodel.XSSFWorkbook(
+				new java.io.ByteArrayInputStream(file))) {
+			org.apache.poi.ss.usermodel.Sheet sheet = book.getSheet("À surveiller");
+			assertNotNull(sheet);
+			int last = sheet.getLastRowNum();
+			assertEquals("Total", sheet.getRow(last).getCell(0).getStringCellValue());
+			assertEquals(8.0, sheet.getRow(last).getCell(1).getNumericCellValue(), 1e-9);
+			assertEquals(28.0, sheet.getRow(last).getCell(7).getNumericCellValue(), 1e-9);
+			assertEquals("Amira", sheet.getRow(last - 2).getCell(0).getStringCellValue());
+		}
+	}
+
+	/**
+	 * A clôturée session (difference 0) of that day with: the fixture's ticket 50 and cancelled 30; T2 40 with a MANUAL
+	 * ticket discount 5; T3 20 with a PROMOTION line discount 2, a MANUAL line discount 1 and a stamp line "discount" 1
+	 * (not one); T4 10 with a free line (100 %, 3.000 x 2); returns simple 10 and voucher 15; DEPENSE 7.5, PRELEVEMENT
+	 * 100, APPORT 20; two refused scans, one success, one refusal without session.
+	 */
+	private CashierSession knownSession(UserAccount cashier, int day) {
+		CashierSession s = terminated(cashier, day, 150.0, 150.0);
+		ticket(s, 40.0, 5.0, "MANUAL");
+		SalesHeader t3 = ticket(s, 20.0, null, null);
+		discountLine(t3, 2.0, "PROMOTION", "ART");
+		discountLine(t3, 1.0, "MANUAL", "ART");
+		discountLine(t3, 1.0, "MANUAL", "TAX_STAMP");
+		SalesHeader t4 = ticket(s, 10.0, null, null);
+		SalesLine free = discountLine(t4, 0.0, "PROMOTION", "ART");
+		free.setDiscountPercentage(100.0);
+		free.setLineTotalIncludingVat(0.0);
+		free.setUnitPriceIncludingVat(3.0);
+		free.setQuantity(BigDecimal.valueOf(2));
+		// system: 100 + 50 + 40 + 20 + 10 - 10 (simple return) - 7.5 - 100 + 20 = 122.5: counted the same (no difference)
+		s.setPosUserClosureCash(122.5);
+		s.setResponsibleClosureCash(122.5);
+		returnOf(s, ReturnType.SIMPLE_RETURN, 10.0);
+		returnOf(s, ReturnType.RETURN_VOUCHER, 15.0);
+		movement(s, CashMovementType.DEPENSE, 7.5);
+		movement(s, CashMovementType.PRELEVEMENT, 100.0);
+		movement(s, CashMovementType.APPORT, 20.0);
+		scan(s.getId(), false);
+		scan(s.getId(), false);
+		scan(s.getId(), true);
+		scan(null, false);
+		return s;
+	}
+
+	private SalesHeader ticket(CashierSession session, double total, Double discount, String source) {
+		SalesHeader sale = new SalesHeader();
+		sale.setId(nextId++);
+		sale.setCashierSession(session);
+		sale.setStatus(TransactionStatus.COMPLETED);
+		sale.setTotalAmount(total);
+		sale.setDiscountAmount(discount);
+		sale.setDiscountSource(source);
+		db.sales.add(sale);
+		return sale;
+	}
+
+	private SalesLine discountLine(SalesHeader sale, double discount, String source, String itemCode) {
+		SalesLine line = new SalesLine();
+		line.setId(nextId++);
+		line.setSalesHeader(sale);
+		line.setDiscountAmount(discount);
+		line.setDiscountSource(source);
+		line.setLineTotalIncludingVat(10.0);
+		Item item = new Item();
+		item.setItemCode(itemCode);
+		line.setItem(item);
+		db.lines.add(line);
+		return line;
+	}
+
+	private void returnOf(CashierSession session, ReturnType type, double amount) {
+		ReturnHeader r = new ReturnHeader();
+		r.setId(nextId++);
+		r.setCashierSession(session);
+		r.setReturnType(type);
+		r.setTotalReturnAmount(amount);
+		db.returns.add(r);
+	}
+
+	private void movement(CashierSession session, CashMovementType type, double amount) {
+		CashMovement m = new CashMovement();
+		m.setId(nextId++);
+		m.setCashierSession(session);
+		m.setType(type);
+		m.setAmount(amount);
+		db.movements.add(m);
+	}
+
+	private void scan(Long sessionId, boolean success) {
+		BadgeScanLog log = new BadgeScanLog();
+		log.setId(nextId++);
+		log.setSessionId(sessionId);
+		log.setSuccess(success);
+		db.badgeLogs.add(log);
+	}
+
+	/** The row's numbers with this name and id (to compare numbers only). */
+	private static WatchRow copyNamed(WatchRow row, String name, Long id) {
+		WatchRow copy = new WatchRow();
+		copy.setCashierName(name);
+		copy.setCashierId(id);
+		copy.setTickets(row.getTickets());
+		copy.setCancelledCount(row.getCancelledCount());
+		copy.setCancelledAmount(row.getCancelledAmount());
+		copy.setReturnsCount(row.getReturnsCount());
+		copy.setReturnsAmount(row.getReturnsAmount());
+		copy.setDiscountTickets(row.getDiscountTickets());
+		copy.setDiscountAmount(row.getDiscountAmount());
+		copy.setManualDiscountTickets(row.getManualDiscountTickets());
+		copy.setManualDiscountAmount(row.getManualDiscountAmount());
+		copy.setExpenseCount(row.getExpenseCount());
+		copy.setExpenseAmount(row.getExpenseAmount());
+		copy.setWithdrawalCount(row.getWithdrawalCount());
+		copy.setWithdrawalAmount(row.getWithdrawalAmount());
+		copy.setRefusedAuthorisations(row.getRefusedAuthorisations());
+		copy.setHiddenSessions(row.getHiddenSessions());
+		return copy;
+	}
+
+	private static WatchRow sumRows(List<WatchRow> rows) {
+		WatchRow sum = new WatchRow();
+		for (WatchRow r : rows) {
+			sum.setTickets(sum.getTickets() + r.getTickets());
+			sum.setCancelledCount(sum.getCancelledCount() + r.getCancelledCount());
+			sum.setCancelledAmount(round(sum.getCancelledAmount() + r.getCancelledAmount()));
+			sum.setReturnsCount(sum.getReturnsCount() + r.getReturnsCount());
+			sum.setReturnsAmount(round(sum.getReturnsAmount() + r.getReturnsAmount()));
+			sum.setDiscountTickets(sum.getDiscountTickets() + r.getDiscountTickets());
+			sum.setDiscountAmount(round(sum.getDiscountAmount() + r.getDiscountAmount()));
+			sum.setManualDiscountTickets(sum.getManualDiscountTickets() + r.getManualDiscountTickets());
+			sum.setManualDiscountAmount(round(sum.getManualDiscountAmount() + r.getManualDiscountAmount()));
+			sum.setExpenseCount(sum.getExpenseCount() + r.getExpenseCount());
+			sum.setExpenseAmount(round(sum.getExpenseAmount() + r.getExpenseAmount()));
+			sum.setWithdrawalCount(sum.getWithdrawalCount() + r.getWithdrawalCount());
+			sum.setWithdrawalAmount(round(sum.getWithdrawalAmount() + r.getWithdrawalAmount()));
+			sum.setRefusedAuthorisations(sum.getRefusedAuthorisations() + r.getRefusedAuthorisations());
+			sum.setHiddenSessions(sum.getHiddenSessions() + r.getHiddenSessions());
+		}
+		return sum;
+	}
+
+	private static double round(double value) {
+		return BigDecimal.valueOf(value).setScale(3, java.math.RoundingMode.HALF_UP).doubleValue();
+	}
+
+	private static List<Long> watchIds(List<WatchRow> rows) {
+		return rows.stream().map(WatchRow::getCashierId).collect(Collectors.toList());
+	}
+
+	private static List<Long> cashierIds(List<CashierRow> rows) {
+		return rows.stream().map(CashierRow::getCashierId).collect(Collectors.toList());
 	}
 
 	// ─── Fixtures ────────────────────────────────────────────────────

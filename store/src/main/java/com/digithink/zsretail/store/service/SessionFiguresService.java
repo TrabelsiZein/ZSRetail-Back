@@ -77,6 +77,11 @@ public class SessionFiguresService {
 			return returns.stream().filter(r -> r[1] == type).mapToDouble(r -> amount(r[2])).sum();
 		}
 
+		/** Step C: the session's cash movements by type (the tickets X / Z's totals: CashMovementTotals). */
+		public CashMovementTotals movementTotals() {
+			return CashMovementTotals.of(movements);
+		}
+
 		/** What the system side adds to opening + sales - simple returns: the scanned face gap and the movements' net. */
 		public double systemExtra() {
 			return faceGap(scannedTickets) + CashMovementTotals.of(movements).getNet().doubleValue();
@@ -128,8 +133,15 @@ public class SessionFiguresService {
 		if (sessions == null || sessions.isEmpty()) {
 			return new ArrayList<>();
 		}
+		return dashboards(sessions, of(sessions.stream().map(CashierSession::getId).collect(Collectors.toList())));
+	}
+
+	/** The same from figures already read (of): the page "Écarts de caisse" reads them once for its two blocks. */
+	public List<SessionDashboardDTO> dashboards(List<CashierSession> sessions, Map<Long, Figures> all) {
+		if (sessions == null || sessions.isEmpty()) {
+			return new ArrayList<>();
+		}
 		List<Long> ids = sessions.stream().map(CashierSession::getId).collect(Collectors.toList());
-		Map<Long, Figures> all = of(ids);
 		Map<Long, String> machines = new HashMap<>();
 		Map<Long, Double> gaps = new HashMap<>();
 		for (List<Long> chunk : chunks(ids)) {

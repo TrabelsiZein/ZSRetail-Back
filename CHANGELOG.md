@@ -29,6 +29,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   prints a warning for such a database; none of the current customers, pos_franchise_customer had false / 10).
 
 ### Enhancements
+- Écarts de caisse, step C: `watch` / `watchTotal` in `GET /cash-differences` and the Excel's sheet "À surveiller":
+  per cashier of the period's sessions (the switch has no effect), tickets, cancelled tickets, returns, discounts and
+  their MANUAL part, dépenses, prélèvements, refused authorisations, each from the Journal's / X / Z's definition,
+  grouped queries. Without `read:view-session-amounts` the returns, dépenses and prélèvements amounts of a session not
+  clôturée are hidden (counts kept). "Par caissier" lists every cashier of the period. Nothing stored, no DB script.
 - Écarts de caisse: `showPending` on `GET /cash-differences` and `/excel` (default false): a session only waiting for
   its clôture is no longer listed (a store without clôture saw every session); with another reason it stays, with its
   remark. Without `read:view-session-amounts` a hidden fermeture difference is no reason then. The counts of waiting

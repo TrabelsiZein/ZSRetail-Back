@@ -45,6 +45,10 @@ public class CashDifferencesService {
 	@Autowired(required = false)
 	private DrawerHandoverService drawerHandoverService;
 
+	/** Step C: the block "À surveiller" (cancelled tickets, discounts, refused authorisations). */
+	@Autowired
+	private CashWatchRepository watchRepository;
+
 	/** The period and filters (from and to both included, as the Sessions list's dates). */
 	public static final class Filter {
 		final LocalDate from;
@@ -74,7 +78,10 @@ public class CashDifferencesService {
 	public CashDifferencesDTO all(Filter filter, boolean amountsVisible) {
 		List<CashierSession> sessions = figures.openedBetween(filter.from.atStartOfDay(), filter.to.atTime(23, 59, 59),
 				filter.cashierId, filter.posMachineId);
-		List<SessionDashboardDTO> dashboards = sessionFigures.dashboards(sessions);
+		// the figures read once for the lines and the block "À surveiller" (step C)
+		Map<Long, SessionFiguresService.Figures> sessionsFigures = sessionFigures
+				.of(sessions.stream().map(CashierSession::getId).collect(Collectors.toList()));
+		List<SessionDashboardDTO> dashboards = sessionFigures.dashboards(sessions, sessionsFigures);
 		Map<Long, OpeningUnverifiedDTO> unverified = new HashMap<>();
 		if (drawerHandoverService != null) {
 			for (List<Long> chunk : SessionFiguresService
@@ -106,8 +113,34 @@ public class CashDifferencesService {
 		result.setTotalElements(listed.size());
 		result.setHiddenClosingDifferences(lines.stream().filter(Line::isClosingDifferenceHidden).count());
 		summary(result, lines, listed);
+		// "Par caissier" has every cashier of the period, a row of zeros for one with nothing (step C: the same cashiers
+		// as "À surveiller")
+		addCashiersWithNothing(result, dashboards);
+		CashWatch.fill(result, dashboards, sessionsFigures, watchRepository, amountsVisible);
 		return result;
 	}
+
+	/** The period's cashiers missing from "Par caissier" (no line with a reason), with zeros, in the rows' order. */
+	static void addCashiersWithNothing(CashDifferencesDTO result, List<SessionDashboardDTO> dashboards) {
+		Map<Long, String> names = new LinkedHashMap<>();
+		dashboards.forEach(d -> names.putIfAbsent(d.getCashierId(), d.getCashierFullName()));
+		List<CashierRow> rows = new ArrayList<>(result.getCashiers());
+		names.forEach((id, name) -> {
+			if (rows.stream().noneMatch(r -> java.util.Objects.equals(r.getCashierId(), id))) {
+				CashierRow row = new CashierRow();
+				row.setCashierId(id);
+				row.setCashierName(name);
+				rows.add(row);
+			}
+		});
+		rows.sort(CASHIER_ORDER);
+		result.setCashiers(rows);
+	}
+
+	/** By name (case ignored), then id: the order of "Par caissier" and "À surveiller". */
+	static final Comparator<CashierRow> CASHIER_ORDER = Comparator
+			.comparing((CashierRow r) -> r.getCashierName() == null ? "" : r.getCashierName(), String.CASE_INSENSITIVE_ORDER)
+			.thenComparing(r -> r.getCashierId() == null ? 0L : r.getCashierId());
 
 	/** One page of the lines (newest first), with the summary of the whole period. */
 	public CashDifferencesDTO page(Filter filter, boolean amountsVisible, int page, int size) {

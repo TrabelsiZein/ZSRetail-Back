@@ -14,6 +14,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import com.digithink.zsretail.store.cashdifference.CashDifferencesDTO.CashierRow;
 import com.digithink.zsretail.store.cashdifference.CashDifferencesDTO.Line;
+import com.digithink.zsretail.store.cashdifference.CashDifferencesDTO.WatchRow;
 import com.digithink.zsretail.store.service.JournalExcel;
 
 /**
@@ -27,6 +28,11 @@ public final class CashDifferencesExcel {
 
 	static final String[] LINE_HEADERS = { "Session", "Ouverte le", "Caissier", "Poste de caisse", "Statut",
 			"Écart fermeture", "Écart clôture", "Écart d'ouverture", "Remarques" };
+
+	/** Step C: the sheet "À surveiller". */
+	static final String[] WATCH_HEADERS = { "Caissier", "Tickets", "Tickets annulés", "Montant annulé", "Retours",
+			"Montant retours", "Tickets avec remise", "Remises", "dont manuelles (tickets)", "dont manuelles (montant)",
+			"Dépenses", "Montant dépenses", "Prélèvements", "Montant prélèvements", "Autorisations refusées" };
 
 	static final String[] SUMMARY_HEADERS = { "Caissier", "Sessions avec écart", "Écart fermeture",
 			"dont manquants", "Écart clôture", "dont manquants", "Écart d'ouverture", "dont manquants",
@@ -114,6 +120,27 @@ public final class CashDifferencesExcel {
 				summary.autoSizeColumn(c);
 			}
 
+			// step C: the sheet "À surveiller" (every session of the period, whatever the switch)
+			Sheet watch = workbook.createSheet("À surveiller");
+			r = 0;
+			text(watch.createRow(r++), 0, "À surveiller " + period, bold);
+			text(watch.createRow(r++), 0, "Par caissier, toutes les sessions de la période (aucun seuil, des nombres)", null);
+			if (result.getWatchHiddenSessions() > 0) {
+				text(watch.createRow(r++), 0, "Montants des retours, dépenses et prélèvements masqués pour "
+						+ result.getWatchHiddenSessions() + " session(s) non clôturée(s) (droit « Voir montants session »)", null);
+			}
+			r++;
+			r = header(watch, r, WATCH_HEADERS, bold);
+			for (WatchRow row : result.getWatch()) {
+				watchRow(watch.createRow(r++), row, row.getCashierName(), null, amount);
+			}
+			if (result.getWatchTotal() != null) {
+				watchRow(watch.createRow(r++), result.getWatchTotal(), "Total", bold, boldAmount);
+			}
+			for (int c = 0; c < WATCH_HEADERS.length; c++) {
+				watch.autoSizeColumn(c);
+			}
+
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
 			workbook.write(out);
 			return out.toByteArray();
@@ -147,6 +174,24 @@ public final class CashDifferencesExcel {
 		sum(row, 7, values.getOpeningGapShortage(), amountStyle);
 		row.createCell(8).setCellValue(values.getOpenedWithoutFinalClosing());
 		row.createCell(9).setCellValue(values.getPendingFinalClosing());
+	}
+
+	private static void watchRow(Row row, WatchRow v, String name, CellStyle textStyle, CellStyle amountStyle) {
+		text(row, 0, name, textStyle);
+		row.createCell(1).setCellValue(v.getTickets());
+		row.createCell(2).setCellValue(v.getCancelledCount());
+		sum(row, 3, v.getCancelledAmount(), amountStyle);
+		row.createCell(4).setCellValue(v.getReturnsCount());
+		sum(row, 5, v.getReturnsAmount(), amountStyle);
+		row.createCell(6).setCellValue(v.getDiscountTickets());
+		sum(row, 7, v.getDiscountAmount(), amountStyle);
+		row.createCell(8).setCellValue(v.getManualDiscountTickets());
+		sum(row, 9, v.getManualDiscountAmount(), amountStyle);
+		row.createCell(10).setCellValue(v.getExpenseCount());
+		sum(row, 11, v.getExpenseAmount(), amountStyle);
+		row.createCell(12).setCellValue(v.getWithdrawalCount());
+		sum(row, 13, v.getWithdrawalAmount(), amountStyle);
+		row.createCell(14).setCellValue(v.getRefusedAuthorisations());
 	}
 
 	private static int header(Sheet sheet, int r, String[] headers, CellStyle style) {

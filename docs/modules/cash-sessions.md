@@ -585,6 +585,33 @@ the switch; `pendingFinalClosing`, `openedWithoutFinalClosing` and every sum do 
 difference and no écart: it adds 0). The answer says `showPending`; the Excel's lines follow it and its Résumé says how
 many wait when they are not listed. On the page the card "En attente de clôture" turns the switch on.
 
+**The block "À surveiller" (step C)**: `watch` (one `WatchRow` per cashier, by name) and `watchTotal`, in the same
+answer and the Excel's third sheet. Every session of the period and filters (the set of `periodSessions`, the switch
+`showPending` has no effect), attributed to the session's cashier; the cashiers are those of "Par caissier", which since
+this step lists every cashier of the period (zeros when nothing). Numbers only, no threshold. Each from a definition
+that already exists (`CashWatch`), grouped queries for the whole set (`CashWatchRepository`, by chunks of ids; the
+figures of `SessionFiguresService` read once for the lines and the block):
+- `tickets`: the Sessions list's (neither PENDING nor CANCELLED), the Journal's TICKET;
+- `cancelledCount` / `cancelledAmount`: status CANCELLED (the Journal's CANCELLED, the X / Z's count), the total stored on
+  the ticket (the Journal prints a cancelled ticket at 0);
+- `returnsCount` / `returnsAmount`: every return and its `totalReturnAmount`, the Journal's RETURN and `returnsAmount`;
+- `discountTickets` / `discountAmount`: the X / Z's REMISES, `SessionReportService.ticketXzLineDiscount` of each line (the
+  fiscal stamp line left out, a free-item line at its price) plus the ticket discount, loyalty apart as there; and
+  `manualDiscountTickets` / `manualDiscountAmount`, the part whose `discount_source` (line or ticket) is MANUAL (the
+  others are promotions and price lists, not the cashier's);
+- `expenseCount` / `expenseAmount` (DEPENSE) and `withdrawalCount` / `withdrawalAmount` (PRELEVEMENT): `CashMovementTotals`,
+  the X / Z's and the Journal's movements;
+- `refusedAuthorisations`: `badge_scan_log` rows with success false (a badge scan refused: no badge, revoked, expired,
+  owner inactive, no right), by the session the scanning user had open (a scan without open session is not counted; a
+  role without the right is never logged, the till asks for a badge).
+Without "Voir montants session" the amounts that enter the expected cash (returns, dépenses, prélèvements) of an OPENED
+or CLOSED session are neither sent nor summed, their counts are (`hiddenSessions`, `watchHiddenSessions`): the step B
+rule. The Journal itself shows these amounts under the same right with no masking (a point left for later). The
+Journal reads each document by its own date and the block by its session's opening: the same day agrees when no
+session crosses midnight (`CashWatchJournalTest`). No link yet: the Journal takes only `?month=` / `?date=` (no cashier)
+and the badge history no URL filter. `sales_line` has no index on `sales_header_id` (the discounts' join, and the
+Journal's and the X / Z's): proposed, not added.
+
 **Rights.** No new key: the right of the Sessions page and the Journal, `read:admin-sessions-history`, opens it (the
 menu, the route, and the endpoint itself: 403 without it). "Voir montants session" (`read:view-session-amounts`):
 without it the Sessions list masks the difference of a session not yet clôturée (the responsible counts blind); here

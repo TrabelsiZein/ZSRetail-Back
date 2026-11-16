@@ -49,6 +49,47 @@ public class CashDifferencesDTO {
 	private List<CashierRow> cashiers = new ArrayList<>();
 	private CashierRow total;
 
+	/**
+	 * Step C, the block "À surveiller": one row per cashier of the period's sessions (every session, whatever the
+	 * switch; the same cashiers as "Par caissier"), by name, and the total.
+	 */
+	private List<WatchRow> watch = new ArrayList<>();
+	private WatchRow watchTotal;
+	/**
+	 * The sessions not finally closed whose returns, dépenses and prélèvements amounts are not sent nor summed (without
+	 * "Voir montants session": they enter the expected cash of the blind count); their counts are.
+	 */
+	private long watchHiddenSessions;
+
+	@Data
+	@NoArgsConstructor
+	public static class WatchRow {
+		private Long cashierId;
+		private String cashierName;
+		/** The finished tickets (neither PENDING nor CANCELLED, as the Sessions list and the Journal). */
+		private long tickets;
+		private long cancelledCount;
+		/** The cancelled tickets' total as stored (the Journal prints them at 0). */
+		private double cancelledAmount;
+		private long returnsCount;
+		private double returnsAmount;
+		/** The tickets with a discount (a line or the ticket) and the discounts, as the tickets X / Z add them. */
+		private long discountTickets;
+		private double discountAmount;
+		/** Of them, the discounts the cashier typed (discount_source MANUAL, line or ticket). */
+		private long manualDiscountTickets;
+		private double manualDiscountAmount;
+		/** The cash movements out of the drawer: DEPENSE and PRELEVEMENT. */
+		private long expenseCount;
+		private double expenseAmount;
+		private long withdrawalCount;
+		private double withdrawalAmount;
+		/** The refused badge scans in the cashier's sessions. */
+		private long refusedAuthorisations;
+		/** The cashier's sessions whose amounts are hidden (see watchHiddenSessions). */
+		private long hiddenSessions;
+	}
+
 	@Data
 	@NoArgsConstructor
 	public static class Line {
