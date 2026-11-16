@@ -157,9 +157,9 @@ class CashDifferencesTest {
 		assertEquals(ids(a30, b15, a1), ids(all.getContent()), "newest first, October left out");
 		assertEquals(3, all.getPeriodSessions());
 		assertEquals("Caisse 1", all.getContent().get(2).getPosMachineName());
-		assertEquals(ids(a30, a1), ids(read(new CashDifferencesService.Filter(FROM, TO, null, 1L)).getContent()));
-		assertEquals(ids(b15), ids(read(new CashDifferencesService.Filter(FROM, TO, 20L, null)).getContent()));
-		assertEquals(ids(a1), ids(read(new CashDifferencesService.Filter(FROM, FROM, null, null)).getContent()),
+		assertEquals(ids(a30, a1), ids(read(new CashDifferencesService.Filter(FROM, TO, null, 1L, true)).getContent()));
+		assertEquals(ids(b15), ids(read(new CashDifferencesService.Filter(FROM, TO, 20L, null, true)).getContent()));
+		assertEquals(ids(a1), ids(read(new CashDifferencesService.Filter(FROM, FROM, null, null, true)).getContent()),
 				"one day, its 23:59:59 included");
 	}
 
@@ -191,7 +191,7 @@ class CashDifferencesTest {
 		session(bilel, 6, SessionStatus.CLOSED, 151.0, null); // pending, fermeture +1
 		terminated(bilel, 7, 150.0, 150.0); // none
 
-		CashDifferencesDTO first = read(new CashDifferencesService.Filter(FROM, TO, null, null), 0, 2);
+		CashDifferencesDTO first = read(new CashDifferencesService.Filter(FROM, TO, null, null, true), 0, 2);
 		assertEquals(6, first.getPeriodSessions());
 		assertEquals(5, first.getListedSessions());
 		assertEquals(5, first.getTotalElements());
@@ -200,7 +200,7 @@ class CashDifferencesTest {
 
 		List<Line> everyPage = new ArrayList<>();
 		for (int page = 0; page < first.getTotalPages(); page++) {
-			CashDifferencesDTO result = read(new CashDifferencesService.Filter(FROM, TO, null, null), page, 2);
+			CashDifferencesDTO result = read(new CashDifferencesService.Filter(FROM, TO, null, null, true), page, 2);
 			assertEquals(first.getTotal(), result.getTotal(), "the summary is the period's, whatever the page");
 			everyPage.addAll(result.getContent());
 		}
@@ -295,12 +295,103 @@ class CashDifferencesTest {
 		assertNull(CashDifferencesAPI.filter("2026-13-01", null, null, null));
 		assertNull(CashDifferencesAPI.filter("2026-11-10", "2026-11-09", null, null));
 		assertNotNull(CashDifferencesAPI.filter("2026-11-10", "2026-11-10", 10L, 1L));
+		assertFalse(month.showPending, "the switch off by default");
+		assertTrue(CashDifferencesAPI.filter(null, null, null, null, true).showPending);
+	}
+
+	// ─── The switch "Afficher les sessions en attente de clôture" ──────
+
+	@Test
+	@DisplayName("Switch off (the default): a session only waiting for its clôture is not listed; one with a difference,"
+			+ " an écart or an opening without clôture stays, with its remark; the counts and the sums do not change")
+	void switchOff() throws Exception {
+		CashierSession onlyWaiting = session(amira, 2, SessionStatus.CLOSED, 150.0, null);
+		CashierSession waitingShort = session(amira, 3, SessionStatus.CLOSED, 140.0, null); // fermeture -10
+		CashierSession waitingGap = session(bilel, 4, SessionStatus.CLOSED, 150.0, null);
+		db.openingGap(waitingGap, -2.0);
+		CashierSession waitingUnverified = session(bilel, 5, SessionStatus.CLOSED, 150.0, null);
+		db.openedWithoutFinalClosing(waitingUnverified, onlyWaiting);
+		session(bilel, 6, SessionStatus.CLOSED, 150.0, null); // only waiting, Bilel
+		CashierSession closed = terminated(amira, 7, 145.0, 147.0);
+
+		CashDifferencesDTO on = service.all(new CashDifferencesService.Filter(FROM, TO, null, null, true), true);
+		CashDifferencesDTO off = service.all(new CashDifferencesService.Filter(FROM, TO, null, null), true);
+		assertTrue(on.isShowPending());
+		assertFalse(off.isShowPending());
+		assertEquals(6, on.getListedSessions());
+		assertEquals(ids(closed, waitingUnverified, waitingGap, waitingShort), ids(off.getContent()));
+		assertEquals(4, off.getListedSessions());
+		assertEquals(4, off.getTotalElements());
+		assertEquals(6, off.getPeriodSessions());
+		Line kept = off.getContent().stream().filter(l -> l.getSessionId().equals(waitingShort.getId())).findFirst().get();
+		assertTrue(kept.isPendingFinalClosing(), "the remark stays");
+		assertEquals("En attente de clôture", CashDifferencesExcel.remarks(kept));
+
+		// the counts of the period, whatever the switch; the listed sessions follow it
+		assertEquals(5, off.getTotal().getPendingFinalClosing());
+		assertEquals(on.getTotal().getPendingFinalClosing(), off.getTotal().getPendingFinalClosing());
+		assertEquals(on.getTotal().getOpenedWithoutFinalClosing(), off.getTotal().getOpenedWithoutFinalClosing());
+		assertEquals(4, off.getTotal().getSessions());
+		assertEquals(6, on.getTotal().getSessions());
+		Map<String, CashierRow> offRows = off.getCashiers().stream().collect(Collectors.toMap(CashierRow::getCashierName, r -> r));
+		Map<String, CashierRow> onRows = on.getCashiers().stream().collect(Collectors.toMap(CashierRow::getCashierName, r -> r));
+		assertEquals(3, offRows.get("Bilel").getPendingFinalClosing());
+		assertEquals(onRows.get("Bilel").getPendingFinalClosing(), offRows.get("Bilel").getPendingFinalClosing());
+		assertEquals(2, offRows.get("Bilel").getSessions());
+		assertEquals(2, offRows.get("Amira").getSessions());
+		assertEquals(3, onRows.get("Amira").getSessions());
+		// the sums: a session only waiting has no difference and no écart
+		assertEquals(on.getTotal().getClosingTotal(), off.getTotal().getClosingTotal(), 1e-9);
+		assertEquals(-15.0, off.getTotal().getClosingTotal(), 1e-9);
+		assertEquals(on.getTotal().getClosingShortage(), off.getTotal().getClosingShortage(), 1e-9);
+		assertEquals(on.getTotal().getFinalClosingTotal(), off.getTotal().getFinalClosingTotal(), 1e-9);
+		assertEquals(on.getTotal().getOpeningGapTotal(), off.getTotal().getOpeningGapTotal(), 1e-9);
+		assertEquals(on.getTotal().getOpeningGapShortage(), off.getTotal().getOpeningGapShortage(), 1e-9);
+
+		// paging follows what is listed
+		CashDifferencesDTO page = service.page(new CashDifferencesService.Filter(FROM, TO, null, null), true, 1, 3);
+		assertEquals(2, page.getTotalPages());
+		assertEquals(1, page.getContent().size());
+	}
+
+	@Test
+	@DisplayName("Switch off without 'Voir montants session': a hidden fermeture difference is no reason (the list would"
+			+ " tell which drawers are off before the blind count)")
+	void switchOffHiddenDifference() {
+		session(amira, 2, SessionStatus.CLOSED, 140.0, null); // -10, hidden
+		session(amira, 3, SessionStatus.CLOSED, 150.0, null);
+		CashDifferencesDTO off = service.all(new CashDifferencesService.Filter(FROM, TO, null, null), false);
+		assertEquals(0, off.getListedSessions());
+		assertEquals(2, off.getTotal().getPendingFinalClosing());
+		assertEquals(2, off.getHiddenClosingDifferences(), "a 0 is hidden too: \"—\" would tell the drawer is right");
+		CashDifferencesDTO visible = service.all(new CashDifferencesService.Filter(FROM, TO, null, null), true);
+		assertEquals(1, visible.getListedSessions(), "with the right, the -10 is a reason");
+	}
+
+	@Test
+	@DisplayName("The Excel follows the switch: off, the only-waiting sessions are not in the lines' sheet")
+	void excelFollowsTheSwitch() throws Exception {
+		session(amira, 2, SessionStatus.CLOSED, 150.0, null);
+		CashierSession waitingShort = session(amira, 3, SessionStatus.CLOSED, 140.0, null);
+		for (boolean show : new boolean[] { false, true }) {
+			byte[] file = CashDifferencesExcel.of(service.all(new CashDifferencesService.Filter(FROM, TO, null, null, show), true));
+			try (org.apache.poi.xssf.usermodel.XSSFWorkbook book = new org.apache.poi.xssf.usermodel.XSSFWorkbook(
+					new java.io.ByteArrayInputStream(file))) {
+				org.apache.poi.ss.usermodel.Sheet lines = book.getSheet("Écarts de caisse");
+				int dataRows = lines.getLastRowNum() - 2; // title, blank, header
+				assertEquals(show ? 2 : 1, dataRows, "show = " + show);
+				assertEquals(waitingShort.getSessionNumber(), lines.getRow(3).getCell(0).getStringCellValue());
+				String summary = book.getSheet("Résumé").getRow(2) == null ? ""
+						: book.getSheet("Résumé").getRow(2).getCell(0).getStringCellValue();
+				assertEquals(!show, summary.startsWith("Sessions en attente de clôture : 2"), summary);
+			}
+		}
 	}
 
 	// ─── Fixtures ────────────────────────────────────────────────────
 
 	private CashDifferencesDTO all(boolean amountsVisible) {
-		return service.all(new CashDifferencesService.Filter(FROM, TO, null, null), amountsVisible);
+		return service.all(new CashDifferencesService.Filter(FROM, TO, null, null, true), amountsVisible);
 	}
 
 	private CashDifferencesDTO read(CashDifferencesService.Filter filter) {

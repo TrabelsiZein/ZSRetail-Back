@@ -575,6 +575,16 @@ session's opening as the Sessions list; blank: the current month's first and las
   -15) and each shortage is the sum of the minus values alone (-20): a plus never hides a minus. Sums in BigDecimal, to
   the millime; over the whole period and filters, whatever the page.
 
+**The switch "Afficher les sessions en attente de clôture"** (`showPending`, of both endpoints, default false; front
+off by default, kept with the other filters). Off: a session whose only reason is to wait for its clôture is not
+listed (a customer that never does the clôture saw every session: 14 of 18 lines in November, all 23 in October on
+pos_franchise_customer); a waiting session with another reason stays, with its remark. A hidden fermeture difference
+(below) is no reason then: listing only the waiting sessions whose hidden difference is not 0 would tell the
+responsible which drawers are off before his blind count. `listedSessions`, the paging and each row's `sessions` follow
+the switch; `pendingFinalClosing`, `openedWithoutFinalClosing` and every sum do not (a session only waiting has no
+difference and no écart: it adds 0). The answer says `showPending`; the Excel's lines follow it and its Résumé says how
+many wait when they are not listed. On the page the card "En attente de clôture" turns the switch on.
+
 **Rights.** No new key: the right of the Sessions page and the Journal, `read:admin-sessions-history`, opens it (the
 menu, the route, and the endpoint itself: 403 without it). "Voir montants session" (`read:view-session-amounts`):
 without it the Sessions list masks the difference of a session not yet clôturée (the responsible counts blind); here

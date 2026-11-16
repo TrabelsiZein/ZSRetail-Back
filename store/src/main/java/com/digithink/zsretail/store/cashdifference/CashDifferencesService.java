@@ -51,12 +51,22 @@ public class CashDifferencesService {
 		final LocalDate to;
 		final Long posMachineId;
 		final Long cashierId;
+		/**
+		 * The switch "Afficher les sessions en attente de clôture" (off by default): off, a session whose only reason
+		 * is to wait for its clôture is not listed (a customer that never does the clôture would see every session).
+		 */
+		final boolean showPending;
 
 		public Filter(LocalDate from, LocalDate to, Long posMachineId, Long cashierId) {
+			this(from, to, posMachineId, cashierId, false);
+		}
+
+		public Filter(LocalDate from, LocalDate to, Long posMachineId, Long cashierId, boolean showPending) {
 			this.from = from;
 			this.to = to;
 			this.posMachineId = posMachineId;
 			this.cashierId = cashierId;
+			this.showPending = showPending;
 		}
 	}
 
@@ -86,11 +96,16 @@ public class CashDifferencesService {
 				lines.add(line);
 			}
 		}
-		result.setContent(lines);
-		result.setListedSessions(lines.size());
-		result.setTotalElements(lines.size());
+		// the switch off: the sessions waiting for their clôture with no other reason are left out of the lines only; the
+		// summary keeps them (their counts; they add nothing to a sum: no difference, no écart)
+		List<Line> listed = filter.showPending ? lines
+				: lines.stream().filter(CashDifferencesService::hasOtherReason).collect(Collectors.toList());
+		result.setShowPending(filter.showPending);
+		result.setContent(listed);
+		result.setListedSessions(listed.size());
+		result.setTotalElements(listed.size());
 		result.setHiddenClosingDifferences(lines.stream().filter(Line::isClosingDifferenceHidden).count());
-		summary(result, lines);
+		summary(result, lines, listed);
 		return result;
 	}
 
@@ -143,12 +158,25 @@ public class CashDifferencesService {
 		return line;
 	}
 
+	/**
+	 * A reason other than waiting for the clôture. A fermeture difference hidden (without "Voir montants session") is
+	 * not one: listing only the waiting sessions whose hidden difference is not 0 would tell the responsible which
+	 * drawers are off before his blind count.
+	 */
+	static boolean hasOtherReason(Line line) {
+		return nonZero(line.getClosingDifference()) || nonZero(line.getFinalClosingDifference())
+				|| nonZero(line.getOpeningGap()) || line.getOpenedWithoutFinalClosing() != null;
+	}
+
 	static boolean nonZero(Double value) {
 		return value != null && Math.abs(value) >= ZERO;
 	}
 
-	/** One row per cashier of the lines (by name, then id), and the total: the signed sums and the shortages alone. */
-	static void summary(CashDifferencesDTO result, List<Line> lines) {
+	/**
+	 * One row per cashier of the lines (by name, then id), and the total: the signed sums and the shortages alone, the
+	 * counts of every line with a reason (the waiting ones too, whatever the switch); "sessions" counts the listed ones.
+	 */
+	static void summary(CashDifferencesDTO result, List<Line> lines, List<Line> listed) {
 		Map<Long, List<Line>> byCashier = new LinkedHashMap<>();
 		for (Line line : lines) {
 			byCashier.computeIfAbsent(line.getCashierId(), id -> new ArrayList<>()).add(line);
@@ -157,10 +185,13 @@ public class CashDifferencesService {
 				.sorted(Comparator.comparing((CashierRow r) -> r.getCashierName() == null ? "" : r.getCashierName(),
 						String.CASE_INSENSITIVE_ORDER).thenComparing(r -> r.getCashierId() == null ? 0L : r.getCashierId()))
 				.collect(Collectors.toList());
+		rows.forEach(r -> r.setSessions(listed.stream()
+				.filter(l -> java.util.Objects.equals(l.getCashierId(), r.getCashierId())).count()));
 		result.setCashiers(rows);
 		CashierRow total = row(lines);
 		total.setCashierId(null);
 		total.setCashierName(null);
+		total.setSessions(listed.size());
 		result.setTotal(total);
 	}
 

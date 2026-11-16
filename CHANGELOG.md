@@ -29,6 +29,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   prints a warning for such a database; none of the current customers, pos_franchise_customer had false / 10).
 
 ### Enhancements
+- Écarts de caisse: `showPending` on `GET /cash-differences` and `/excel` (default false): a session only waiting for
+  its clôture is no longer listed (a store without clôture saw every session); with another reason it stays, with its
+  remark. Without `read:view-session-amounts` a hidden fermeture difference is no reason then. The counts of waiting
+  sessions and every sum stay the period's (`docs/modules/cash-sessions.md`, "Cash differences").
 - The differences, step B (`docs/modules/cash-sessions.md`, "Cash differences"): `GET /cash-differences` and
   `/cash-differences/excel` (store only, `store.cashdifference`), every session of a period (default the current month;
   POS machine, cashier) with a fermeture or clôture difference, an écart d'ouverture, an opening without the previous

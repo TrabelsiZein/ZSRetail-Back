@@ -93,6 +93,11 @@ public final class CashDifferencesExcel {
 			text(summary.createRow(r++), 0, "Écarts de caisse " + period, bold);
 			text(summary.createRow(r++), 0, "Sessions listées : " + result.getListedSessions() + " sur "
 					+ result.getPeriodSessions() + " sessions de la période", null);
+			long pending = result.getTotal() != null ? result.getTotal().getPendingFinalClosing() : 0;
+			if (!result.isShowPending() && pending > 0) {
+				text(summary.createRow(r++), 0, "Sessions en attente de clôture : " + pending
+						+ " (listées seulement avec un autre écart ou une remarque)", null);
+			}
 			if (result.getHiddenClosingDifferences() > 0) {
 				text(summary.createRow(r++), 0, "Écarts de fermeture masqués (sessions non clôturées, droit « Voir montants"
 						+ " session ») : " + result.getHiddenClosingDifferences(), null);

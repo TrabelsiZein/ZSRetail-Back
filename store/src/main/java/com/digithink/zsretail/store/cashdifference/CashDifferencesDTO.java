@@ -36,6 +36,9 @@ public class CashDifferencesDTO {
 	private boolean amountsHidden;
 	private long hiddenClosingDifferences;
 
+	/** The switch "Afficher les sessions en attente de clôture" as read (off: the waiting-only sessions not listed). */
+	private boolean showPending;
+
 	private List<Line> content = new ArrayList<>();
 	private long totalElements;
 	private int totalPages;
@@ -75,7 +78,7 @@ public class CashDifferencesDTO {
 	public static class CashierRow {
 		private Long cashierId;
 		private String cashierName;
-		/** The listed sessions of the cashier. */
+		/** The listed sessions of the cashier (the switch applied); the other counts are of every session with a reason. */
 		private long sessions;
 		/** Each total keeps its sign; each shortage is the sum of the negative values alone (0 or below). */
 		private double closingTotal;
