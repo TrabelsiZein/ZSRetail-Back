@@ -4,8 +4,10 @@ import java.math.BigDecimal;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.Index;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
+import javax.persistence.Table;
 
 import com.digithink.zsretail.core.utils.Quantities;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -17,6 +19,8 @@ import lombok.NoArgsConstructor;
  * Return line entity - line items for returns
  */
 @Entity
+// 3.2.0: the lines of a return (the Journal), by an index (db/3.2.0/update.sql step 19; Hibernate creates it on a new database)
+@Table(indexes = @Index(name = "ix_return_line_return_header", columnList = "return_header_id"))
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor

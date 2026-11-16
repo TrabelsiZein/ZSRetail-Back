@@ -430,6 +430,31 @@ BEGIN
 END
 GO
 
+-- 19) Indexes on the foreign keys the Journal, the tickets X / Z and the page Écarts de caisse join on (the lines and
+-- payments of a ticket, the lines of a return, the returns and the counts of a session): without them each reading scans
+-- the whole table. Only created when missing (the script may run again); the entities declare them too, so Hibernate
+-- creates them on a new database. Every database (core tables); session_cash_count is a store's only. No data changed.
+IF OBJECT_ID(N'sales_line', N'U') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_sales_line_sales_header' AND object_id = OBJECT_ID(N'sales_line'))
+	CREATE INDEX ix_sales_line_sales_header ON sales_line (sales_header_id);
+GO
+IF OBJECT_ID(N'payment', N'U') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_payment_sales_header' AND object_id = OBJECT_ID(N'payment'))
+	CREATE INDEX ix_payment_sales_header ON payment (sales_header_id);
+GO
+IF OBJECT_ID(N'return_line', N'U') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_return_line_return_header' AND object_id = OBJECT_ID(N'return_line'))
+	CREATE INDEX ix_return_line_return_header ON return_line (return_header_id);
+GO
+IF OBJECT_ID(N'return_header', N'U') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_return_header_session' AND object_id = OBJECT_ID(N'return_header'))
+	CREATE INDEX ix_return_header_session ON return_header (cashier_session_id);
+GO
+IF OBJECT_ID(N'session_cash_count', N'U') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_session_cash_count_session' AND object_id = OBJECT_ID(N'session_cash_count'))
+	CREATE INDEX ix_session_cash_count_session ON session_cash_count (cashier_session_id);
+GO
+
 UPDATE APP_VERSION SET version = '3.2.0';
 
 -- The notes of 3.2.0 are written again on each run (the script may run more than once). Written from CHANGELOG.md when

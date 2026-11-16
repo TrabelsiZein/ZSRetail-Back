@@ -609,8 +609,9 @@ or CLOSED session are neither sent nor summed, their counts are (`hiddenSessions
 rule. The Journal itself shows these amounts under the same right with no masking (a point left for later). The
 Journal reads each document by its own date and the block by its session's opening: the same day agrees when no
 session crosses midnight (`CashWatchJournalTest`). No link yet: the Journal takes only `?month=` / `?date=` (no cashier)
-and the badge history no URL filter. `sales_line` has no index on `sales_header_id` (the discounts' join, and the
-Journal's and the X / Z's): proposed, not added.
+and the badge history no URL filter. Indexes (3.2.0, `db/3.2.0/update.sql` step 19, declared on the entities too):
+`ix_sales_line_sales_header`, `ix_payment_sales_header`, `ix_return_line_return_header`, `ix_return_header_session`,
+`ix_session_cash_count_session`, the foreign keys these readers (the Journal, the X / Z, this page) join on.
 
 **Rights.** No new key: the right of the Sessions page and the Journal, `read:admin-sessions-history`, opens it (the
 menu, the route, and the endpoint itself: 403 without it). "Voir montants session" (`read:view-session-amounts`):

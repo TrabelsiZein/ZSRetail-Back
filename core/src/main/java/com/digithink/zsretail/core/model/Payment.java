@@ -5,10 +5,12 @@ import java.time.LocalDateTime;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.Index;
 import javax.persistence.Enumerated;
 import javax.persistence.EnumType;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
+import javax.persistence.Table;
 import javax.persistence.PrePersist;
 import javax.persistence.PreUpdate;
 
@@ -24,6 +26,8 @@ import lombok.NoArgsConstructor;
  * Payment entity - represents payment transactions
  */
 @Entity
+// 3.2.0: the payments of a ticket (the Journal, the tickets X / Z, the session details), by an index (db/3.2.0/update.sql step 19; Hibernate creates it on a new database)
+@Table(indexes = @Index(name = "ix_payment_sales_header", columnList = "sales_header_id"))
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor

@@ -280,6 +280,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   database at 3.1.2 (refused, untouched but for Hibernate's new nullable columns); `StartupOrderTest`.
 
 ### DB script
+- `db/3.2.0/update.sql` step 19, every database: five indexes on foreign keys the Journal, the tickets X / Z and the
+  page Écarts de caisse join on, created only when missing: `ix_sales_line_sales_header`, `ix_payment_sales_header`,
+  `ix_return_line_return_header`, `ix_return_header_session`, `ix_session_cash_count_session` (a store's table). The
+  entities declare them too (Hibernate creates them on a new database). Syntax-checked; run twice on
+  pos_franchise_customer (2026-11-16).
 - `db/3.2.0/update.sql` step 18, a store: `cashier_session_opening_unverified` (PK the session,
   `fk_cashier_session_opening_unverified_session`, `_previous`). Not yet syntax-checked: SQL Server was stopped.
 - `db/3.2.0/update.sql` step 17, a store: `cashier_session_closing_withdrawal` (PK the session,

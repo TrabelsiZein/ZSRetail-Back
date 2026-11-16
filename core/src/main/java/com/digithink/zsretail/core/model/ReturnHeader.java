@@ -4,10 +4,12 @@ import java.time.LocalDateTime;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.Index;
 import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
+import javax.persistence.Table;
 import javax.persistence.PrePersist;
 import javax.persistence.PreUpdate;
 
@@ -24,6 +26,8 @@ import lombok.NoArgsConstructor;
  * Return header entity - represents product returns
  */
 @Entity
+// 3.2.0: the returns of a session (the tickets X / Z, the Sessions list, the page Écarts de caisse), by an index (db/3.2.0/update.sql step 19; Hibernate creates it on a new database)
+@Table(indexes = @Index(name = "ix_return_header_session", columnList = "cashier_session_id"))
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
