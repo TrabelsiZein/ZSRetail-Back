@@ -382,7 +382,7 @@ pending ticket deleted), `RfidPosAPITest`; the hook calls in `SaleCompletionLoya
 
 ## The front pages (ZSRetail-Front)
 
-A store menu **RFID** (after Inventory, icon Radio) with its pages, only when `GET /config` `rfidEnabled` is true
+A store menu **RFID** (after Inventory; 3.2.0: after Achats; icon Radio) with its pages, only when `GET /config` `rfidEnabled` is true
 (never on a head office: its menu is its own, and the getter `appConfig/rfidEnabled` is false there).
 `RFID_ROUTES` (`navigation/store-mode-routes.js`): the menu (`VerticalNavMenu`, the group removed when empty), the
 router guard (home) and the search bar hide them, like the other store-mode pages. The POS machines page left this menu

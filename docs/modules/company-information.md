@@ -36,7 +36,7 @@
 - **`src/store/app-config/index.js`** — Added `companyInfo` state object, `UPDATE_COMPANY_INFO` mutation, `companyInfo` getter, `fetchCompanyInfo` action (`GET /company-info`)
 - **`src/main.js`** — Calls `store.dispatch('appConfig/fetchCompanyInfo')` at startup (after `fetchAppConfig`)
 - **`src/components/ReceiptTemplate.vue`** — Replaced `receiptBranding.js` import with `mapGetters({ companyInfo: 'appConfig/companyInfo' })`. Computed properties `storeName`, `storeLogoUrl`, `receiptAddress`, `receiptPhone`, `receiptEmail`, `receiptMatriculeFiscal`, `receiptFooterNote` now read from store. Header shows address/phone/email/MF below company name. Footer company info block is now dynamic (was hardcoded). Removed `receiptBranding.js` dependency entirely.
-- **`src/navigation/vertical/index.js`** — Added `admin.companyInformationMenu` entry (`BriefcaseIcon`) under Administration group
+- **`src/navigation/vertical/index.js`** — Added `admin.companyInformationMenu` entry (`BriefcaseIcon`) under Administration group (3.2.0: in the user dropdown, `navigation/vertical/user-menu.js`)
 - **`src/router/index.js`** — Added route `/admin/company-information`, behind `read:admin-company-information` since 3.1.2 (`meta.resource`; before, open by URL to any logged user)
 - **`src/views/Login.vue`** — Added `admin-company-information` read+write abilities to ADMIN role
 - **`src/libs/i18n/locales/en.json` / `fr.json` / `ar.json`** — Added `admin.companyInformationMenu` and `admin.companyInformation.*` keys (title, subtitle, save, sections, all field labels/placeholders/hints, success/error messages)

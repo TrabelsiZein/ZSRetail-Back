@@ -638,7 +638,7 @@ Without the URL these keys are not checked. The URL scheme is not checked: HTTP 
 **Permission** `read:admin-holink-status` ("Lien siège", Roles page group "Paramètres & Outils"), ADMIN only by default. Seeded (`ZZDataInitializer.HEAD_OFFICE_LINK_ADMIN_PERMISSIONS`) when the ADMIN role is created on a store that has `headoffice.url`; the 4 profiles without the URL seed exactly the roles of before. **A store database whose ADMIN role already exists** (every existing install, and a store linked after its first start) does not get it: on that store, once `headoffice.url` is set, open the Roles page, tick "Lien siège" for ADMIN, save, then log out and in (abilities are built at login). No startup top-up.
 
 ### Head office link pages (store, 2026-10-08)
-The store's menu group **Head office** has four entries, in this order (`src/navigation/vertical/index.js`):
+The store's menu group **Head office** had four entries, in this order (`src/navigation/vertical/index.js`). 3.2.0: the group is gone, Réceptions is in **Achats** and Jobs ("Tâches siège"), Communications and Data exchanged are in **Synchronisation** (`docs/admin-pages.md`, "Store menu (3.2.0)"):
 
 | Entry | Page | Route | Permission |
 |---|---|---|---|

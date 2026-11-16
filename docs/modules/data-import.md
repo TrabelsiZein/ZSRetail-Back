@@ -73,7 +73,7 @@ spaces, `_` and `-` ignored for every field).
 
 ### Frontend — Modified Files
 
-- **`navigation/vertical/index.js`** — Added `admin.dataImportMenu` entry (`DownloadCloudIcon`) under the Administration group
+- **`navigation/vertical/index.js`** — Added `admin.dataImportMenu` entry (`DownloadCloudIcon`) under the Administration group (3.2.0: in the user dropdown, `navigation/vertical/user-menu.js`)
 - **`VerticalNavMenu.vue`** — Added `admin-data-import` to `hideWhenNotStandalone` filter list so the menu entry is hidden in ERP mode
 - **`router/index.js`** — Added route `/admin/data-import` (`requiredRole: 'ADMIN'`) + added `admin-data-import` to the standalone guard block
 - **`Login.vue`** — Added `read` and `write` abilities for `admin-data-import` to ADMIN role only
