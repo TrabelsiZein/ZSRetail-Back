@@ -29,6 +29,15 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   prints a warning for such a database; none of the current customers, pos_franchise_customer had false / 10).
 
 ### Enhancements
+- The differences, step B (`docs/modules/cash-sessions.md`, "Cash differences"): `GET /cash-differences` and
+  `/cash-differences/excel` (store only, `store.cashdifference`), every session of a period (default the current month;
+  POS machine, cashier) with a fermeture or clôture difference, an écart d'ouverture, an opening without the previous
+  session clôturée or still waiting for its clôture, paged newest first, and the summary of the whole period per
+  cashier (signed totals and the shortages alone). Read only, nothing stored. The right `read:admin-sessions-history`
+  checked by the endpoint (403); without `read:view-session-amounts` the fermeture's difference of a session not
+  clôturée is not sent nor summed. The numbers come from `SessionFiguresService`, now also the Sessions list's
+  (`/cashier-session/history`): one query per kind for the page's sessions instead of 5 to 6 per session; the list's
+  numbers do not change (tests: the loader equals the session details, with scanned tickets and cash movements).
 - Vocabulary of the two session steps (labels only, `docs/modules/cash-sessions.md`, "Vocabulary"): the cashier
   closes the session ("Fermer" / "Fermée", CLOSED), the responsible does the final closing ("Clôturer" / "Clôturée",
   TERMINATED; English "Final closing" / "Finally closed"). The server's English texts of `PREVIOUS_SESSION_NOT_VERIFIED`,

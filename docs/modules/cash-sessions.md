@@ -542,6 +542,57 @@ nothing changed without it, never redone; the proposal by the drawer of the cash
 recent session only, the écart; a session verified before this step; the next session already open; the Journal's
 lines).
 
+## Cash differences (3.2.0, the differences, step B)
+
+One page for every money difference of the drawers, the ones that may hide a theft (until then spread over the Sessions
+list, the Journal's day and the tickets X / Z). Store only (`store.cashdifference`; the head office has neither the
+endpoint nor the page). Read only: nothing stored, no rule of its own, no change to selling, the fermeture, the clôture
+or the opening.
+
+**The numbers are the Sessions list's.** `SessionFiguresService` (store) gives the Sessions list's line
+(`SessionDashboardDTO`, its differences by `SessionDashboardDTO.fromEntity`) for many sessions at once: the sales
+(PENDING and CANCELLED left out), the returns, the scanned tickets (face - net) and the cash movements (in - out) of a
+group of sessions in one query each (`SessionFiguresRepository`, by chunks of 1,000 ids, under SQL Server's 2,100
+parameters), then the details' sums; the POS machine and the écart d'ouverture in one query each too. `GET
+/cashier-session/history` uses it since this step (before: 5 to 6 queries per session of the page, and the expected
+cash computed for nothing); the details (`/{id}/details`) keep their own reading of the session, kept equal by
+`ScannedTicketsClosingTest` / `CashMovementTest` (`loaderEqualsDetails`). `scannedFaceGap` is `SessionFiguresService.faceGap`.
+
+**`GET /cash-differences`** (`CashDifferencesAPI`), parameters `from`, `to` (YYYY-MM-DD, both days included, by the
+session's opening as the Sessions list; blank: the current month's first and last day), `posMachineId`, `cashierId`,
+`page` (0), `size` (10). 400 for a date that does not parse or `to` before `from`. Answer `CashDifferencesDTO`:
+- `periodSessions` (the sessions of the period and filters), `listedSessions`;
+- `content`, newest first (opening, then id), paged as the Sessions list (`totalElements`, `totalPages`, `number`,
+  `size`): one `Line` per session with at least one of the five reasons: `closingDifference` (the cashier's at the
+  fermeture, `cashDifference`), `finalClosingDifference` (the responsible's at the clôture, `responsibleDifference`),
+  `openingGap` (the écart d'ouverture), `openedWithoutFinalClosing` (the row of `cashier_session_opening_unverified`:
+  the previous session's id, number, closing time, POS machine), `pendingFinalClosing` (CLOSED when the page is read).
+  A value below half a millime is no difference (the values are rounded to the millime). Also `sessionId`,
+  `sessionNumber`, `openedAt`, `closedAt`, `cashierId`, `cashierName`, `posMachineName`, `status`;
+- `cashiers`: one `CashierRow` per cashier of the listed sessions (by name) and `total`: `sessions` (listed),
+  `closingTotal` / `closingShortage`, `finalClosingTotal` / `finalClosingShortage`, `openingGapTotal` /
+  `openingGapShortage`, `openedWithoutFinalClosing`, `pendingFinalClosing`. Each total keeps its sign (-20 and +5 =
+  -15) and each shortage is the sum of the minus values alone (-20): a plus never hides a minus. Sums in BigDecimal, to
+  the millime; over the whole period and filters, whatever the page.
+
+**Rights.** No new key: the right of the Sessions page and the Journal, `read:admin-sessions-history`, opens it (the
+menu, the route, and the endpoint itself: 403 without it). "Voir montants session" (`read:view-session-amounts`):
+without it the Sessions list masks the difference of a session not yet clôturée (the responsible counts blind); here
+the server does not send the fermeture's difference of an OPENED or CLOSED session (`closingDifferenceHidden`, the
+screen's "******"), does not sum it (`amountsHidden`, `hiddenClosingDifferences` says how many), and lists the session
+anyway (a CLOSED one is "En attente de clôture"). The clôture's difference and the écart d'ouverture are never masked,
+as on the Sessions list.
+
+**`GET /cash-differences/excel`**, the same filters: `CashDifferencesExcel`, French as the Journal's file, the sheet
+"Écarts de caisse" (every listed line, not the page; an empty cell for none or 0, "******" for a hidden one, the
+remarks "En attente de clôture", "Ouverte sans clôture de la précédente (…)") and the sheet "Résumé" (listed out of the
+period's sessions, the hidden ones, the per-cashier rows and the total; a sum of 0 written).
+
+**The page** (front `views/admin/session/CashDifferences.vue`, `../admin-pages.md`): Caisse menu after Journal; a line
+opens the Sessions page's details popup (the same component). Tests: `CashDifferencesTest` (each reason alone, several,
+none, the filters and the order, one query per kind for 20 sessions, the summary equal to the lines over every page, the
+numbers of the list's line, the hidden fermeture difference, the endpoint's period).
+
 ## Closed points
 
 - **The FREE_QUANTITY line stored an HT discount (fixed in 3.1.0).** For a "X bought, Y free" promotion the server adds

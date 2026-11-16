@@ -215,6 +215,30 @@ public class DrawerHandoverService {
 		return unverified.findById(session.getId()).map(row -> unverifiedDto(row.getPreviousSession())).orElse(null);
 	}
 
+	/**
+	 * Step B: what was kept at the opening of these sessions about an unverified previous session (one query, and one for
+	 * the previous sessions' POS machines), by session id; a session without a row is not in it.
+	 */
+	public Map<Long, OpeningUnverifiedDTO> unverifiedBySession(Collection<Long> sessionIds) {
+		if (unverified == null || sessionIds == null || sessionIds.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		List<OpeningUnverified> rows = unverified.findBySessionIdIn(sessionIds);
+		Map<Long, String> names = sessionMachines.namesBySession(
+				rows.stream().map(row -> row.getPreviousSession().getId()).collect(Collectors.toList()));
+		Map<Long, OpeningUnverifiedDTO> out = new HashMap<>();
+		for (OpeningUnverified row : rows) {
+			CashierSession previous = row.getPreviousSession();
+			OpeningUnverifiedDTO dto = new OpeningUnverifiedDTO();
+			dto.setPreviousSessionId(previous.getId());
+			dto.setPreviousSessionNumber(previous.getSessionNumber());
+			dto.setPreviousClosedAt(previous.getClosedAt());
+			dto.setPreviousPosMachineName(names.get(previous.getId()));
+			out.put(row.getSessionId(), dto);
+		}
+		return out;
+	}
+
 	/** At the opening of a session: its float proposed and the écart, when a float was proposed; nothing otherwise. */
 	public Optional<OpeningFloat> recordOpening(CashierSession session, UserAccount cashier, PosMachine machine,
 			java.util.function.Function<Long, CashierSession> sessionById) {

@@ -598,4 +598,27 @@ class CashMovementTest {
 		assertEquals(-10.0, session.getResponsibleDifference(), 1e-9);
 		assertNull(session.getOpeningGap(), "no float proposed to this session");
 	}
+
+	@Test
+	@DisplayName("Differences step B: the Sessions list's loader (SessionFiguresService) gives the details' numbers, the"
+			+ " cash movements on the system side")
+	void loaderEqualsDetails() throws Exception {
+		movementService.record(karim, request("APPORT", 500.0, null));
+		movementService.record(karim, request("PRELEVEMENT", 120.0, null));
+		karimSession.setStatus(SessionStatus.CLOSED);
+		karimSession.setClosedAt(DAY.atTime(18, 0));
+		karimSession.setPosUserClosureCash(527.5);
+		karimSession.setResponsibleClosureCash(530.0);
+		com.digithink.zsretail.store.support.InMemorySessionFigures figures = new com.digithink.zsretail.store.support.InMemorySessionFigures();
+		figures.sessions.add(karimSession);
+		figures.sales.addAll(sales);
+		figures.movements.addAll(movements);
+		SessionDashboardDTO details = (SessionDashboardDTO) sessionService.getSessionDetails(karimSession.getId())
+				.get("session");
+		SessionDashboardDTO list = figures.service.dashboards(java.util.Arrays.asList(karimSession)).get(0);
+		assertEquals(-2.5, details.getCashDifference(), 1e-9, "100 + 50 + 500 - 120 = 530");
+		assertEquals(details.getCashDifference(), list.getCashDifference());
+		assertEquals(details.getResponsibleDifference(), list.getResponsibleDifference());
+		assertEquals(details.getTotalSalesAmount(), list.getTotalSalesAmount());
+	}
 }

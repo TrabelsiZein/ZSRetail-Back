@@ -346,7 +346,8 @@ public final class JournalExcel {
 		}
 	}
 
-	private static String statusLabel(SessionStatus status) {
+	/** 3.2.0: also the page "Écarts de caisse" (CashDifferencesExcel). */
+	public static String statusLabel(SessionStatus status) {
 		if (status == null) {
 			return null;
 		}

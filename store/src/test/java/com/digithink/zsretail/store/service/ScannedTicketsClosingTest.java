@@ -494,6 +494,26 @@ class ScannedTicketsClosingTest {
 	}
 
 	@Test
+	@DisplayName("Differences step B: the Sessions list's loader (SessionFiguresService) gives the details' numbers, with"
+			+ " scanned tickets and a cancelled sale")
+	void loaderEqualsDetails() {
+		session.setPosUserClosureCash(130.6);
+		session.setResponsibleClosureCash(131.1);
+		com.digithink.zsretail.store.support.InMemorySessionFigures figures = new com.digithink.zsretail.store.support.InMemorySessionFigures();
+		figures.sessions.add(session);
+		figures.sales.addAll(sales);
+		figures.tickets.addAll(tickets);
+		SessionDashboardDTO details = (SessionDashboardDTO) sessions.getSessionDetails(7L).get("session");
+		SessionDashboardDTO list = figures.service.dashboards(Arrays.asList(session)).get(0);
+		assertEquals(-1.0, details.getCashDifference(), 1e-9);
+		assertEquals(details.getCashDifference(), list.getCashDifference());
+		assertEquals(details.getResponsibleDifference(), list.getResponsibleDifference());
+		assertEquals(details.getSalesCount(), list.getSalesCount());
+		assertEquals(details.getTotalSalesAmount(), list.getTotalSalesAmount());
+		assertEquals(details.getTotalReturnsAmount(), list.getTotalReturnsAmount());
+	}
+
+	@Test
 	@DisplayName("The verification form's line for the method: the face total and its 'count', stored as the quantity")
 	void verifyStoresTheCount() throws Exception {
 		Map<String, Object> cashLine = new HashMap<>();

@@ -320,6 +320,10 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 						.of(cashMovementRepository.findByCashierSessionOrderByMovedAtAsc(session)).getNet().doubleValue();
 	}
 
+	/** 3.2.0, the differences, step B: the Sessions list's lines of a page (SessionFiguresService). */
+	@Autowired
+	private SessionFiguresService sessionFiguresService;
+
 	/** 3.2.0, POS machines step 5: the cash movements of the sessions (the expected cash, the details). */
 	@Autowired
 	private com.digithink.zsretail.store.cashmovement.repository.CashMovementRepository cashMovementRepository;
@@ -472,14 +476,9 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	 * method on its face total (SessionDashboardDTO.fromEntity). 0 without scanned tickets.
 	 */
 	double scannedFaceGap(CashierSession session) {
-		BigDecimal gap = BigDecimal.ZERO;
-		for (ScannedTicketsSummary.Method method : ScannedTicketsSummary
-				.byMethodCode(scannedTicketPaymentRepository.findByCashierSession(session,
-						Arrays.asList(TransactionStatus.PENDING, TransactionStatus.CANCELLED)))
-				.values()) {
-			gap = gap.add(method.getFace().subtract(method.getNet()));
-		}
-		return gap.doubleValue();
+		// 3.2.0, the differences, step B: the sum of SessionFiguresService (the Sessions list's), one session
+		return SessionFiguresService.faceGap(scannedTicketPaymentRepository.findByCashierSession(session,
+				Arrays.asList(TransactionStatus.PENDING, TransactionStatus.CANCELLED)));
 	}
 
 	/**
@@ -861,41 +860,11 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		org.springframework.data.domain.Page<CashierSession> sessionPage = cashierSessionRepository.findAll(spec,
 				pageable);
 
-		List<SessionDashboardDTO> dtos = sessionPage.getContent().stream().map(session -> {
-			List<SalesHeader> allSales = salesHeaderRepository.findByCashierSession(session);
-			List<SalesHeader> sales = allSales.stream().filter(
-					s -> s.getStatus() != TransactionStatus.PENDING && s.getStatus() != TransactionStatus.CANCELLED)
-					.collect(Collectors.toList());
-			Long salesCount = (long) sales.size();
-			Double totalSalesAmount = sales.stream()
-					.mapToDouble(s -> s.getTotalAmount() != null ? s.getTotalAmount() : 0.0).sum();
-			List<ReturnHeader> returns = returnHeaderRepository.findByCashierSession(session);
-			Long returnsCount = (long) returns.size();
-			Double totalReturnsAmount = returns.stream()
-					.mapToDouble(r -> r.getTotalReturnAmount() != null ? r.getTotalReturnAmount() : 0.0).sum();
-			Double simpleReturnsAmount = returns.stream().filter(r -> r.getReturnType() == ReturnType.SIMPLE_RETURN)
-					.mapToDouble(r -> r.getTotalReturnAmount() != null ? r.getTotalReturnAmount() : 0.0).sum();
-			Double voucherReturnsAmount = returns.stream().filter(r -> r.getReturnType() == ReturnType.RETURN_VOUCHER)
-					.mapToDouble(r -> r.getTotalReturnAmount() != null ? r.getTotalReturnAmount() : 0.0).sum();
-			Double calculatedRealCash = calculateRealCash(session);
-			Double realCash = session.getRealCash() != null && session.getStatus() == SessionStatus.CLOSED
-					? session.getRealCash()
-					: calculatedRealCash;
-			// 3.2.0, step 5: the system side adds the cash movements in - out (as the expected cash)
-			return SessionDashboardDTO.fromEntity(session, salesCount, totalSalesAmount, returnsCount,
-					totalReturnsAmount, simpleReturnsAmount, voucherReturnsAmount, realCash,
-					scannedFaceGap(session) + cashMovementNet(session));
-		}).collect(Collectors.toList());
-		// 3.2.0, POS machines step 2: the POS machine of each session of the page, one query
-		Map<Long, String> machineNames = sessionPosMachineService
-				.namesBySession(dtos.stream().map(SessionDashboardDTO::getId).collect(Collectors.toList()));
-		dtos.forEach(dto -> dto.setPosMachineName(machineNames.get(dto.getId())));
-		// 3.2.0, the opening amount: the écart d'ouverture of each session of the page (null: no float proposed)
-		if (drawerHandoverService != null) {
-			Map<Long, Double> gaps = drawerHandoverService
-					.openingGapsBySession(dtos.stream().map(SessionDashboardDTO::getId).collect(Collectors.toList()));
-			dtos.forEach(dto -> dto.setOpeningGap(gaps.get(dto.getId())));
-		}
+		// 3.2.0, the differences, step B: the page's lines in one query per kind (sales, returns, scanned tickets, cash
+		// movements; the system side adds the scanned face gap and the movements in - out), the POS machine and the écart
+		// d'ouverture: SessionFiguresService, shared with the page "Écarts de caisse". Until then 5 to 6 queries per
+		// session, and the expected cash computed for nothing (fromEntity never read it).
+		List<SessionDashboardDTO> dtos = sessionFiguresService.dashboards(sessionPage.getContent());
 
 		Map<String, Object> result = new HashMap<>();
 		result.put("content", dtos);
