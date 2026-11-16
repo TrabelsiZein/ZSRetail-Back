@@ -38,7 +38,7 @@ import com.digithink.zsretail.store.service.SessionReportService;
  * session not finally closed are neither sent nor summed, as the fermeture difference of step B; their counts are.
  * Grouped queries for the whole set of sessions, by chunks of ids.
  */
-final class CashWatch {
+public final class CashWatch {
 
 	static final String MANUAL = "MANUAL";
 
@@ -82,6 +82,18 @@ final class CashWatch {
 		result.setWatch(rows);
 		result.setWatchTotal(row(new ArrayList<>(sessions.values())));
 		result.setWatchHiddenSessions(sessions.values().stream().filter(s -> s.hidden).count());
+	}
+
+	/**
+	 * 3.2.0, "Caisse en direct": the block's numbers of each session alone, by session id (the same counting as the
+	 * page; the amounts of a hidden session left out as there).
+	 */
+	public static Map<Long, WatchRow> perSession(List<SessionDashboardDTO> dashboards,
+			Map<Long, SessionFiguresService.Figures> figures, CashWatchRepository repository, boolean amountsVisible) {
+		Map<Long, WatchRow> out = new LinkedHashMap<>();
+		sessions(dashboards, figures, repository, amountsVisible)
+				.forEach((id, session) -> out.put(id, row(java.util.Collections.singletonList(session))));
+		return out;
 	}
 
 	/** Each session's numbers, by session id (every session of the dashboards, zeros when nothing). */

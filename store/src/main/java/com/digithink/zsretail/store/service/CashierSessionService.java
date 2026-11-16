@@ -46,6 +46,7 @@ import com.digithink.zsretail.store.repository.ScannedTicketPaymentRepository;
 import com.digithink.zsretail.store.repository.SessionCashCountRepository;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -265,50 +266,35 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	 * calculations
 	 */
 	private Double calculateRealCash(CashierSession session) {
-		Double realCash = session.getOpeningCash() != null ? session.getOpeningCash() : 0.0;
-
-		// Get all sales for this session, excluding PENDING and CANCELLED
-		List<SalesHeader> sales = salesHeaderRepository.findByCashierSession(session).stream()
-				.filter(sale -> sale.getStatus() != TransactionStatus.PENDING
-						&& sale.getStatus() != TransactionStatus.CANCELLED)
-				.collect(Collectors.toList());
-
-		for (SalesHeader sale : sales) {
-			// Get all payments for this sale
-			List<Payment> payments = paymentRepository.findBySalesHeader(sale);
-
-			boolean hasCashPayment = false;
-			for (Payment payment : payments) {
-				if (payment.getPaymentMethod() != null
-						&& payment.getPaymentMethod().getType() == PaymentMethodType.CLIENT_ESPECES) {
-					hasCashPayment = true;
-					if (payment.getTotalAmount() != null) {
-						realCash += payment.getTotalAmount();
-					}
-				}
-			}
-
-			// Only subtract change for sales that actually had a cash component
-			if (hasCashPayment && sale.getChangeAmount() != null && sale.getChangeAmount() > 0) {
-				realCash -= sale.getChangeAmount();
-			}
-		}
-
-		// Subtract simple returns (cash refunds) - these reduce the cash in the till
-		List<ReturnHeader> returns = returnHeaderRepository.findByCashierSession(session);
-		for (ReturnHeader returnHeader : returns) {
-			if (returnHeader.getReturnType() == ReturnType.SIMPLE_RETURN
-					&& returnHeader.getTotalReturnAmount() != null) {
-				realCash -= returnHeader.getTotalReturnAmount();
-			}
-		}
-
-		// 3.2.0, POS machines step 5: the cash movements: + the apports, - the prélèvements and the dépenses
-		realCash += cashMovementNet(session);
-
-		// 3.1.0 (test log I-07): to the millime, as stored, so the closing check compares the same value (no 0.0002)
-		return Quantities.roundAmount(realCash);
+		return expectedCash(Collections.singletonList(session), null).get(session.getId());
 	}
+
+	/**
+	 * 3.2.0: the cash expected in the drawer of these sessions, by session id, the one computation of the closing, the
+	 * ticket X, the session details and "Caisse en direct": opening + the cash payments of the tickets that count - their
+	 * change - the simple returns + the cash movements in - out, to the millime. The sums are read in SQL, one query per
+	 * kind for all the sessions (ExpectedCashSums; until 3.2.0 every ticket and then its payments, one query each).
+	 * {@code movementNets}: the movements' net already read (SessionFiguresService), or null to read each session's.
+	 */
+	public Map<Long, Double> expectedCash(List<CashierSession> sessions, Map<Long, Double> movementNets) {
+		Map<Long, ExpectedCashSums.Sums> sums = expectedCashSums.of(sessions);
+		Map<Long, Double> out = new LinkedHashMap<>();
+		for (CashierSession session : sessions) {
+			ExpectedCashSums.Sums of = sums.get(session.getId());
+			double expected = session.getOpeningCash() != null ? session.getOpeningCash() : 0.0;
+			expected += of.cashPaid;
+			expected -= of.changeGiven;
+			expected -= of.simpleReturns;
+			expected += movementNets != null ? movementNets.getOrDefault(session.getId(), 0.0) : cashMovementNet(session);
+			// 3.1.0 (test log I-07): to the millime, as stored, so the closing check compares the same value (no 0.0002)
+			out.put(session.getId(), Quantities.roundAmount(expected));
+		}
+		return out;
+	}
+
+	/** 3.2.0: the sums of the expected cash, in SQL (SqlExpectedCashSums). */
+	@Autowired
+	private ExpectedCashSums expectedCashSums;
 
 	/**
 	 * 3.2.0, POS machines step 5: the session's cash movements in - out (0 without any). Also the sessions list's system

@@ -31,7 +31,21 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   the roles of before get 403 on the Journal until it runs (it gives the right to every role holding
   `read:admin-sessions-history`).
 
+### Features
+- "Caisse en direct" (`docs/modules/cash-sessions.md`, "Caisse en direct"): `GET /cashier-session/live` (`store.livecash`),
+  read only, 403 without `read:admin-sessions-history`, no amount without "Voir montants session". The day (open
+  sessions, the Journal's tickets and sales of today, the cash expected in the open drawers); each active POS machine
+  with its open sessions and its latest session when fermée and not clôturée (whatever its date), then each open session
+  without one; per open session its cashier, times, opening, tickets, sales, last ticket, cash movements, expected cash and
+  "À surveiller" (`CashWatch.perSession`). Grouped queries only, 20 reads per call whatever the number of sessions.
+  Nothing stored, no script. Tests: `LiveCashTest` (5).
+
 ### Enhancements
+- The expected cash of a drawer is one computation, `CashierSessionService.expectedCash` (the closing, the ticket X, the
+  session details, Caisse en direct), its sums read in SQL (`ExpectedCashRepository`, `SqlExpectedCashSums`: three
+  grouped queries) instead of every ticket and then its payments, one query each; same rules, same result (checked
+  against the stored `real_cash` of `pos_franchise_customer`: 45 of 45). Tests: `store.support.InMemoryExpectedCash` in the
+  four classes that build the service by hand.
 - `/cashier-session` closed further (`docs/modules/cash-sessions.md`, "Amounts hidden and the Journal's right"): the eight
   generic endpoints of `_BaseController` (GET `/`, `/{id}`, `/findByField`, `/{id}/exists`, `/count`, POST, PUT, DELETE)
   answer 403 to anyone and touch nothing (they sent `realCash` and the counts to any logged user and could create,

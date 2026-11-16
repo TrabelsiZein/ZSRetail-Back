@@ -226,6 +226,8 @@ class CashMovementTest {
 		set(sessionService, CashierSessionService.class, "salesHeaderRepository", salesRepo);
 		set(sessionService, CashierSessionService.class, "paymentRepository", paymentRepo);
 		set(sessionService, CashierSessionService.class, "returnHeaderRepository", returnRepo);
+		set(sessionService, CashierSessionService.class, "expectedCashSums",
+				com.digithink.zsretail.store.support.InMemoryExpectedCash.over(salesRepo, paymentRepo, returnRepo));
 		set(sessionService, CashierSessionService.class, "paymentMethodRepository", methodRepo);
 		set(sessionService, CashierSessionService.class, "sessionCashCountRepository", countRepo);
 		set(sessionService, CashierSessionService.class, "scannedTicketPaymentRepository", ticketRepo);

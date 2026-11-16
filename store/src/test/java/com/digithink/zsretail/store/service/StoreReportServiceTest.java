@@ -160,6 +160,8 @@ class StoreReportServiceTest {
 		inject(sessionService, "salesHeaderRepository", salesRepo);
 		inject(sessionService, "paymentRepository", paymentRepo);
 		inject(sessionService, "returnHeaderRepository", returnRepo);
+		inject(sessionService, "expectedCashSums",
+				com.digithink.zsretail.store.support.InMemoryExpectedCash.over(salesRepo, paymentRepo, returnRepo));
 
 		SessionReportService sessionReports = new SessionReportService();
 		inject(sessionReports, "cashierSessionRepository", sessionRepo);

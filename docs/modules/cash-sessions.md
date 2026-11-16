@@ -682,6 +682,52 @@ Tests: `CashierSessionEndpointsTest` (MockMvc: the eight generic endpoints 403 a
 TERMINATED; the cashier's own ticket; the amount filters; the six Journal endpoints 403 / 200),
 `DayJournalRightScriptTest` (step 20, the Roles page's list), `ZZDataInitializerRolesTest` (the seed).
 
+## Caisse en direct (3.2.0)
+
+A store page for the responsible: the drawers now, read only (no closing, no movement, no print; nothing stored, no
+table, no script). `GET /cashier-session/live` (`store.livecash.LiveCashAPI`, `LiveCashService`, `LiveCashDTO`), 403
+without `read:admin-sessions-history`; without "Voir montants session" no amount is sent (`SessionAmounts`: an open
+session is never clôturée), the counts are.
+- **The day**: the open sessions; the tickets and sales of the Journal's day (finished tickets dated today, every
+  session, as `StoreDaysService`); the cash expected in all the open drawers (the sum of theirs).
+- **The drawers**: each active POS machine (and an inactive one that still holds an open session), by name, with its
+  open sessions (one; several only with the drawer "au caissier") and, when its **latest session** (whatever its date)
+  is fermée and not clôturée, that session (number, cashier, fermée at): state OPEN, WAITING or NONE. Then one card per
+  open session without POS machine ("Sans poste de caisse").
+- **An open session**: cashier, opened at, opening amount, tickets and sales (`SessionFiguresService`, the Sessions
+  list's), time of its last ticket that counts, the cash movements by kind (`CashMovementTotals`), the cash expected now
+  and "À surveiller" (`CashWatch.perSession`: the counting of Écarts de caisse, this session only: cancelled tickets,
+  returns, discounts and their manual part, refused authorisations).
+
+**The expected cash, one computation** (`CashierSessionService.expectedCash`): opening + the cash payments of the
+tickets that count (neither PENDING nor CANCELLED, a method CLIENT_ESPECES) - their change (a ticket with a cash payment,
+change above 0) - the simple returns + the cash movements in - out, to the millime. The closing
+(`calculateRealCash`), the ticket X, the session details and this page all call it. Since 3.2.0 its sums are read in
+SQL by `ExpectedCashRepository` (`SqlExpectedCashSums`), one grouped query per kind for any number of sessions; until
+then the closing read every ticket, then its payments, one query each. Checked on real data (SELECT only, 2026-11-16):
+on `pos_franchise_customer` the 45 fermées / clôturées sessions' stored `real_cash` equal the SQL sums; on
+`pos_db_prod` 170 of 175, the 5 others fermées between February and May 2026 with an unrounded stored value
+(before the 3.1.0 millime rounding), 2 to 3 millimes off. Unit tests give the same sums in memory
+(`store.support.InMemoryExpectedCash`, the rules of before written ticket by ticket).
+
+**Queries per call** (none per session or per ticket; ids by chunks of 1,000): the user's rights (2 reads of the
+account), `CASH_DRAWER_OWNER`, the open sessions with their cashier, the day's totals, the POS machine of the open
+sessions, the latest session of each POS machine, the POS machines shown; for the open sessions only: their sales,
+returns, scanned tickets and cash movements (`SessionFiguresService`, 4), the cash paid, the change and the simple
+returns (3, only with "Voir montants session"), the time of the last ticket, the four of "À surveiller" (cancelled,
+discounted lines, discounted tickets, refused scans). 20 reads (17 without the amounts' right), 7 with no open session.
+Sessions and POS machines are read as columns, not entities (their cashier's role, a machine's reader and users would be
+read eagerly, one more query each). A read-only transaction, plain reads, no row lock; the databases
+run without READ_COMMITTED_SNAPSHOT, so each read takes the usual short shared locks of SQL Server (seeks by session id,
+the indexes of step 19); `cashier_session.status` has no index (a small table, scanned for the open sessions).
+
+**The page** (front `views/admin/session/LiveCash.vue`, route `admin-live-cash` `/admin/sessions/live`, resource
+`admin-sessions-history`): first entry of the Caisse menu; the banner of the admin pages; the day's tiles, then a card
+per drawer. Read again every 30 s while the tab is visible (stopped when hidden or the page is left, read at once when
+shown again), the banner's Actualiser, the time of the last reading; a failed reading keeps the data shown with a small
+note, no error popup. "******" and the eye note without "Voir montants session". Tests: `LiveCashTest` (the expected cash
+as the closing, the drawers' states, without the amounts' right, the endpoint's 403, nothing open).
+
 ## Closed points
 
 - **The FREE_QUANTITY line stored an HT discount (fixed in 3.1.0).** For a "X bought, Y free" promotion the server adds

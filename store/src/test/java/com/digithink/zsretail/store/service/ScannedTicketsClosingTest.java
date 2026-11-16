@@ -185,6 +185,8 @@ class ScannedTicketsClosingTest {
 		set(sessions, CashierSessionService.class, "salesHeaderRepository", salesRepo);
 		set(sessions, CashierSessionService.class, "paymentRepository", paymentRepo);
 		set(sessions, CashierSessionService.class, "returnHeaderRepository", returnRepo);
+		set(sessions, CashierSessionService.class, "expectedCashSums",
+				com.digithink.zsretail.store.support.InMemoryExpectedCash.over(salesRepo, paymentRepo, returnRepo));
 		set(sessions, CashierSessionService.class, "paymentMethodRepository", methodRepo);
 		set(sessions, CashierSessionService.class, "sessionCashCountRepository", countRepo);
 		set(sessions, CashierSessionService.class, "scannedTicketPaymentRepository", ticketRepo);
