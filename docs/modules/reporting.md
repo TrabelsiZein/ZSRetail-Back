@@ -251,5 +251,5 @@ Code cleanup step 5: the stock and stock-movement reports (a head office shows t
   `store/src/main/java/com/digithink/zsretail/store/controller/SalesReportAPI.java`
 
 ### Navigation & Router
-- Reports menu group in `navigation/vertical/index.js` with 7 entries (Sales, Purchases, Stock, StockMovements, Loyalty, Sessions, Promotions). 3.2.0: Purchases hidden from the menu with ERP supply (`PURCHASE_MENU_ONLY_ROUTES`), as Historique des achats; its route stays.
+- Reports menu group in `navigation/vertical/index.js` with 7 entries (Sales, Purchases, Stock, StockMovements, Loyalty, Sessions, Promotions). 3.2.0: Purchases hidden from the menu and the search bar with ERP supply (`PURCHASE_REPORT_ROUTES`), as Historique des achats; its route stays.
 - Routes in `router/index.js`: `admin-report-sales`, `admin-report-purchases`, `admin-report-stock`, `admin-report-stock-movements`, `admin-report-loyalty`, `admin-report-sessions`, `admin-report-promotions`.
