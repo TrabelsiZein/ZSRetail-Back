@@ -35,6 +35,11 @@ public class CashDifferencesDTO {
 	 */
 	private boolean amountsHidden;
 	private long hiddenClosingDifferences;
+	/**
+	 * 3.2.0: the listed lines whose écart d'ouverture is not sent (without "Voir montants session", a session not finally
+	 * closed; a 0 too, so the count tells nothing), nor summed.
+	 */
+	private long hiddenOpeningGaps;
 
 	/** The switch "Afficher les sessions en attente de clôture" as read (off: the waiting-only sessions not listed). */
 	private boolean showPending;
@@ -108,6 +113,8 @@ public class CashDifferencesDTO {
 		private Double finalClosingDifference;
 		/** The écart d'ouverture (SessionDashboardDTO.openingGap); null: no float proposed. */
 		private Double openingGap;
+		/** 3.2.0: true when the écart d'ouverture exists and is hidden (openingGap then null). */
+		private boolean openingGapHidden;
 		/** Opened while the previous session of its drawer was not finally closed; null: no. */
 		private OpeningUnverifiedDTO openedWithoutFinalClosing;
 		/** Closed by the cashier (CLOSED) and not finally closed when the page is read. */

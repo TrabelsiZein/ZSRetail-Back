@@ -87,7 +87,11 @@ public final class CashDifferencesExcel {
 					amount(row, 5, line.getClosingDifference(), amount);
 				}
 				amount(row, 6, line.getFinalClosingDifference(), amount);
-				amount(row, 7, line.getOpeningGap(), amount);
+				if (line.isOpeningGapHidden()) {
+					text(row, 7, HIDDEN, null);
+				} else {
+					amount(row, 7, line.getOpeningGap(), amount);
+				}
 				text(row, 8, remarks(line), null);
 			}
 			for (int c = 0; c < LINE_HEADERS.length; c++) {
@@ -107,6 +111,10 @@ public final class CashDifferencesExcel {
 			if (result.getHiddenClosingDifferences() > 0) {
 				text(summary.createRow(r++), 0, "Écarts de fermeture masqués (sessions non clôturées, droit « Voir montants"
 						+ " session ») : " + result.getHiddenClosingDifferences(), null);
+			}
+			if (result.getHiddenOpeningGaps() > 0) {
+				text(summary.createRow(r++), 0, "Écarts d'ouverture masqués (sessions non clôturées, droit « Voir montants"
+						+ " session ») : " + result.getHiddenOpeningGaps(), null);
 			}
 			r++;
 			r = header(summary, r, SUMMARY_HEADERS, bold);

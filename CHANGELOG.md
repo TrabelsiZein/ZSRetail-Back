@@ -32,6 +32,14 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `read:admin-sessions-history`).
 
 ### Enhancements
+- `/cashier-session` closed further (`docs/modules/cash-sessions.md`, "Amounts hidden and the Journal's right"): the eight
+  generic endpoints of `_BaseController` (GET `/`, `/{id}`, `/findByField`, `/{id}/exists`, `/count`, POST, PUT, DELETE)
+  answer 403 to anyone and touch nothing (they sent `realCash` and the counts to any logged user and could create,
+  change or delete a session; nothing called them). `/history` and `/{id}/details` answer 403 without
+  `read:admin-sessions-history` (the till never calls them). Écarts de caisse: without "Voir montants session" the écart
+  d'ouverture of an OPENED or CLOSED session is not sent, not summed (`openingGapHidden`, `hiddenOpeningGaps`, "******"
+  in the Excel and a line in its summary) and no reason to list the session, as the hidden fermeture difference. Tests:
+  `CashierSessionEndpointsTest` (3, MockMvc), `CashDifferencesTest.openingGapHidden`.
 - Session amounts on the server and the Journal's own right (`docs/modules/cash-sessions.md`, "Amounts hidden and the
   Journal's right"). Without "Voir montants session" (`read:view-session-amounts`, one rule `SessionAmounts`, also
   used by Écarts de caisse), a session OPENED or CLOSED is sent without the amounts that enter or reveal its expected

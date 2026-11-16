@@ -113,6 +113,7 @@ public class CashDifferencesService {
 		result.setListedSessions(listed.size());
 		result.setTotalElements(listed.size());
 		result.setHiddenClosingDifferences(lines.stream().filter(Line::isClosingDifferenceHidden).count());
+		result.setHiddenOpeningGaps(lines.stream().filter(Line::isOpeningGapHidden).count()); // 3.2.0
 		summary(result, lines, listed);
 		// "Par caissier" has every cashier of the period, a row of zeros for one with nothing (step C: the same cashiers
 		// as "À surveiller")
@@ -165,8 +166,13 @@ public class CashDifferencesService {
 	 */
 	static Line line(SessionDashboardDTO dashboard, OpeningUnverifiedDTO unverified, boolean amountsVisible) {
 		boolean pending = dashboard.getStatus() == SessionStatus.CLOSED;
+		boolean hidden = SessionAmounts.hidden(amountsVisible, dashboard.getStatus());
+		// 3.2.0: the écart d'ouverture of a session not finally closed is hidden without the right (the opening cash enters
+		// the expected cash) and, as the hidden fermeture difference, is no reason: listing an OPENED session for it alone
+		// would tell that it is not 0
+		Double openingGap = hidden ? null : dashboard.getOpeningGap();
 		boolean listed = nonZero(dashboard.getCashDifference()) || nonZero(dashboard.getResponsibleDifference())
-				|| nonZero(dashboard.getOpeningGap()) || unverified != null || pending;
+				|| nonZero(openingGap) || unverified != null || pending;
 		if (!listed) {
 			return null;
 		}
@@ -179,14 +185,14 @@ public class CashDifferencesService {
 		line.setCashierName(dashboard.getCashierFullName());
 		line.setPosMachineName(dashboard.getPosMachineName());
 		line.setStatus(dashboard.getStatus());
-		boolean hidden = SessionAmounts.hidden(amountsVisible, dashboard.getStatus());
 		if (hidden && dashboard.getCashDifference() != null) {
 			line.setClosingDifferenceHidden(true);
 		} else {
 			line.setClosingDifference(dashboard.getCashDifference());
 		}
 		line.setFinalClosingDifference(dashboard.getResponsibleDifference());
-		line.setOpeningGap(dashboard.getOpeningGap());
+		line.setOpeningGap(openingGap);
+		line.setOpeningGapHidden(hidden && dashboard.getOpeningGap() != null);
 		line.setOpenedWithoutFinalClosing(unverified);
 		line.setPendingFinalClosing(pending);
 		return line;

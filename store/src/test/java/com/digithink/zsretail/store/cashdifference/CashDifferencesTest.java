@@ -293,6 +293,50 @@ class CashDifferencesTest {
 		assertEquals(0, visible.getHiddenClosingDifferences());
 	}
 
+	@Test
+	@DisplayName("Without 'Voir montants session': the écart d'ouverture of an OPENED or CLOSED session is not sent, not"
+			+ " summed and no reason (an OPENED one with it alone is not listed); a clôturée one shows; with the right: as before")
+	void openingGapHidden() throws Exception {
+		CashierSession open = session(amira, 2, SessionStatus.OPENED, null, null);
+		db.openingGap(open, -4.0); // its only reason
+		CashierSession closed = session(amira, 3, SessionStatus.CLOSED, 150.0, null);
+		db.openingGap(closed, 0.0); // a 0 is hidden too: "—" would tell the float was right
+		CashierSession done = terminated(amira, 4, 150.0, 150.0);
+		db.openingGap(done, 1.5);
+
+		CashDifferencesDTO hidden = all(false);
+		assertEquals(ids(done, closed), ids(hidden.getContent()), "the OPENED session is not listed for a hidden écart");
+		Line closedLine = hidden.getContent().get(1);
+		assertTrue(closedLine.isOpeningGapHidden());
+		assertNull(closedLine.getOpeningGap());
+		Line doneLine = hidden.getContent().get(0);
+		assertFalse(doneLine.isOpeningGapHidden());
+		assertEquals(1.5, doneLine.getOpeningGap(), 1e-9);
+		assertEquals(1, hidden.getHiddenOpeningGaps());
+		assertEquals(1.5, hidden.getTotal().getOpeningGapTotal(), 1e-9, "only the clôturée one summed");
+		assertEquals(0.0, hidden.getTotal().getOpeningGapShortage(), 1e-9);
+		CashDifferencesDTO hiddenOff = service.all(new CashDifferencesService.Filter(FROM, TO, null, null), false);
+		assertEquals(ids(done), ids(hiddenOff.getContent()), "switch off: a hidden écart is no reason for the CLOSED one");
+		try (org.apache.poi.xssf.usermodel.XSSFWorkbook book = new org.apache.poi.xssf.usermodel.XSSFWorkbook(
+				new java.io.ByteArrayInputStream(CashDifferencesExcel.of(hidden)))) {
+			org.apache.poi.ss.usermodel.Sheet lines = book.getSheet("Écarts de caisse");
+			assertEquals(CashDifferencesExcel.HIDDEN, lines.getRow(4).getCell(7).getStringCellValue());
+			StringBuilder summary = new StringBuilder();
+			book.getSheet("Résumé").forEach(r -> summary.append(r.getCell(0) == null ? "" : r.getCell(0).toString()).append('|'));
+			assertTrue(summary.toString().contains("Écarts d'ouverture masqués (sessions non clôturées, droit « Voir montants"
+					+ " session ») : 1"), summary.toString());
+		}
+
+		CashDifferencesDTO visible = all(true);
+		assertEquals(ids(done, closed, open), ids(visible.getContent()), "with the right, the -4 is a reason");
+		assertEquals(-4.0, visible.getContent().get(2).getOpeningGap(), 1e-9);
+		assertEquals(0.0, visible.getContent().get(1).getOpeningGap(), 1e-9);
+		assertEquals(-2.5, visible.getTotal().getOpeningGapTotal(), 1e-9);
+		assertEquals(-4.0, visible.getTotal().getOpeningGapShortage(), 1e-9);
+		assertEquals(0, visible.getHiddenOpeningGaps());
+		visible.getContent().forEach(line -> assertFalse(line.isOpeningGapHidden()));
+	}
+
 	// ─── The period read by the endpoint ─────────────────────────────
 
 	@Test

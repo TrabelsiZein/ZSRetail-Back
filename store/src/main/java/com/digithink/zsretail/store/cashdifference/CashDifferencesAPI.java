@@ -37,7 +37,7 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class CashDifferencesAPI {
 
-	public static final String READ_PERMISSION = "read:admin-sessions-history";
+	public static final String READ_PERMISSION = com.digithink.zsretail.store.controller.CashierSessionAPI.SESSIONS_PERMISSION;
 	public static final String AMOUNTS_PERMISSION = SessionAmounts.PERMISSION;
 
 	@Autowired

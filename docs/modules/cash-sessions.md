@@ -619,8 +619,10 @@ menu, the route, and the endpoint itself: 403 without it). "Voir montants sessio
 the shared rule `SessionAmounts`): without it the Sessions list sends no amount of a session not yet clôturée (the
 responsible counts blind); here the server does not send the fermeture's difference of an OPENED or CLOSED session (`closingDifferenceHidden`, the
 screen's "******"), does not sum it (`amountsHidden`, `hiddenClosingDifferences` says how many), and lists the session
-anyway (a CLOSED one is "En attente de clôture"). The clôture's difference and the écart d'ouverture are never masked,
-as on the Sessions list.
+anyway (a CLOSED one is "En attente de clôture"). The clôture's difference is never masked (it exists only once the
+session is TERMINATED). 3.2.0: the écart d'ouverture of an OPENED or CLOSED session is hidden the same way
+(`openingGapHidden`, "******", not summed, `hiddenOpeningGaps` and its note) and, as the hidden fermeture difference, is no
+reason: an OPENED session with only that écart is not listed, a CLOSED one only as "En attente de clôture" (switch on).
 
 **`GET /cash-differences/excel`**, the same filters: `CashDifferencesExcel`, French as the Journal's file, the sheet
 "Écarts de caisse" (every listed line, not the page; an empty cell for none or 0, "******" for a hidden one, the
@@ -652,6 +654,17 @@ sent when true). The same rule on the page Écarts de caisse (`CashDifferencesSe
   (`CASHIER_CLOSING_TICKET` = Z, the default), the session then CLOSED. The popup's print button is hidden then.
 - **The cashier's own count** (`posUserClosureCash`, the POS_USER count rows) is hidden by the same rule: it is close
   to the expected cash, so showing it would tell the responsible what to find at the clôture.
+- **Écarts de caisse**: the fermeture difference and the écart d'ouverture of a session not finally closed, by the same
+  rule (above, "Cash differences").
+
+**The Sessions' right on the server** (3.2.0): `/history` and `/{id}/details` answer 403 without
+`read:admin-sessions-history` (`CashierSessionAPI.SESSIONS_PERMISSION`), as Écarts de caisse. The till never calls them;
+the cashier keeps `/current`, `/current/*`, `/opening-proposal`, `/open`, `/close` and their own `/{id}/report-ticket`.
+
+**The generic endpoints are closed** (3.2.0): the eight of `_BaseController` (GET `/cashier-session`, `/{id}`,
+`/findByField`, `/{id}/exists`, `/count`, POST, PUT `/{id}`, DELETE `/{id}`) answer 403 to anyone and touch nothing:
+they sent the whole entity (`realCash`, the counts) to any logged user and could create, change or delete a session.
+Nothing called them (the front, the till, the head office, the jobs, the devenv scripts, the tests).
 
 **The Journal's right**, `read:day-journal` ("Voir le Journal"): the days (`/store-days` and its Excel), the day
 journal (`/day-journal` and its Excel), the store tickets X / Z (`/store-report-ticket/x`, `/z`): 403 without it
@@ -663,7 +676,9 @@ the Journal or a store ticket. Seeded on ADMIN and RESPONSIBLE of a new database
 Tickets history (`read:tickets-history`) and Statistics (`read:admin-statistics`, payments per method) keep their
 rights and their amounts: not changed (named in the description of "Voir montants session").
 
-Tests: `SessionAmountsTest` (the list, the details and the ticket with and without the right for OPENED, CLOSED and
+Tests: `CashierSessionEndpointsTest` (MockMvc: the eight generic endpoints 403 and untouched, the cashier's till flow,
+`/history` and `/details` with and without the Sessions' right), `CashDifferencesTest.openingGapHidden`,
+`SessionAmountsTest` (the list, the details and the ticket with and without the right for OPENED, CLOSED and
 TERMINATED; the cashier's own ticket; the amount filters; the six Journal endpoints 403 / 200),
 `DayJournalRightScriptTest` (step 20, the Roles page's list), `ZZDataInitializerRolesTest` (the seed).
 

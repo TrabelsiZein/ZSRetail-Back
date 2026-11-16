@@ -8,9 +8,11 @@ import javax.servlet.http.HttpServletRequest;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -46,6 +48,80 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 	 * details and the session ticket stay on read:admin-sessions-history, masked by SessionAmounts.
 	 */
 	public static final String JOURNAL_PERMISSION = "read:day-journal";
+
+	/** 3.2.0: the right of the Sessions page, its popup and Écarts de caisse; /history and /{id}/details 403 without it. */
+	public static final String SESSIONS_PERMISSION = "read:admin-sessions-history";
+
+	// ─── 3.2.0: the generic endpoints of _BaseController, closed for a session ───────────────────────────────────────
+	// A session is opened, closed, verified and read through its own endpoints only: the generic ones sent the whole
+	// entity (its expected cash, realCash, and the counts) to any logged user, and could create, change or delete one.
+	// Each answers 403 and touches nothing. Nothing called them (the till, the admin pages, the head office, the jobs).
+
+	@Override
+	@GetMapping
+	public ResponseEntity<?> getAll() {
+		return genericClosed("GET /cashier-session");
+	}
+
+	@Override
+	@GetMapping("/{id}")
+	public ResponseEntity<?> getById(@PathVariable(required = false) Long id) {
+		return genericClosed("GET /cashier-session/{id}");
+	}
+
+	@Override
+	@GetMapping("/findByField")
+	public ResponseEntity<?> findByField(@RequestParam(required = false) String fieldName,
+			@RequestParam(required = false) String operation, @RequestParam(required = false) Object value) {
+		return genericClosed("GET /cashier-session/findByField");
+	}
+
+	@Override
+	@PostMapping
+	public ResponseEntity<?> create(@RequestBody(required = false) CashierSession entity) {
+		return genericClosed("POST /cashier-session");
+	}
+
+	@Override
+	@PutMapping("/{id}")
+	public ResponseEntity<?> update(@PathVariable(required = false) Long id,
+			@RequestBody(required = false) CashierSession entity) {
+		return genericClosed("PUT /cashier-session/{id}");
+	}
+
+	@Override
+	@DeleteMapping("/{id}")
+	public ResponseEntity<?> deleteById(@PathVariable(required = false) Long id) {
+		return genericClosed("DELETE /cashier-session/{id}");
+	}
+
+	@Override
+	@GetMapping("/{id}/exists")
+	public ResponseEntity<?> existsById(@PathVariable(required = false) Long id) {
+		return genericClosed("GET /cashier-session/{id}/exists");
+	}
+
+	@Override
+	@GetMapping("/count")
+	public ResponseEntity<?> count() {
+		return genericClosed("GET /cashier-session/count");
+	}
+
+	private ResponseEntity<?> genericClosed(String endpoint) {
+		log.warn("CashierSessionAPI: refused " + endpoint + " (closed in 3.2.0)");
+		return ResponseEntity.status(403).body(createErrorResponse(endpoint
+				+ " is closed: a session is opened, closed and read through its own endpoints (open, close, history,"
+				+ " details, report-ticket)"));
+	}
+
+	private boolean sessionsAllowed() {
+		return currentUserProvider != null && currentUserProvider.currentUserHasPermission(SESSIONS_PERMISSION);
+	}
+
+	private ResponseEntity<?> sessionsForbidden() {
+		return ResponseEntity.status(403).body(createErrorResponse(
+				"The Sessions page needs the right \"Sessions et écarts de caisse\" (" + SESSIONS_PERMISSION + ")"));
+	}
 
 	@Autowired
 	private CurrentUserProvider currentUserProvider;
@@ -482,6 +558,9 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			@RequestParam(required = false) String posMachineId,
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "10") int size) {
+		if (!sessionsAllowed()) {
+			return sessionsForbidden(); // 3.2.0: as Écarts de caisse
+		}
 		try {
 			log.info("CashierSessionAPI::getSessionHistory");
 			// 3.2.0: without "Voir montants session" the amounts of a session not finally closed are not sent (SessionAmounts)
@@ -499,6 +578,9 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 	 */
 	@GetMapping("/{id}/details")
 	public ResponseEntity<?> getSessionDetails(@PathVariable Long id) {
+		if (!sessionsAllowed()) {
+			return sessionsForbidden(); // 3.2.0: as Écarts de caisse
+		}
 		try {
 			log.info("CashierSessionAPI::getSessionDetails: " + id);
 

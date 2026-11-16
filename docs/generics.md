@@ -421,6 +421,10 @@ public void processOrder(Order order) {
 ### 2. Override Only When Necessary
 Use inheritance wisely - don't override default methods unless you need custom behavior.
 
+The generic endpoints check no right: any logged user can read, create, change and delete through them. 3.2.0:
+`CashierSessionAPI` overrides all eight to answer 403 (a session only through its own endpoints,
+`modules/cash-sessions.md`); an entity that carries money or rights should do the same or check its right.
+
 ### 3. Add Domain-Specific Methods
 Keep generic methods in base classes, add domain logic in concrete classes.
 
