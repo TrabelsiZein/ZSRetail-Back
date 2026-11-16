@@ -893,6 +893,11 @@ public class ZZDataInitializer {
 				"Required length for title number (N° Titre) for CLIENT_TRAITE payment method. Must be exactly this number of characters.",
 				false, ConfigType.NUMBER);
 
+		// ── Manual line discount ──────────────────────────────────────────────
+		ensureConfig("ENFORCE_MAX_AUTHORIZED_DISCOUNT", "true",
+				"When true, the till refuses a manual line discount above the item's maximum authorized discount (from the ERP). When false, that maximum is not checked.",
+				false, ConfigType.BOOLEAN);
+
 		// ── Tax stamp (timbre fiscal) ─────────────────────────────────────────
 		ensureConfig("ENABLE_TAX_STAMP", "false",
 				"Enable tax stamp (timbre fiscal) per receipt. When true, adds configured amount (e.g. 100 millimes in Tunisia) as a line per sale.",

@@ -22,6 +22,11 @@
 6. Order totals recalculate automatically
 7. Discount fields stored in cart item (`discountPercentage`, `discountAmount`)
 8. When proceeding to payment, complete line data (including discounts and VAT) sent to backend
+9. Maximum authorized discount: the till refuses a manual line discount above the item's `maximumAuthorizedDiscount`
+   (imported from the ERP, NAV's "Maximum Authorized Discount"), only in the till (the backend does not check it).
+   General setup `ENFORCE_MAX_AUTHORIZED_DISCOUNT` (BOOLEAN, default `true`, created at startup) turns it off when
+   `false` (or `0`); a missing row or a failed read keeps the check. Read when the till opens: reload the till after
+   changing it.
 
 ### Backend Processing
 - `ProcessSaleRequestDTO.SaleLineDTO` includes discount and VAT fields
