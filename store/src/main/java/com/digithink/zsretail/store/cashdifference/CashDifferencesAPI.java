@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.store.service.JournalExcel;
+import com.digithink.zsretail.store.service.SessionAmounts;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -37,7 +38,7 @@ import lombok.extern.log4j.Log4j2;
 public class CashDifferencesAPI {
 
 	public static final String READ_PERMISSION = "read:admin-sessions-history";
-	public static final String AMOUNTS_PERMISSION = "read:view-session-amounts";
+	public static final String AMOUNTS_PERMISSION = SessionAmounts.PERMISSION;
 
 	@Autowired
 	private CashDifferencesService service;
@@ -86,7 +87,7 @@ public class CashDifferencesAPI {
 	}
 
 	private boolean amountsVisible() {
-		return currentUserProvider.currentUserHasPermission(AMOUNTS_PERMISSION);
+		return SessionAmounts.visible(currentUserProvider);
 	}
 
 	/** The period (blank: the current month's first or last day); null when a date does not parse or to is before from. */

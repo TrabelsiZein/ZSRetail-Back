@@ -455,6 +455,16 @@ IF OBJECT_ID(N'session_cash_count', N'U') IS NOT NULL
 	CREATE INDEX ix_session_cash_count_session ON session_cash_count (cashier_session_id);
 GO
 
+-- 20) The Journal's own right, read:day-journal ("Voir le Journal": the days, the day journal, their Excel files, the
+-- store tickets X / Z). Until now the Journal came with read:admin-sessions-history: every role holding that right gets
+-- the new one, so nobody loses the Journal. Run twice: the roles that have it already are skipped. Every database.
+IF OBJECT_ID(N'app_role_permission', N'U') IS NOT NULL
+	INSERT INTO app_role_permission (role_id, permission_key)
+	SELECT DISTINCT p.role_id, 'read:day-journal' FROM app_role_permission p
+	WHERE p.permission_key = 'read:admin-sessions-history'
+		AND NOT EXISTS (SELECT 1 FROM app_role_permission q WHERE q.role_id = p.role_id AND q.permission_key = 'read:day-journal');
+GO
+
 UPDATE APP_VERSION SET version = '3.2.0';
 
 -- The notes of 3.2.0 are written again on each run (the script may run more than once). Written from CHANGELOG.md when

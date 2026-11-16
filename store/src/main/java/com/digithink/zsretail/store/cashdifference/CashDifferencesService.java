@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import com.digithink.zsretail.core.model.CashierSession;
 import com.digithink.zsretail.core.model.enumeration.SessionStatus;
 import com.digithink.zsretail.store.cashdifference.CashDifferencesDTO.CashierRow;
+import com.digithink.zsretail.store.service.SessionAmounts;
 import com.digithink.zsretail.store.cashdifference.CashDifferencesDTO.Line;
 import com.digithink.zsretail.store.cashmovement.dto.OpeningUnverifiedDTO;
 import com.digithink.zsretail.store.cashmovement.service.DrawerHandoverService;
@@ -178,7 +179,7 @@ public class CashDifferencesService {
 		line.setCashierName(dashboard.getCashierFullName());
 		line.setPosMachineName(dashboard.getPosMachineName());
 		line.setStatus(dashboard.getStatus());
-		boolean hidden = !amountsVisible && dashboard.getStatus() != SessionStatus.TERMINATED;
+		boolean hidden = SessionAmounts.hidden(amountsVisible, dashboard.getStatus());
 		if (hidden && dashboard.getCashDifference() != null) {
 			line.setClosingDifferenceHidden(true);
 		} else {

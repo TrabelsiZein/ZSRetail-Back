@@ -38,6 +38,8 @@ public class AppRoleAPI {
         "read:home",
         "read:admin-users", "write:admin-users", "delete:admin-users",
         "read:admin-sessions-history",
+        // 3.2.0: the Journal (days, day journal, store tickets X / Z), its own right, never masked
+        "read:day-journal",
         "read:tickets-history",
         "read:admin-item-barcodes",
         "read:admin-item-management",

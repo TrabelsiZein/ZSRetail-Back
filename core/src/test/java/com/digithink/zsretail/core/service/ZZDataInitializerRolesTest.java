@@ -666,7 +666,10 @@ class ZZDataInitializerRolesTest {
 		for (String role : new String[] { "ADMIN", "RESPONSIBLE" }) {
 			assertTrue(roles.get(role).getPermissions().containsAll(
 					java.util.Arrays.asList("read:admin-sessions-history", "read:verify-session")), role);
+			// 3.2.0: the Journal's own right, seeded with the Sessions' right (db/3.2.0 step 20 for a database of before)
+			assertTrue(roles.get(role).getPermissions().contains("read:day-journal"), role);
 		}
+		assertFalse(roles.get("POS_USER").getPermissions().contains("read:day-journal"), "not the cashier's");
 	}
 
 	// --- Stubs ---

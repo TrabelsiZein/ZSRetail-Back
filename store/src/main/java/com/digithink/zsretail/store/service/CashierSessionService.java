@@ -685,6 +685,20 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			String statusStr, String syncStatusStr, String cashierIdStr, String minTotalSalesStr,
 			String maxTotalSalesStr, String minSalesCountStr, String maxSalesCountStr, String differenceSignStr,
 			String posMachineIdStr, int page, int size) {
+		return getSessionHistory(searchStr, dateFromStr, dateToStr, statusStr, syncStatusStr, cashierIdStr,
+				minTotalSalesStr, maxTotalSalesStr, minSalesCountStr, maxSalesCountStr, differenceSignStr, posMachineIdStr,
+				page, size, true);
+	}
+
+	/**
+	 * 3.2.0: {@code amountsVisible} false (no "Voir montants session", SessionAmounts): the amounts of a session not
+	 * finally closed are not sent, and a filter on an amount (total sales, the difference's sign) finds only finally
+	 * closed sessions, else it would tell them.
+	 */
+	public Map<String, Object> getSessionHistory(String searchStr, String dateFromStr, String dateToStr,
+			String statusStr, String syncStatusStr, String cashierIdStr, String minTotalSalesStr,
+			String maxTotalSalesStr, String minSalesCountStr, String maxSalesCountStr, String differenceSignStr,
+			String posMachineIdStr, int page, int size, boolean amountsVisible) {
 
 		LocalDateTime from = null;
 		if (dateFromStr != null && !dateFromStr.trim().isEmpty()) {
@@ -794,6 +808,9 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			if (fPosMachineId != null) {
 				predicates.add(SessionPosMachineService.openedOn(root.get("id"), fPosMachineId, query, cb));
 			}
+			if (amountFilterOnlyFinallyClosed(amountsVisible, fMinSales, fMaxSales, fDiffSign)) {
+				predicates.add(cb.equal(root.get("status"), SessionStatus.TERMINATED)); // 3.2.0: SessionAmounts
+			}
 			if (fMinSales != null || fMaxSales != null) {
 				javax.persistence.criteria.Subquery<Double> salesSub = query.subquery(Double.class);
 				javax.persistence.criteria.Root<SalesHeader> shRoot = salesSub.from(SalesHeader.class);
@@ -865,6 +882,11 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		// d'ouverture: SessionFiguresService, shared with the page "Écarts de caisse". Until then 5 to 6 queries per
 		// session, and the expected cash computed for nothing (fromEntity never read it).
 		List<SessionDashboardDTO> dtos = sessionFiguresService.dashboards(sessionPage.getContent());
+		for (SessionDashboardDTO dto : dtos) {
+			if (SessionAmounts.hidden(amountsVisible, dto.getStatus())) {
+				SessionAmounts.mask(dto); // 3.2.0: after the figures, so the shared loader is unchanged
+			}
+		}
 
 		Map<String, Object> result = new HashMap<>();
 		result.put("content", dtos);
@@ -873,6 +895,15 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		result.put("number", sessionPage.getNumber());
 		result.put("size", sessionPage.getSize());
 		return result;
+	}
+
+	/**
+	 * 3.2.0: without "Voir montants session", a filter on an amount (total sales min / max, the difference's sign) finds
+	 * only finally closed sessions: on a session whose amounts are hidden it would tell them (SessionAmounts).
+	 */
+	static boolean amountFilterOnlyFinallyClosed(boolean amountsVisible, Double minSales, Double maxSales,
+			String differenceSign) {
+		return !amountsVisible && (minSales != null || maxSales != null || differenceSign != null);
 	}
 
 	/**

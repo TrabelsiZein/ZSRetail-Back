@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import com.digithink.zsretail.core.model.CashierSession;
 import com.digithink.zsretail.core.model.enumeration.SessionStatus;
 import com.digithink.zsretail.core.model.enumeration.SynchronizationStatus;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -41,6 +42,12 @@ public class SessionDashboardDTO {
 	private String posMachineName;
 	/** 3.2.0, the opening amount: opening cash - the float proposed; null when no float was proposed. */
 	private Double openingGap;
+	/**
+	 * 3.2.0: true when the amounts are not sent (no "Voir montants session", a session not finally closed: SessionAmounts);
+	 * absent otherwise, so an answer with the right is unchanged.
+	 */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private Boolean amountsHidden;
 
 	public static SessionDashboardDTO fromEntity(CashierSession session, Long salesCount, Double totalSalesAmount) {
 		return fromEntity(session, salesCount, totalSalesAmount, 0L, 0.0, 0.0, 0.0, null);

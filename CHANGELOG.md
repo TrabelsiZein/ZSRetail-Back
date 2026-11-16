@@ -27,8 +27,23 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Table management: a customer that had `TABLE_MANAGEMENT_ENABLED` true in General setup adds
   `pos.table-management.enabled=true` and its `pos.table-management.table-count` to its installation file (the script
   prints a warning for such a database; none of the current customers, pos_franchise_customer had false / 10).
+- The Journal's own right (`read:day-journal`): run `db/3.2.0/update.sql` (step 20) before the 3.2.0 WAR starts, else
+  the roles of before get 403 on the Journal until it runs (it gives the right to every role holding
+  `read:admin-sessions-history`).
 
 ### Enhancements
+- Session amounts on the server and the Journal's own right (`docs/modules/cash-sessions.md`, "Amounts hidden and the
+  Journal's right"). Without "Voir montants session" (`read:view-session-amounts`, one rule `SessionAmounts`, also
+  used by Écarts de caisse), a session OPENED or CLOSED is sent without the amounts that enter or reveal its expected
+  cash: the Sessions list (opening cash, the cashier's count, total sales, returns, differences, écart d'ouverture; an
+  amount filter then finds only TERMINATED sessions), the session details (also the amounts per method, cash movements,
+  opening float; tickets, returns and payment documents sent empty) and the session ticket X / Z (403, except to the
+  session's own cashier: the till's ticket Z at the fermeture). Counts stay, TERMINATED sessions are unchanged, a user
+  with the right gets the same answers (`amountsHidden` only sent when true). Before, the front masked part of it and
+  the server sent everything. The Journal (`/store-days`, `/day-journal`, their Excel, `/store-report-ticket/x` and
+  `/z`) needs `read:day-journal` ("Voir le Journal"), 403 without it, never masked; seeded on ADMIN and RESPONSIBLE,
+  listed on the Roles page beside the Sessions' right. Tests: `SessionAmountsTest` (8), `DayJournalRightScriptTest` (2),
+  one assertion more in `ZZDataInitializerRolesTest`.
 - Écarts de caisse, step C: `watch` / `watchTotal` in `GET /cash-differences` and the Excel's sheet "À surveiller":
   per cashier of the period's sessions (the switch has no effect), tickets, cancelled tickets, returns, discounts and
   their MANUAL part, dépenses, prélèvements, refused authorisations, each from the Journal's / X / Z's definition,
@@ -280,6 +295,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   database at 3.1.2 (refused, untouched but for Hibernate's new nullable columns); `StartupOrderTest`.
 
 ### DB script
+- `db/3.2.0/update.sql` step 20, every database: `read:day-journal` given to every role that holds
+  `read:admin-sessions-history`, where missing (a second run adds nothing). Run twice on `pos_franchise_customer`
+  (2026-11-16): ADMIN and RESPONSIBLE got it, then 0 rows.
 - `db/3.2.0/update.sql` step 19, every database: five indexes on foreign keys the Journal, the tickets X / Z and the
   page Écarts de caisse join on, created only when missing: `ix_sales_line_sales_header`, `ix_payment_sales_header`,
   `ix_return_line_return_header`, `ix_return_header_session`, `ix_session_cash_count_session` (a store's table). The

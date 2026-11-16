@@ -12,9 +12,9 @@ import java.util.stream.Collectors;
 
 import com.digithink.zsretail.core.model.Item;
 import com.digithink.zsretail.core.model.SalesLine;
-import com.digithink.zsretail.core.model.enumeration.SessionStatus;
 import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
 import com.digithink.zsretail.store.cashdifference.CashDifferencesDTO.WatchRow;
+import com.digithink.zsretail.store.service.SessionAmounts;
 import com.digithink.zsretail.store.cashmovement.service.CashMovementTotals;
 import com.digithink.zsretail.store.dto.SessionDashboardDTO;
 import com.digithink.zsretail.store.service.SessionFiguresService;
@@ -90,7 +90,7 @@ final class CashWatch {
 		Map<Long, Session> out = new LinkedHashMap<>();
 		for (SessionDashboardDTO d : dashboards) {
 			Session s = new Session();
-			s.hidden = !amountsVisible && d.getStatus() != SessionStatus.TERMINATED;
+			s.hidden = SessionAmounts.hidden(amountsVisible, d.getStatus());
 			SessionFiguresService.Figures f = figures.get(d.getId());
 			if (f != null) {
 				s.tickets = f.salesCount();

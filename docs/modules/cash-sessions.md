@@ -149,6 +149,7 @@ before "Or", so (closed today) or (open)); then the session ticket's queries per
 ## Journal
 
 Read-only reporting of the store's days (back end; no page yet). Nothing is stored, the selling code is untouched.
+3.2.0: its own right, `read:day-journal` ("Voir le Journal"), never masked ("Amounts hidden and the Journal's right").
 
 **The two date rules.**
 - **Tickets and returns by their own date**, whatever their session: every ticket, finished (status neither
@@ -606,17 +607,17 @@ figures of `SessionFiguresService` read once for the lines and the block):
   role without the right is never logged, the till asks for a badge).
 Without "Voir montants session" the amounts that enter the expected cash (returns, dépenses, prélèvements) of an OPENED
 or CLOSED session are neither sent nor summed, their counts are (`hiddenSessions`, `watchHiddenSessions`): the step B
-rule. The Journal itself shows these amounts under the same right with no masking (a point left for later). The
+rule. The Journal shows these amounts under its own right (`read:day-journal`), never masked. The
 Journal reads each document by its own date and the block by its session's opening: the same day agrees when no
 session crosses midnight (`CashWatchJournalTest`). No link yet: the Journal takes only `?month=` / `?date=` (no cashier)
 and the badge history no URL filter. Indexes (3.2.0, `db/3.2.0/update.sql` step 19, declared on the entities too):
 `ix_sales_line_sales_header`, `ix_payment_sales_header`, `ix_return_line_return_header`, `ix_return_header_session`,
 `ix_session_cash_count_session`, the foreign keys these readers (the Journal, the X / Z, this page) join on.
 
-**Rights.** No new key: the right of the Sessions page and the Journal, `read:admin-sessions-history`, opens it (the
-menu, the route, and the endpoint itself: 403 without it). "Voir montants session" (`read:view-session-amounts`):
-without it the Sessions list masks the difference of a session not yet clôturée (the responsible counts blind); here
-the server does not send the fermeture's difference of an OPENED or CLOSED session (`closingDifferenceHidden`, the
+**Rights.** No new key: the right of the Sessions page, `read:admin-sessions-history`, opens it (the
+menu, the route, and the endpoint itself: 403 without it). "Voir montants session" (`read:view-session-amounts`,
+the shared rule `SessionAmounts`): without it the Sessions list sends no amount of a session not yet clôturée (the
+responsible counts blind); here the server does not send the fermeture's difference of an OPENED or CLOSED session (`closingDifferenceHidden`, the
 screen's "******"), does not sum it (`amountsHidden`, `hiddenClosingDifferences` says how many), and lists the session
 anyway (a CLOSED one is "En attente de clôture"). The clôture's difference and the écart d'ouverture are never masked,
 as on the Sessions list.
@@ -630,6 +631,41 @@ period's sessions, the hidden ones, the per-cashier rows and the total; a sum of
 opens the Sessions page's details popup (the same component). Tests: `CashDifferencesTest` (each reason alone, several,
 none, the filters and the order, one query per kind for 20 sessions, the summary equal to the lines over every page, the
 numbers of the list's line, the hidden fermeture difference, the endpoint's period).
+
+## Amounts hidden and the Journal's right (3.2.0)
+
+**One rule, `store.service.SessionAmounts`.** Without "Voir montants session" (`read:view-session-amounts`), a session
+OPENED or CLOSED is sent without the amounts that enter or reveal its expected cash; its counts stay, a TERMINATED
+session is sent whole, and a user with the right gets every answer unchanged (no field added: `amountsHidden` is only
+sent when true). The same rule on the page Écarts de caisse (`CashDifferencesService.line`, `CashWatch`).
+- **Sessions list** `GET /cashier-session/history`: `SessionAmounts.mask` on each line after the shared loader: no
+  opening cash, cashier's count, total sales, returns amounts, differences, écart d'ouverture; `amountsHidden: true`.
+  A filter on an amount (total sales min / max, the difference's sign) finds only TERMINATED sessions
+  (`CashierSessionService.amountFilterOnlyFinallyClosed`), else it would tell the hidden amounts; the counts' filters
+  are unchanged. The list has no Excel file.
+- **Session details** `GET /cashier-session/{id}/details`: `SessionAmounts.maskDetails`: the session as above, the
+  totals, per method the system and counted amounts and their deltas (the scanned tickets' numbers too, as the popup
+  already hid them), the cash movements' amounts (type, number, time, note kept), the opening float's amounts;
+  `sales`, `returns` and `paymentHeaders` (entities with amounts, not read by the popup) sent empty.
+- **Session ticket X / Z** `GET /cashier-session/{id}/report-ticket`: 403 (not masked: a ticket of "******" is no
+  ticket), except to the session's own cashier: the till prints the cashier's ticket Z when they close
+  (`CASHIER_CLOSING_TICKET` = Z, the default), the session then CLOSED. The popup's print button is hidden then.
+- **The cashier's own count** (`posUserClosureCash`, the POS_USER count rows) is hidden by the same rule: it is close
+  to the expected cash, so showing it would tell the responsible what to find at the clôture.
+
+**The Journal's right**, `read:day-journal` ("Voir le Journal"): the days (`/store-days` and its Excel), the day
+journal (`/day-journal` and its Excel), the store tickets X / Z (`/store-report-ticket/x`, `/z`): 403 without it
+(`CashierSessionAPI.JOURNAL_PERMISSION`), never masked: the right means "allowed to see the day's money" (its
+description on the Roles page says so). The menu entry and the route `admin-store-tickets` ask it; the Journal's
+"Détails" button of a session (the Sessions page) is shown with `read:admin-sessions-history` only. No POS screen reads
+the Journal or a store ticket. Seeded on ADMIN and RESPONSIBLE of a new database; a database of before:
+`db/3.2.0/update.sql` step 20 gives it to every role holding `read:admin-sessions-history` (run twice: nothing more).
+Tickets history (`read:tickets-history`) and Statistics (`read:admin-statistics`, payments per method) keep their
+rights and their amounts: not changed (named in the description of "Voir montants session").
+
+Tests: `SessionAmountsTest` (the list, the details and the ticket with and without the right for OPENED, CLOSED and
+TERMINATED; the cashier's own ticket; the amount filters; the six Journal endpoints 403 / 200),
+`DayJournalRightScriptTest` (step 20, the Roles page's list), `ZZDataInitializerRolesTest` (the seed).
 
 ## Closed points
 

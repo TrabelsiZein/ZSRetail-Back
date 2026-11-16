@@ -27,6 +27,7 @@ import com.digithink.zsretail.store.exception.TillRightRequiredException;
 import com.digithink.zsretail.store.posmachine.DrawerRuleException;
 import com.digithink.zsretail.store.posmachine.service.SessionPosMachineService;
 import com.digithink.zsretail.store.service.CashierSessionService;
+import com.digithink.zsretail.store.service.SessionAmounts;
 import com.digithink.zsretail.store.service.SessionReportService;
 import com.digithink.zsretail.store.service.StoreReportService;
 import com.digithink.zsretail.store.service.DayJournalService;
@@ -38,6 +39,13 @@ import lombok.extern.log4j.Log4j2;
 @RequestMapping("cashier-session")
 @Log4j2
 public class CashierSessionAPI extends _BaseController<CashierSession, Long, CashierSessionService> {
+
+	/**
+	 * 3.2.0: the Journal's own right ("Voir le Journal"): the days, the day journal, their .xlsx and the store tickets X /
+	 * Z, never masked (the right means "allowed to see the day's money"); 403 without it. The Sessions list, the session
+	 * details and the session ticket stay on read:admin-sessions-history, masked by SessionAmounts.
+	 */
+	public static final String JOURNAL_PERMISSION = "read:day-journal";
 
 	@Autowired
 	private CurrentUserProvider currentUserProvider;
@@ -476,7 +484,10 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			@RequestParam(defaultValue = "10") int size) {
 		try {
 			log.info("CashierSessionAPI::getSessionHistory");
-			return ResponseEntity.ok(service.getSessionHistory(search, dateFrom, dateTo, status, syncStatus, cashierId, minTotalSales, maxTotalSales, minSalesCount, maxSalesCount, differenceSign, posMachineId, page, size));
+			// 3.2.0: without "Voir montants session" the amounts of a session not finally closed are not sent (SessionAmounts)
+			return ResponseEntity.ok(service.getSessionHistory(search, dateFrom, dateTo, status, syncStatus, cashierId,
+					minTotalSales, maxTotalSales, minSalesCount, maxSalesCount, differenceSign, posMachineId, page, size,
+					SessionAmounts.visible(currentUserProvider)));
 		} catch (Exception e) {
 			log.error("CashierSessionAPI::getSessionHistory:error: " + e.getMessage(), e);
 			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
@@ -491,7 +502,15 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 		try {
 			log.info("CashierSessionAPI::getSessionDetails: " + id);
 
-			return ResponseEntity.ok(service.getSessionDetails(id));
+			Map<String, Object> details = service.getSessionDetails(id);
+			// 3.2.0: without "Voir montants session", a session not finally closed comes without its amounts
+			Object session = details.get("session");
+			if (session instanceof com.digithink.zsretail.store.dto.SessionDashboardDTO && SessionAmounts.hidden(
+					SessionAmounts.visible(currentUserProvider),
+					((com.digithink.zsretail.store.dto.SessionDashboardDTO) session).getStatus())) {
+				SessionAmounts.maskDetails(details);
+			}
+			return ResponseEntity.ok(details);
 		} catch (Exception e) {
 			log.error("CashierSessionAPI::getSessionDetails:error: " + e.getMessage(), e);
 			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
@@ -500,12 +519,23 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 
 	/**
 	 * 3.1.0: the session ticket, X for an open session, Z for a closed or verified one, read-only (admin and responsible
-	 * pages; docs/modules/cash-sessions.md). 404 when the session does not exist.
+	 * pages; docs/modules/cash-sessions.md). 404 when the session does not exist. 3.2.0: 403 for a session not finally
+	 * closed without "Voir montants session", except to its own cashier (the till prints their ticket Z at the fermeture).
 	 */
 	@GetMapping("/{id}/report-ticket")
 	public ResponseEntity<?> getReportTicket(@PathVariable Long id) {
 		try {
 			log.info("CashierSessionAPI::getReportTicket: " + id);
+			CashierSession session = service.findById(id).orElse(null);
+			if (session == null) {
+				return ResponseEntity.status(404).body(createErrorResponse("Session not found: " + id));
+			}
+			boolean visible = SessionAmounts.visible(currentUserProvider);
+			if (!SessionAmounts.ticketAllowed(visible, session, visible ? null : currentUser())) {
+				return ResponseEntity.status(403).body(createErrorResponse(
+						"The ticket of a session not finally closed needs the right \"Voir montants session\" ("
+								+ SessionAmounts.PERMISSION + ")"));
+			}
 			return ResponseEntity.ok(sessionReportService.build(id));
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.status(404).body(createErrorResponse(e.getMessage()));
@@ -521,6 +551,9 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 	 */
 	@GetMapping("/store-report-ticket/x")
 	public ResponseEntity<?> getStoreReportTicketX(@RequestParam(required = false) Long posMachineId) {
+		if (!journalAllowed()) {
+			return journalForbidden();
+		}
 		try {
 			log.info("CashierSessionAPI::getStoreReportTicketX" + (posMachineId != null ? ": POS machine " + posMachineId : ""));
 			// 3.2.0, POS machines step 3: posMachineId, the ticket of that POS machine's sessions (404 without one)
@@ -540,6 +573,9 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 	@GetMapping("/store-report-ticket/z")
 	public ResponseEntity<?> getStoreReportTicketZ(@RequestParam String date,
 			@RequestParam(required = false) Long posMachineId) {
+		if (!journalAllowed()) {
+			return journalForbidden();
+		}
 		java.time.LocalDate day;
 		try {
 			day = java.time.LocalDate.parse(date);
@@ -564,6 +600,9 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 	 */
 	@GetMapping("/store-days")
 	public ResponseEntity<?> getStoreDays(@RequestParam String month) {
+		if (!journalAllowed()) {
+			return journalForbidden();
+		}
 		java.time.YearMonth yearMonth = parseMonth(month);
 		if (yearMonth == null) {
 			return ResponseEntity.badRequest().body(createErrorResponse("month: '" + month + "' is not a month YYYY-MM"));
@@ -579,6 +618,9 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 	/** 3.1.0: the days of a month as .xlsx (jours-YYYY-MM.xlsx). */
 	@GetMapping("/store-days/excel")
 	public ResponseEntity<?> getStoreDaysExcel(@RequestParam String month) {
+		if (!journalAllowed()) {
+			return journalForbidden();
+		}
 		java.time.YearMonth yearMonth = parseMonth(month);
 		if (yearMonth == null) {
 			return ResponseEntity.badRequest().body(createErrorResponse("month: '" + month + "' is not a month YYYY-MM"));
@@ -600,6 +642,9 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 	 */
 	@GetMapping("/day-journal")
 	public ResponseEntity<?> getDayJournal(@RequestParam String date) {
+		if (!journalAllowed()) {
+			return journalForbidden();
+		}
 		java.time.LocalDate day = parseDate(date);
 		if (day == null) {
 			return ResponseEntity.badRequest().body(createErrorResponse("date: '" + date + "' is not a date YYYY-MM-DD"));
@@ -617,6 +662,9 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 	/** 3.1.0: the journal of a date as .xlsx (journal-YYYY-MM-DD.xlsx); 404 when the date has no line. */
 	@GetMapping("/day-journal/excel")
 	public ResponseEntity<?> getDayJournalExcel(@RequestParam String date) {
+		if (!journalAllowed()) {
+			return journalForbidden();
+		}
 		java.time.LocalDate day = parseDate(date);
 		if (day == null) {
 			return ResponseEntity.badRequest().body(createErrorResponse("date: '" + date + "' is not a date YYYY-MM-DD"));
@@ -634,6 +682,25 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 		} catch (Exception e) {
 			log.error("CashierSessionAPI::getDayJournalExcel:error: " + e.getMessage(), e);
 			return ResponseEntity.status(500).body(createErrorResponse(getDetailedMessage(e)));
+		}
+	}
+
+	/** 3.2.0: the Journal's right (JOURNAL_PERMISSION). */
+	boolean journalAllowed() {
+		return currentUserProvider != null && currentUserProvider.currentUserHasPermission(JOURNAL_PERMISSION);
+	}
+
+	private ResponseEntity<?> journalForbidden() {
+		return ResponseEntity.status(403).body(createErrorResponse(
+				"The Journal needs the right \"Voir le Journal\" (" + JOURNAL_PERMISSION + ")"));
+	}
+
+	/** The logged user, null when none can be read (the ticket is then refused to anyone but a holder of the right). */
+	private UserAccount currentUser() {
+		try {
+			return currentUserProvider.getCurrentUser();
+		} catch (RuntimeException e) {
+			return null;
 		}
 	}
 
