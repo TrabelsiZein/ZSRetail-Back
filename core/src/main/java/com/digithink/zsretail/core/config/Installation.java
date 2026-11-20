@@ -107,11 +107,17 @@ public enum Installation {
 
 	/**
 	 * 3.3.0, step 3: an installation that makes and sends its own messages: the module on, on a store whose loyalty is
-	 * not the head office's (a store alone, or loyalty LOCAL). A store whose loyalty is the head office's keeps its
-	 * events for the head office (a later step); a head office does not send yet.
+	 * not the head office's (a store alone, or loyalty LOCAL). Step 6: also a head office (it sends for its stores).
 	 */
 	COMMUNICATION_SENDS_HERE("An installation with the communication module on that makes and sends its own messages: a"
-			+ " store whose loyalty is not the head office's.", NodeOwnership::isCommunicationSentHere);
+			+ " head office, or a store whose loyalty is not the head office's.", NodeOwnership::isCommunicationSentHere),
+
+	/**
+	 * 3.3.0, step 6: a store with the communication module on whose loyalty is the head office's: it pushes its events
+	 * up (link job COMMUNICATION_PUSH) and makes no message.
+	 */
+	COMMUNICATION_PUSHED_UP("A store with the communication module on whose loyalty is the head office's: its events go"
+			+ " up to the head office.", NodeOwnership::isCommunicationPushedUp);
 
 	private final String meaning;
 	private final Predicate<PropertyResolver> answer;

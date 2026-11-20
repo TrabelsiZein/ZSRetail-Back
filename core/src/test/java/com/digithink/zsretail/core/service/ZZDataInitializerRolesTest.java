@@ -432,7 +432,8 @@ class ZZDataInitializerRolesTest {
 
 	@Test
 	@DisplayName("3.3.0, communication step 4: ADMIN of a new store with the module on (loyalty here) has the page; a store"
-			+ " of before gets it at its start, once; module off, a head office, loyalty from the head office: nothing")
+			+ " of before gets it at its start, once; step 6: ADMIN of a head office with the module on too; module off, loyalty"
+			+ " from the head office: nothing")
 	void communicationPageGivenToAdmin() throws Exception {
 		assertEquals(COMMUNICATION, staticSet("COMMUNICATION_ADMIN_PERMISSIONS"));
 		MockEnvironment on = new MockEnvironment().withProperty("communication.enabled", "true");
@@ -453,7 +454,15 @@ class ZZDataInitializerRolesTest {
 				.getPermissions()), "loyalty from the head office: not sent here");
 		Map<String, AppRole> headOffice = seedRoles(headOffice().withProperty("communication.enabled", "true"), false,
 				Collections.emptyMap());
-		assertTrue(Collections.disjoint(COMMUNICATION, headOffice.get("ADMIN").getPermissions()), "head office");
+		// Step 6: the head office owns the loyalty, it sends: its ADMIN has the page, nobody else
+		assertTrue(headOffice.get("ADMIN").getPermissions().containsAll(COMMUNICATION), "head office, module on");
+		headOffice.forEach((name, role) -> {
+			if (!"ADMIN".equals(name)) {
+				assertTrue(Collections.disjoint(COMMUNICATION, role.getPermissions()), "head office " + name);
+			}
+		});
+		assertTrue(Collections.disjoint(COMMUNICATION, seedRoles(headOffice(), false, Collections.emptyMap()).get("ADMIN")
+				.getPermissions()), "head office, module off");
 
 		// A store of before, the module turned on: ADMIN gets the page at its start, once
 		Map<String, AppRole> existing = existingRoles("read:home", LICENSE);

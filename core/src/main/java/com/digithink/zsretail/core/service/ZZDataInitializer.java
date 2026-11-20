@@ -196,7 +196,11 @@ public class ZZDataInitializer {
 	private void ensureDefaultRoles() {
 		AppRole adminRole = ensureRole("ADMIN", "Administrateur", false, adminPermissions());
 		if (applicationModeService.isHeadOffice()) {
-			addMissingPermissions(adminRole, headOfficeAdminPermissions());
+			Set<String> wanted = new HashSet<>(headOfficeAdminPermissions());
+			if (applicationModeService.isCommunicationSentHere()) {
+				wanted.addAll(COMMUNICATION_ADMIN_PERMISSIONS); // 3.3.0, step 6: the Communication page of the head office
+			}
+			addMissingPermissions(adminRole, wanted);
 		} else {
 			// The Licence page: a database of before it gets it at its first start, so an admin keeps the licence upload
 			Set<String> wanted = new HashSet<>(LICENSE_ADMIN_PERMISSIONS);
@@ -278,6 +282,9 @@ public class ZZDataInitializer {
 		Set<String> permissions = new HashSet<>(ADMIN_PERMISSIONS);
 		if (applicationModeService.isHeadOffice()) {
 			permissions.addAll(headOfficeAdminPermissions());
+			if (applicationModeService.isCommunicationSentHere()) {
+				permissions.addAll(COMMUNICATION_ADMIN_PERMISSIONS); // 3.3.0, step 6
+			}
 			return permissions;
 		}
 		permissions.add("read:cashier-interface");

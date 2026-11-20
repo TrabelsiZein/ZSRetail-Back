@@ -2,8 +2,9 @@
 
 **Status**: step 1 (the switch and the two tables), step 2 (the store finds its events and writes `comm_event` rows),
 step 3 (rules and templates make the messages, a test provider "sends" them; channels in the properties), step 4 (the
-Communication page: messages, rules, templates), step 5 (the member's consent; rules created from the page). No head
-office sending, no campaign, no member language, no real provider yet.
+Communication page: messages, rules, templates), step 5 (the member's consent; rules created from the page), step 6
+(the head office shape: a store whose loyalty is the head office's pushes its events up, the head office makes and
+sends the messages). No campaign, no member language, no real provider yet.
 
 Messages to loyalty members by WhatsApp, SMS and email: two automatic events in version 1 ("loyalty member created",
 "ticket validated for a member") and a simple campaign (one template to every member with consent). The till never
@@ -400,6 +401,60 @@ the one member without consent). `LOYALTY_ENABLED` on for the test.
    MEMBER_CARD_SMS_AR (welcome, SMS, MEMBER_CARD_SMS_AR) accepted, saved off (two welcome SMS otherwise).
 6. `communication.enabled=false` and a restart: no tick (till, create window), no column, no filter, no count; the line
    back to true. No ERROR in the back-end log, no console error.
+
+## Step 6: the head office shape
+
+**Who sends**: `NodeOwnership.isCommunicationSentHere` is now the module on where the loyalty is owned: a store alone, a
+store with loyalty `LOCAL`, and a head office (same processor, sender, templates, rules and channel switches). A store
+whose loyalty is the head office's pushes its events up (`Installation.COMMUNICATION_PUSHED_UP`): it makes no message
+and has no Communication page nor its rights.
+
+**The store's push** (`store/holink/service/CommunicationPushService`, link job `COMMUNICATION_PUSH`, every 60 s, editable
+from the Jobs page; no property). The event rows are the queue, marked by their own status (no new table: the status
+never travels, the copy `CommunicationEventCopyDTO` carries none): `PENDING` to send; `PROCESSED` taken by the head office
+(stored, or already there: a duplicate is harmless, `uk_comm_event_dedup`); `ERROR` refused (attempts, `last_error`,
+sent again at most 5 times); `SKIPPED` ended. The head office takes no events (its module off: `{taken: false}`; an older
+head office without the endpoint: 404): the push pauses 1 h (one INFO line, one note in the exchange log), nothing
+counted; the scheduled runs say "paused" (SUCCESS), and **Run now** on the Jobs page lifts the pause and asks at once
+(`LinkJob.runNow`, e.g. once the head office's module is back on). An event never taken ends quietly 720 h after it happened (`never taken by the head office within 720 h`): the
+longest lifetime a rule may have (the store does not know the head office's rules). An unreachable head office: as the
+other link jobs.
+
+**The head office** (`POST /ho/communication/events`, `HeadOfficeCommunicationAPI`, every head office of 3.3.0, under
+the `/ho/**` chain): `HoCommunicationReceiver` stores each event once (by its dedup key), `origin_store_code` the calling
+store, `occurred_at` the store's (the lifetime counts from it), `PENDING`; one that happened before the head office's
+`ACTIVE_SINCE` is stored `SKIPPED` (`happened before the communication module was on at the head office`), so nothing
+older is ever messaged and the store never sends it again. Members (`HoCommunicationMembers`, address and consent read
+from the head office's member at processing and again before sending):
+- Order of arrival: a card the head office does not know yet leaves its event `PENDING` (`member X not at the head
+  office yet: tried again`, no attempt counted) while the longest lifetime of the active rules of its type has not
+  passed since it happened; then `SKIPPED` (`member X never reached the head office within N h`). A store alone still
+  skips at once.
+- Merged cards (`ho_loyalty_alias`): `MEMBER_CREATED` of an alias card is `SKIPPED` (`card X merged into Y: no welcome
+  for a merged card`); `TICKET_VALIDATED` goes to the surviving member (his card on the message, his phone, his consent).
+- One welcome per member: a store's enrolment has its store's `MEMBER_CREATED` only (the receiver of members writes no
+  event, whatever its outcome CREATED, EXISTS or MERGED); a member created on the head office's own pages has the head
+  office's (`HoMemberEventFinder`: active members created from `ACTIVE_SINCE` whose author is not `STORE:<code>`, without
+  an event of their card); the unique key `MEMBER_CREATED:<card>` is the same on both sides. Tickets: stores only.
+
+**The head office's page**: route `admin-headoffice-communication` (twin of `admin-communication`, menu Clients, only
+with `communicationShown`), rights `read:admin-communication` and `write:admin-communication` (the store's keys) given to
+ADMIN at start where it sends, listed on its Roles page (`meta.writePermission`). Messages and events left out show the
+store (code and name; "Siège" for the head office's own) and have a store filter (`store=<code>`, `__HO__` for its own);
+the counters follow it (`GET /communication/counters?store=`); `GET /communication/stores`.
+
+Tests: `SharedCommunicationRoundTripTest` (network-tests: duplicate push, event before member, alias card for both
+events, activation instant, module off then an older head office, "Run now" lifting the pause, the quiet end), with
+`support/InMemoryCommunication`. The rule "sends here" changed on purpose: `CommunicationSettingsTest.sendsHere`,
+`AppConfigAPITest.communication` and `ZZDataInitializerRolesTest.communicationPageGivenToAdmin` now expect a head office
+with the module on to send and its ADMIN to get the page (a head office always owns its loyalty: the start refuses
+`ownership.loyalty=HEAD_OFFICE` there, and loyalty has no ERP owner); `InstallationBeansProofTest` records 130 beans.
+
+Screen test (2026-11-20, the ZEN pair `configs/local/test_zen_store` + `test_zen_ho`, databases `zen_store` and
+`zen_headoffice` brought from 3.1.1 to 3.3.0 by the scripts of 3.1.2, 3.2.0 and 3.3.0): the 7 points passed, 0 back-end
+ERROR, 0 console error. Run the WARs exploded (`WarLauncher`, as `devenv/start.ps1`): a WAR run packed with `java -jar`
+reads each first class lookup through its nested jars, and the first requests can take 30 to 45 s (a push timed out
+once at 10 s; its duplicate was answered "already at the head office").
 
 ## Next steps (to be agreed one at a time)
 

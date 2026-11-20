@@ -32,4 +32,12 @@ public interface CommunicationEventRepository extends _BaseRepository<Communicat
 	List<Long> findToProcess(@Param("pending") CommunicationEventStatus pending,
 			@Param("error") CommunicationEventStatus error, @Param("maxAttempts") int maxAttempts,
 			@Param("afterId") long afterId, Pageable page);
+
+	/**
+	 * Step 6, a store whose loyalty is the head office's: the events still to send (in {@code statuses}) that happened
+	 * before {@code before}, by id (they end quietly).
+	 */
+	@Query("select e from CommunicationEvent e where e.status in :statuses and e.occurredAt < :before order by e.id")
+	List<CommunicationEvent> findOlderThan(@Param("statuses") java.util.Collection<CommunicationEventStatus> statuses,
+			@Param("before") java.time.LocalDateTime before, Pageable page);
 }

@@ -313,13 +313,22 @@ public final class NodeOwnership {
 	}
 
 	/**
-	 * 3.3.0, step 3: the module on, on a store whose loyalty is not the head office's: it makes and sends its own
-	 * messages. False on a head office (a later step) and on a store whose loyalty is the head office's (its events
-	 * wait for the head office). Also used by {@link Installation#COMMUNICATION_SENDS_HERE}.
+	 * 3.3.0, step 3: the module on, where the loyalty is owned: it makes and sends its own messages. Step 6: a store
+	 * alone, a store with loyalty LOCAL and a head office (the owner of its stores' loyalty); false on a store whose
+	 * loyalty is the head office's (it pushes its events up, {@link #isCommunicationPushedUp}). Also used by
+	 * {@link Installation#COMMUNICATION_SENDS_HERE}.
 	 */
 	public static boolean isCommunicationSentHere(PropertyResolver env) {
+		return isCommunicationSet(env) && !isOwnedByHeadOffice(env, DataDomain.LOYALTY);
+	}
+
+	/**
+	 * 3.3.0, step 6: the module on, on a store whose loyalty is the head office's: its events go up to the head office
+	 * (the link job COMMUNICATION_PUSH), which makes and sends the messages. {@link Installation#COMMUNICATION_PUSHED_UP}.
+	 */
+	public static boolean isCommunicationPushedUp(PropertyResolver env) {
 		return isCommunicationSet(env) && nodeTypeOf(env) != NodeType.HEAD_OFFICE
-				&& !isOwnedByHeadOffice(env, DataDomain.LOYALTY);
+				&& isOwnedByHeadOffice(env, DataDomain.LOYALTY);
 	}
 
 	/**

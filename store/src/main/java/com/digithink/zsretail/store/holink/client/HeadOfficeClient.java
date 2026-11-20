@@ -33,6 +33,8 @@ import com.digithink.zsretail.core.link.dto.DeliveryConfirmationDTO;
 import com.digithink.zsretail.core.link.dto.HeadOfficeHeartbeatAnswerDTO;
 import com.digithink.zsretail.core.link.dto.HeadOfficeHeartbeatDTO;
 import com.digithink.zsretail.core.link.dto.LoyaltyMemberAnswerDTO;
+import com.digithink.zsretail.core.link.dto.CommunicationEventAnswerDTO;
+import com.digithink.zsretail.core.link.dto.CommunicationEventCopyDTO;
 import com.digithink.zsretail.core.link.dto.LoyaltyMemberCopyDTO;
 import com.digithink.zsretail.core.link.dto.LoyaltyMemberEditDTO;
 import com.digithink.zsretail.core.link.dto.LoyaltyMovementCopyDTO;
@@ -46,6 +48,7 @@ import com.digithink.zsretail.core.link.dto.VariantStockDTO;
 import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.model.enumeration.SalesUpstream;
 import com.digithink.zsretail.core.service.GeneralSetupService;
+import com.digithink.zsretail.store.holink.dto.CommunicationPushAnswer;
 import com.digithink.zsretail.store.holink.dto.HeadOfficeCallResult;
 import com.digithink.zsretail.store.holink.dto.LiveAnswer;
 import com.digithink.zsretail.store.holink.dto.LoyaltyMemberPushAnswer;
@@ -87,6 +90,8 @@ public class HeadOfficeClient {
 	static final int LIVE_CONNECT_TIMEOUT_MS = 2_000;
 	static final int LIVE_READ_TIMEOUT_MS = 3_000;
 	static final String LOYALTY_PATH = "/ho/loyalty";
+	/** 3.3.0, communication step 6: the events of a store whose loyalty is the head office's. */
+	static final String COMMUNICATION_PATH = "/ho/communication/events";
 	static final String SUPPLY_PATH = "/ho/supply";
 	/** 3.1.1: the orders to the head office; their two calls wait for NAV at the head office: connect 2 s, read 15 s. */
 	static final String ORDERS_PATH = "/ho/orders";
@@ -321,6 +326,29 @@ public class HeadOfficeClient {
 		}
 		return LoyaltyMemberPushAnswer.delivered(answer.body.getResults());
 	}
+
+	/**
+	 * 3.3.0, communication step 6: POST one batch of events to /ho/communication/events; one result per event, by dedup
+	 * key. Not taken: the head office's module is off, or an older head office without the endpoint (404).
+	 */
+	public CommunicationPushAnswer pushCommunicationEvents(List<CommunicationEventCopyDTO> copies) {
+		Answer<CommunicationEventAnswerDTO> answer = post(COMMUNICATION_PATH, copies, CommunicationEventAnswerDTO.class);
+		if (answer.failure != null) {
+			return answer.status == 404 ? CommunicationPushAnswer.notTaken(NO_COMMUNICATION_ENDPOINT)
+					: CommunicationPushAnswer.failed(answer.failure);
+		}
+		if (!answer.body.isTaken()) {
+			return CommunicationPushAnswer.notTaken(COMMUNICATION_OFF);
+		}
+		if (answer.body.getResults() == null) {
+			return CommunicationPushAnswer.failed(HeadOfficeCallResult.failure(HeadOfficeLinkState.ERROR,
+					"unreadable answer from the head office (no results)"));
+		}
+		return CommunicationPushAnswer.delivered(answer.body.getResults());
+	}
+
+	static final String NO_COMMUNICATION_ENDPOINT = "the head office has no communication endpoint (an older version)";
+	static final String COMMUNICATION_OFF = "the head office's communication module is off";
 
 	/** Step 4: POST one batch of loyalty movements to /ho/loyalty/movements; one result per movement, by key. */
 	public SalesPushAnswer pushLoyaltyMovements(List<LoyaltyMovementCopyDTO> copies) {
@@ -563,7 +591,7 @@ public class HeadOfficeClient {
 			ResponseEntity<T> response = uri != null ? template.exchange(uri, method, entity, answerType)
 					: template.exchange(baseUrl + path, method, entity, answerType);
 			if (response.getStatusCodeValue() != 200) {
-				return new Answer<>(null, fromStatus(response.getStatusCodeValue()));
+				return new Answer<>(null, fromStatus(response.getStatusCodeValue()), null, response.getStatusCodeValue());
 			}
 			if (response.getBody() == null) {
 				return Answer.failed(HeadOfficeLinkState.ERROR, "unreadable answer from the head office (empty body)");
@@ -573,7 +601,7 @@ public class HeadOfficeClient {
 			return Answer.failed(HeadOfficeLinkState.ERROR, "request could not be written (" + cause(e) + ")");
 		} catch (RestClientResponseException e) {
 			return new Answer<>(null, fromStatus(e.getRawStatusCode()),
-					e.getRawStatusCode() == 409 ? errorText(e.getResponseBodyAsString()) : null);
+					e.getRawStatusCode() == 409 ? errorText(e.getResponseBodyAsString()) : null, e.getRawStatusCode());
 		} catch (ResourceAccessException e) {
 			if (readTimeoutSeconds != null && isReadTimeout(e)) {
 				return Answer.failed(HeadOfficeLinkState.TIMEOUT, slowAnswer(readTimeoutSeconds));
@@ -613,15 +641,22 @@ public class HeadOfficeClient {
 		final T body;
 		final HeadOfficeCallResult failure;
 		final String conflict;
+		/** 3.3.0: the HTTP status of a refused call (0 otherwise), e.g. 404 from an older head office. */
+		final int status;
 
 		Answer(T body, HeadOfficeCallResult failure) {
 			this(body, failure, null);
 		}
 
 		Answer(T body, HeadOfficeCallResult failure, String conflict) {
+			this(body, failure, conflict, 0);
+		}
+
+		Answer(T body, HeadOfficeCallResult failure, String conflict, int status) {
 			this.body = body;
 			this.failure = failure;
 			this.conflict = conflict;
+			this.status = status;
 		}
 
 		static <T> Answer<T> failed(HeadOfficeLinkState state, String message) {

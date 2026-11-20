@@ -151,11 +151,16 @@ public class LinkJobScheduler {
 
 	/** One run of a job, recorded. Never throws: a job that throws is recorded as an ERROR run. */
 	LinkJobRun execute(LinkJob job) {
+		return execute(job, false);
+	}
+
+	/** One run of a job, recorded; manual: asked from the Jobs page ({@link LinkJob#runNow()}, 3.3.0). */
+	LinkJobRun execute(LinkJob job, boolean manual) {
 		LocalDateTime at = LocalDateTime.now();
 		long started = System.nanoTime();
 		LinkJobRun run;
 		try {
-			run = job.run();
+			run = manual ? job.runNow() : job.run();
 			if (run == null) {
 				run = LinkJobRun.error("no result");
 			}
@@ -216,7 +221,7 @@ public class LinkJobScheduler {
 		}
 		try {
 			scheduler.submit(() -> {
-				execute(job);
+				execute(job, true);
 				scheduleFromNow(job);
 			}).get(RUN_NOW_TIMEOUT.getSeconds(), TimeUnit.SECONDS);
 			return true;

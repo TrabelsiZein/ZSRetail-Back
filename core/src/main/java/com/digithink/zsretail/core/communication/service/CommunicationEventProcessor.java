@@ -61,12 +61,15 @@ public class CommunicationEventProcessor implements CommunicationTask {
 	private final CommunicationSettings settings;
 	private final TransactionOperations transactions;
 	private final Supplier<LocalDateTime> clock;
+	private final CommunicationMembers directory;
 
 	@Autowired
 	public CommunicationEventProcessor(CommunicationEventRepository events, CommunicationRuleRepository rules,
 			CommunicationTemplateRepository templates, CommunicationMessageRepository messages,
-			LoyaltyMemberRepository members, CommunicationSettings settings, PlatformTransactionManager transactionManager) {
-		this(events, rules, templates, messages, members, settings, timed(transactionManager), LocalDateTime::now);
+			LoyaltyMemberRepository members, CommunicationSettings settings, PlatformTransactionManager transactionManager,
+			Optional<CommunicationMembers> directory) {
+		this(events, rules, templates, messages, members, settings, timed(transactionManager), LocalDateTime::now,
+				directory.orElseGet(() -> CommunicationMembers.local(members)));
 	}
 
 	/** With given transactions and clock: used by the tests. */
@@ -74,6 +77,14 @@ public class CommunicationEventProcessor implements CommunicationTask {
 			CommunicationTemplateRepository templates, CommunicationMessageRepository messages,
 			LoyaltyMemberRepository members, CommunicationSettings settings, TransactionOperations transactions,
 			Supplier<LocalDateTime> clock) {
+		this(events, rules, templates, messages, members, settings, transactions, clock, CommunicationMembers.local(members));
+	}
+
+	/** Step 6: with the installation's members (a head office: merged cards, members that arrive later). */
+	public CommunicationEventProcessor(CommunicationEventRepository events, CommunicationRuleRepository rules,
+			CommunicationTemplateRepository templates, CommunicationMessageRepository messages,
+			LoyaltyMemberRepository members, CommunicationSettings settings, TransactionOperations transactions,
+			Supplier<LocalDateTime> clock, CommunicationMembers directory) {
 		this.events = events;
 		this.rules = rules;
 		this.templates = templates;
@@ -82,6 +93,7 @@ public class CommunicationEventProcessor implements CommunicationTask {
 		this.settings = settings;
 		this.transactions = transactions;
 		this.clock = clock;
+		this.directory = directory;
 	}
 
 	static TransactionTemplate timed(PlatformTransactionManager transactionManager) {
@@ -153,12 +165,30 @@ public class CommunicationEventProcessor implements CommunicationTask {
 			return close(event, CommunicationEventStatus.SKIPPED, "recipient type " + event.getRecipientType()
 					+ " not handled", now);
 		}
-		Optional<LoyaltyMember> found = event.getRecipientRef() == null ? Optional.empty()
-				: members.findByCardNumber(event.getRecipientRef());
+		CommunicationMembers.Found lookup = directory.find(event.getRecipientRef());
+		Optional<LoyaltyMember> found = lookup.getMember();
 		if (!found.isPresent()) {
+			if (directory.arriveLater()) {
+				// Step 6, a head office: the store's member push comes after its events; the event waits (no attempt
+				// counted) while one of its rules could still send it
+				int hours = active.stream().mapToInt(CommunicationRule::getLifetimeHours).max()
+						.orElse(CommunicationRule.DEFAULT_LIFETIME_HOURS);
+				LocalDateTime happened = event.getOccurredAt() == null ? event.getCreatedAt() : event.getOccurredAt();
+				if (happened.plusHours(hours).isAfter(now)) {
+					event.setLastError("member " + event.getRecipientRef() + " not at the head office yet: tried again");
+					return CommunicationEventStatus.PENDING;
+				}
+				return close(event, CommunicationEventStatus.SKIPPED, "member " + event.getRecipientRef()
+						+ " never reached the head office within " + hours + " h", now);
+			}
 			return close(event, CommunicationEventStatus.SKIPPED, "member " + event.getRecipientRef() + " not found", now);
 		}
 		LoyaltyMember member = found.get();
+		if (lookup.isMerged() && CommunicationTypes.MEMBER_CREATED.equals(event.getEventType())) {
+			// Step 6: a card the head office merged into the card that holds the phone: no welcome for it
+			return close(event, CommunicationEventStatus.SKIPPED, "card " + event.getRecipientRef() + " merged into "
+					+ member.getCardNumber() + ": no welcome for a merged card", now);
+		}
 		if (!Boolean.TRUE.equals(member.getActive())) {
 			return close(event, CommunicationEventStatus.SKIPPED, "member " + member.getCardNumber() + " inactive", now);
 		}

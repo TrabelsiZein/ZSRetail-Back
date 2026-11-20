@@ -27,4 +27,12 @@ public interface LinkJob {
 
 	/** One run on the ho-link thread. Should not throw; a throw is recorded as an ERROR run. */
 	LinkJobRun run();
+
+	/**
+	 * 3.3.0, communication step 6: one run asked from the Jobs page ("Run now"), on the ho-link thread like the others.
+	 * As {@link #run()}, unless the job waits on its own between runs: the communication push lifts its pause.
+	 */
+	default LinkJobRun runNow() {
+		return run();
+	}
 }

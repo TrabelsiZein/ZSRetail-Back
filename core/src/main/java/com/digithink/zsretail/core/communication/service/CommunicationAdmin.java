@@ -97,16 +97,21 @@ public class CommunicationAdmin {
 	private final Optional<CommunicationTicketSearch> tickets;
 	private final Supplier<String> companyName;
 	private final Supplier<LocalDateTime> clock;
+	/** Step 6: the stores of a head office (the store column and filter); empty on a store. */
+	private final Optional<CommunicationStoreNames> storeNames;
+
+	/** Step 6: the store filter's value for the head office's own events (no origin store). */
+	public static final String HEAD_OFFICE_OWN = "__HO__";
 
 	@Autowired
 	public CommunicationAdmin(CommunicationEventRepository events, CommunicationMessageRepository messages,
 			CommunicationRuleRepository rules, CommunicationTemplateRepository templates, LoyaltyMemberRepository members,
 			CommunicationSettings settings, Optional<CommunicationTicketSearch> tickets,
-			CompanyInformationService companyInformation) {
+			CompanyInformationService companyInformation, Optional<CommunicationStoreNames> storeNames) {
 		this(events, messages, rules, templates, members, settings, tickets, () -> {
 			CompanyInformationDTO company = companyInformation.get();
 			return company == null ? null : company.getCompanyName();
-		}, LocalDateTime::now);
+		}, LocalDateTime::now, storeNames);
 	}
 
 	/** With a given company name and clock: used by the tests. */
@@ -114,6 +119,15 @@ public class CommunicationAdmin {
 			CommunicationRuleRepository rules, CommunicationTemplateRepository templates, LoyaltyMemberRepository members,
 			CommunicationSettings settings, Optional<CommunicationTicketSearch> tickets, Supplier<String> companyName,
 			Supplier<LocalDateTime> clock) {
+		this(events, messages, rules, templates, members, settings, tickets, companyName, clock, Optional.empty());
+	}
+
+	/** Step 6: with the stores of a head office. */
+	public CommunicationAdmin(CommunicationEventRepository events, CommunicationMessageRepository messages,
+			CommunicationRuleRepository rules, CommunicationTemplateRepository templates, LoyaltyMemberRepository members,
+			CommunicationSettings settings, Optional<CommunicationTicketSearch> tickets, Supplier<String> companyName,
+			Supplier<LocalDateTime> clock, Optional<CommunicationStoreNames> storeNames) {
+		this.storeNames = storeNames;
 		this.events = events;
 		this.messages = messages;
 		this.rules = rules;
@@ -134,17 +148,77 @@ public class CommunicationAdmin {
 		LocalDateTime from;
 		LocalDateTime to;
 		String text;
+		/** Step 6: a store's code ({@link #HEAD_OFFICE_OWN}: the head office's own events). */
+		String store;
 
 		/** Dates as "2026-11-21" (the whole day) or "2026-11-21T10:00". */
 		public static Filters of(String status, String channel, String dateFrom, String dateTo, String text) {
+			return of(status, channel, dateFrom, dateTo, text, null);
+		}
+
+		/** Step 6: with the store filter of a head office. */
+		public static Filters of(String status, String channel, String dateFrom, String dateTo, String text,
+				String store) {
 			Filters filters = new Filters();
 			filters.status = upper(status);
 			filters.channel = upper(channel);
 			filters.from = dateTime(dateFrom, false);
 			filters.to = dateTime(dateTo, true);
 			filters.text = blankToNull(text);
+			filters.store = blankToNull(store);
 			return filters;
 		}
+	}
+
+	/** Step 6: the events of the store filter (a store's code, or the head office's own: no origin). */
+	private static Predicate eventOfStore(javax.persistence.criteria.Path<String> origin,
+			javax.persistence.criteria.CriteriaBuilder cb, String store) {
+		return HEAD_OFFICE_OWN.equals(store) ? cb.isNull(origin) : cb.equal(origin, store);
+	}
+
+	/** Step 6: the messages whose event is of the store filter (a subquery on comm_event). */
+	private static Predicate messageOfStore(javax.persistence.criteria.Root<CommunicationMessage> root,
+			javax.persistence.criteria.CriteriaQuery<?> query, javax.persistence.criteria.CriteriaBuilder cb, String store) {
+		Subquery<Long> ofStore = query.subquery(Long.class);
+		javax.persistence.criteria.Root<CommunicationEvent> e = ofStore.from(CommunicationEvent.class);
+		ofStore.select(e.get("id")).where(eventOfStore(e.get("originStoreCode"), cb, store));
+		return root.get("eventId").in(ofStore);
+	}
+
+	/** Step 6: the stores for the filter of a head office, [{code, name}]; empty on a store. */
+	public List<Map<String, Object>> stores() {
+		List<Map<String, Object>> stores = new ArrayList<>();
+		storeNames.ifPresent(names -> names.names().forEach((code, name) -> {
+			Map<String, Object> store = new LinkedHashMap<>();
+			store.put("code", code);
+			store.put("name", name);
+			stores.add(store);
+		}));
+		return stores;
+	}
+
+	/** Step 6, a head office: each row's storeCode and storeName (null for the head office's own). */
+	@SuppressWarnings("unchecked")
+	private Map<String, Object> withStores(Map<String, Object> page, boolean messageRows) {
+		if (!storeNames.isPresent()) {
+			return page;
+		}
+		List<Map<String, Object>> rows = (List<Map<String, Object>>) page.get("content");
+		Map<Long, String> origins = new LinkedHashMap<>();
+		if (messageRows) {
+			List<Long> eventIds = rows.stream().map(r -> (Long) r.get("eventId")).filter(id -> id != null)
+					.collect(Collectors.toList());
+			if (!eventIds.isEmpty()) {
+				events.findAllById(eventIds).forEach(e -> origins.put(e.getId(), e.getOriginStoreCode()));
+			}
+		}
+		Map<String, String> names = storeNames.get().names();
+		for (Map<String, Object> row : rows) {
+			String code = messageRows ? origins.get(row.get("eventId")) : (String) row.get("originStoreCode");
+			row.put("storeCode", code);
+			row.put("storeName", code == null ? null : names.get(code));
+		}
+		return page;
 	}
 
 	// ─── Messages ────────────────────────────────────────────────────
@@ -164,6 +238,9 @@ public class CommunicationAdmin {
 			}
 			if (filters.channel != null) {
 				where.add(cb.equal(root.get("channel"), filters.channel));
+			}
+			if (filters.store != null) {
+				where.add(messageOfStore(root, query, cb, filters.store));
 			}
 			if (filters.from != null) {
 				where.add(cb.greaterThanOrEqualTo(root.get("createdAt"), filters.from));
@@ -190,7 +267,7 @@ public class CommunicationAdmin {
 		Page<CommunicationMessage> found = messages.findAll(spec, pageRequest(page, size));
 		Map<String, String> names = memberNames(found.getContent().stream().map(CommunicationMessage::getRecipientRef)
 				.collect(Collectors.toList()));
-		return page(found, m -> messageRow(m, names.get(m.getRecipientRef())));
+		return withStores(page(found, m -> messageRow(m, names.get(m.getRecipientRef()))), true);
 	}
 
 	/** One message, its event (with the event's values read from its payload) and the member's name now. */
@@ -212,6 +289,11 @@ public class CommunicationAdmin {
 		detail.put("updatedBy", message.getUpdatedBy());
 		CommunicationEvent event = message.getEventId() == null ? null : events.findById(message.getEventId()).orElse(null);
 		detail.put("event", event == null ? null : eventRow(event, null));
+		if (storeNames.isPresent()) { // step 6: the store where it happened (null: the head office's own)
+			String code = event == null ? null : event.getOriginStoreCode();
+			detail.put("storeCode", code);
+			detail.put("storeName", code == null ? null : storeNames.get().names().get(code));
+		}
 		return detail;
 	}
 
@@ -276,6 +358,9 @@ public class CommunicationAdmin {
 		Specification<CommunicationEvent> spec = (root, query, cb) -> {
 			List<Predicate> where = new ArrayList<>();
 			where.add(root.get("status").in(statuses));
+			if (filters.store != null) { // step 6
+				where.add(eventOfStore(root.get("originStoreCode"), cb, filters.store));
+			}
 			if (filters.from != null) {
 				where.add(cb.greaterThanOrEqualTo(root.get("createdAt"), filters.from));
 			}
@@ -293,7 +378,7 @@ public class CommunicationAdmin {
 		Page<CommunicationEvent> found = events.findAll(spec, pageRequest(page, size));
 		Map<String, String> names = memberNames(found.getContent().stream().map(CommunicationEvent::getRecipientRef)
 				.collect(Collectors.toList()));
-		return page(found, e -> eventRow(e, names.get(e.getRecipientRef())));
+		return withStores(page(found, e -> eventRow(e, names.get(e.getRecipientRef()))), false);
 	}
 
 	/**
@@ -303,18 +388,29 @@ public class CommunicationAdmin {
 	 */
 	@Transactional(readOnly = true)
 	public Map<String, Object> counters() {
+		return counters(null);
+	}
+
+	/** Step 6: the counters of one store (a head office's store filter; null: every store). */
+	@Transactional(readOnly = true)
+	public Map<String, Object> counters(String store) {
+		String of = blankToNull(store);
 		LocalDateTime today = clock.get().toLocalDate().atStartOfDay();
 		Map<String, Object> counters = new LinkedHashMap<>();
 		counters.put("sentToday", messages.count((root, query, cb) -> cb.and(
 				cb.equal(root.get("status"), CommunicationMessageStatus.SENT),
-				cb.greaterThanOrEqualTo(root.get("createdAt"), today))));
-		counters.put("waiting", messages.count((root, query, cb) -> cb.equal(root.get("status"),
-				CommunicationMessageStatus.PENDING)));
-		counters.put("failed", messages.count((root, query, cb) -> root.get("status")
-				.in(CommunicationMessageStatus.FAILED, CommunicationMessageStatus.EXPIRED)));
+				cb.greaterThanOrEqualTo(root.get("createdAt"), today),
+				of == null ? cb.conjunction() : messageOfStore(root, query, cb, of))));
+		counters.put("waiting", messages.count((root, query, cb) -> cb.and(
+				cb.equal(root.get("status"), CommunicationMessageStatus.PENDING),
+				of == null ? cb.conjunction() : messageOfStore(root, query, cb, of))));
+		counters.put("failed", messages.count((root, query, cb) -> cb.and(
+				root.get("status").in(CommunicationMessageStatus.FAILED, CommunicationMessageStatus.EXPIRED),
+				of == null ? cb.conjunction() : messageOfStore(root, query, cb, of))));
 		counters.put("skippedToday", events.count((root, query, cb) -> cb.and(
 				cb.equal(root.get("status"), CommunicationEventStatus.SKIPPED),
-				cb.greaterThanOrEqualTo(root.get("createdAt"), today))));
+				cb.greaterThanOrEqualTo(root.get("createdAt"), today),
+				of == null ? cb.conjunction() : eventOfStore(root.get("originStoreCode"), cb, of))));
 		counters.put("today", today.toLocalDate());
 		return counters;
 	}

@@ -464,7 +464,8 @@ class AppConfigAPITest {
 
 	@Test
 	@DisplayName("3.3.0, communication step 4: off without the line; on a store with loyalty LOCAL, sent here with the"
-			+ " channels switched on; on a head office or a store whose loyalty is the head office's, not sent here")
+			+ " channels switched on, and (step 6) on a head office, the owner of the loyalty; on a store whose loyalty is the"
+			+ " head office's, not sent here")
 	void communication() throws Exception {
 		CommunicationConfigDTO off = standalone().getCommunication();
 		assertFalse(off.isEnabled());
@@ -482,7 +483,10 @@ class AppConfigAPITest {
 					.withProperty("communication.enabled", "true");
 			CommunicationConfigDTO ho = config(headOffice, true, true).getCommunication();
 			assertTrue(ho.isEnabled());
-			assertFalse(ho.isSendsHere());
+			assertTrue(ho.isSendsHere()); // step 6: the head office makes and sends its stores' messages
+			assertEquals(Collections.singletonList("SMS"), ho.getChannels());
+			assertFalse(config(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE"), true, true).getCommunication()
+					.isSendsHere());
 			MockEnvironment loyaltyUp = new MockEnvironment().withProperty("communication.enabled", "true")
 					.withProperty("headoffice.url", "http://localhost:888/zsretail/api")
 					.withProperty("headoffice.api-key", "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde")

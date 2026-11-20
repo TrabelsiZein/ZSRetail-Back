@@ -464,6 +464,8 @@ own questions stay `@ConditionalOnErpAbility` and `@ConditionalOnErpConnector` (
 | `RFID` | A store that reads RFID tags: `rfid.enabled=true` (`docs/modules/rfid.md`). | 7 (and its 2 repositories) |
 | `COMMUNICATION` | 3.3.0: an installation whose communication module is on, `communication.enabled=true` (`docs/modules/communication.md`). Store and head office. | 7 (step 2: the scheduler and its states in core; the store's source and its two finders; step 3: the settings and the test provider) |
 | `COMMUNICATION_SENDS_HERE` | 3.3.0, step 3: the module on, on a store whose loyalty is not the head office's; it makes and sends its own messages; step 4: the Communication page exists (ApplicationModeService.isCommunicationSentHere, GET /config `communication.sendsHere`). | 6 (step 3: the processor, the sender, the seeding; step 4: the page's API and service, the store's ticket search) |
+| | Step 6: also a head office with the module on (it owns the loyalty): it makes and sends the messages of its stores' events and of its own members. | |
+| `COMMUNICATION_PUSHED_UP` | 3.3.0, step 6: the module on, on a store whose loyalty is the head office's: it pushes its events up and sends nothing. | 2 (the push service and its link job) |
 
 Three answers combine `NodeOwnership` methods as the old conditions did: `HEAD_OFFICE` (`nodeTypeOf == HEAD_OFFICE`),
 `HEAD_OFFICE_OWN_SUPPLY` (without ERP, not supply from the ERP and, 3.1.1, not NONE), `HEAD_OFFICE_ERP_SUPPLY`

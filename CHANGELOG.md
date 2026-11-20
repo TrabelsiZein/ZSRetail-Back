@@ -38,6 +38,14 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   the sender reads it again just before sending (SKIPPED when withdrawn, or the member gone), "send again" is refused
   (`COMM_RESEND_NO_CONSENT`). `GET /loyalty/members?consent=yes|no` and `consentCount`. Rules created from the page
   (`POST /communication/rules`; one rule per event + channel + template, `COMM_RULE_DUPLICATE`).
+- Communication module, step 6, the head office shape: a store whose loyalty is the head office's pushes its events up
+  (link job `COMMUNICATION_PUSH`, every 60 s; the event's status is its queue: PROCESSED taken, ERROR refused, SKIPPED
+  ended after 720 h; a head office with the module off or without the endpoint pauses the push 1 h, quietly; "Run now"
+  on the Jobs page lifts the pause: `LinkJob.runNow()`, by default `run()`). The head
+  office stores them once (`POST /ho/communication/events`, origin the store, nothing older than its activation is
+  messaged) and makes and sends the messages: a member not arrived yet waits, an alias card's welcome is dropped and its
+  tickets go to the surviving member, a member created at the head office gets the head office's welcome. Its
+  Communication page (route `admin-headoffice-communication`) shows the store and filters by it.
 
 ### Enhancements
 - Communication, step 4: a message sent again keeps its history in `last_error` ("resent ... by ...; before: ..."), and

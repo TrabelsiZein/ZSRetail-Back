@@ -67,8 +67,9 @@ public class CommunicationAPI {
 	public ResponseEntity<?> messages(@RequestParam(required = false) String status,
 			@RequestParam(required = false) String channel, @RequestParam(required = false) String dateFrom,
 			@RequestParam(required = false) String dateTo, @RequestParam(required = false) String q,
-			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-		return read(() -> admin.messages(Filters.of(status, channel, dateFrom, dateTo, q), page, size));
+			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
+			@RequestParam(required = false) String store) {
+		return read(() -> admin.messages(Filters.of(status, channel, dateFrom, dateTo, q, store), page, size));
 	}
 
 	@GetMapping("/messages/{id}")
@@ -85,13 +86,19 @@ public class CommunicationAPI {
 	public ResponseEntity<?> events(@RequestParam(required = false) String status,
 			@RequestParam(required = false) String dateFrom, @RequestParam(required = false) String dateTo,
 			@RequestParam(required = false) String q, @RequestParam(defaultValue = "0") int page,
-			@RequestParam(defaultValue = "20") int size) {
-		return read(() -> admin.events(Filters.of(status, null, dateFrom, dateTo, q), page, size));
+			@RequestParam(defaultValue = "20") int size, @RequestParam(required = false) String store) {
+		return read(() -> admin.events(Filters.of(status, null, dateFrom, dateTo, q, store), page, size));
 	}
 
 	@GetMapping("/counters")
-	public ResponseEntity<?> counters() {
-		return read(admin::counters);
+	public ResponseEntity<?> counters(@RequestParam(required = false) String store) {
+		return read(() -> admin.counters(store));
+	}
+
+	/** Step 6: the stores of a head office for the store filter, [{code, name}]; [] on a store. */
+	@GetMapping("/stores")
+	public ResponseEntity<?> stores() {
+		return read(admin::stores);
 	}
 
 	// ─── Rules ───────────────────────────────────────────────────────

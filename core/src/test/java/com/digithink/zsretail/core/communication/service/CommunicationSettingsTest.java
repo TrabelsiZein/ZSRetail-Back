@@ -66,7 +66,8 @@ class CommunicationSettingsTest {
 	}
 
 	@Test
-	@DisplayName("Messages made and sent here: the module on, on a store whose loyalty is not the head office's only")
+	@DisplayName("Messages made and sent here: the module on where the loyalty is owned (a store with loyalty LOCAL, a head"
+			+ " office, step 6); not on a store whose loyalty is the head office's, which pushes its events up")
 	void sendsHere() {
 		MockEnvironment storeOff = new MockEnvironment();
 		MockEnvironment store = new MockEnvironment().withProperty("communication.enabled", "true");
@@ -78,8 +79,20 @@ class CommunicationSettingsTest {
 		assertFalse(NodeOwnership.isCommunicationSentHere(storeOff));
 		assertTrue(NodeOwnership.isCommunicationSentHere(store));
 		assertTrue(Installation.COMMUNICATION_SENDS_HERE.isTrue(store));
-		assertFalse(NodeOwnership.isCommunicationSentHere(loyaltyFromHeadOffice)); // its events wait for the head office
-		assertFalse(NodeOwnership.isCommunicationSentHere(headOffice));
+		assertFalse(NodeOwnership.isCommunicationSentHere(loyaltyFromHeadOffice)); // its events go up (step 6)
+		assertTrue(Installation.COMMUNICATION_PUSHED_UP.isTrue(loyaltyFromHeadOffice));
+		// Step 6: a head office owns the loyalty (its register): with the module on it sends, and pushes nothing
+		assertTrue(NodeOwnership.isCommunicationSentHere(headOffice));
+		assertTrue(Installation.COMMUNICATION_SENDS_HERE.isTrue(headOffice));
+		assertFalse(Installation.COMMUNICATION_PUSHED_UP.isTrue(headOffice));
+		assertFalse(NodeOwnership.isCommunicationSentHere(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")));
+		assertFalse(Installation.COMMUNICATION_PUSHED_UP.isTrue(store));
+		// A head office that does not own the loyalty cannot exist: the start refuses its owner HEAD_OFFICE (and loyalty
+		// has no ERP owner)
+		assertThrows(IllegalStateException.class, () -> NodeOwnership.resolve(new MockEnvironment()
+				.withProperty("node.type", "HEAD_OFFICE").withProperty("ownership.loyalty", "HEAD_OFFICE")));
+		assertThrows(IllegalStateException.class, () -> NodeOwnership.resolve(new MockEnvironment()
+				.withProperty("node.type", "HEAD_OFFICE").withProperty("ownership.loyalty", "ERP")));
 	}
 
 	/** GSM 03.38 basic alphabet: one SMS part holds 160 of these characters. */
