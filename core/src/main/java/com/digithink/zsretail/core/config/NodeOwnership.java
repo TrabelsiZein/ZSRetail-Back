@@ -313,6 +313,16 @@ public final class NodeOwnership {
 	}
 
 	/**
+	 * 3.3.0, step 3: the module on, on a store whose loyalty is not the head office's: it makes and sends its own
+	 * messages. False on a head office (a later step) and on a store whose loyalty is the head office's (its events
+	 * wait for the head office). Also used by {@link Installation#COMMUNICATION_SENDS_HERE}.
+	 */
+	public static boolean isCommunicationSentHere(PropertyResolver env) {
+		return isCommunicationSet(env) && nodeTypeOf(env) != NodeType.HEAD_OFFICE
+				&& !isOwnedByHeadOffice(env, DataDomain.LOYALTY);
+	}
+
+	/**
 	 * Invoices from the ERP: true on a head office with headoffice.supply.source=ERP (accepted only on a head office whose
 	 * catalogue only comes from the ERP, with a connector that reads the ERP's invoices). The key is read on a head office
 	 * only: a store never reads it. Also used by {@link Installation#HEAD_OFFICE_OWN_SUPPLY} and

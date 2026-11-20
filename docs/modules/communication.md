@@ -1,7 +1,8 @@
 # Communication (3.3.0)
 
-**Status**: step 1 (the switch and the two tables) and step 2 (the store finds its events and writes `comm_event` rows).
-Nothing reads the events yet: no message, no template, no endpoint, no screen, nothing sent.
+**Status**: step 1 (the switch and the two tables), step 2 (the store finds its events and writes `comm_event` rows),
+step 3 (rules and templates make the messages, a test provider "sends" them; channels in the properties). No endpoint,
+no screen, no consent, no head office side, no real provider yet.
 
 Messages to loyalty members by WhatsApp, SMS and email: two automatic events in version 1 ("loyalty member created",
 "ticket validated for a member") and a simple campaign (one template to every member with consent). The till never
@@ -159,8 +160,109 @@ without a member, none for the 489 tickets of before; `TICKET_CURSOR` on ticket 
 null there: that store has no `location` row (its catalogue and supply are the head office's), a point for the
 message step.
 
+## Step 3: from the event to a message sent by the test provider
+
+**The property lines** (all in core's `application.properties`; `communication.enabled` is the master: off, none of
+them is read; `CommunicationSettings`, read once at the start, one INFO line `Communication: channels whatsapp off,
+sms on (test), email off, phone country code 216`):
+
+| Key | Values | Absent or empty |
+|---|---|---|
+| `communication.whatsapp.enabled`, `communication.sms.enabled`, `communication.email.enabled` | `true` / `false` (any case); another value is read as off with one WARN line, never a refused start | `false` |
+| `communication.<channel>.provider` | `test` (the only one in step 3); an unknown name stops the start: `Invalid value 'x' for property communication.sms.provider: the providers are test (absent or empty: test)` | `test` |
+| `communication.phone-country-code` | 1 to 3 digits, a `+` accepted; anything else stops the start | `216` |
+
+**Where it runs**: `Installation.COMMUNICATION_SENDS_HERE`, the module on, on a store whose loyalty is not the head
+office's (a store alone, or loyalty `LOCAL`). On a store whose loyalty is the head office's the finders still write
+the events, but there is no processor, no sender and no seeding: the events stay `PENDING` for the head office step.
+A head office does not send yet. (`InstallationBeansProofTest`, shape "store, loyalty from the head office,
+communication on".)
+
+### `comm_template` (`CommunicationTemplate`) and `comm_rule` (`CommunicationRule`)
+
+| `comm_template` column | Type | Meaning |
+|---|---|---|
+| `code` | nvarchar(50), not null, unique `uk_comm_template_code` | e.g. `TICKET_THANKS_SMS_FR` |
+| `name` | nvarchar(100), not null | for the staff |
+| `channel` | nvarchar(20), not null | `WHATSAPP`, `SMS`, `EMAIL` |
+| `language_code` | nvarchar(5), not null | `fr`, `ar`, `en` |
+| `subject` | nvarchar(255) | email only |
+| `body` | nvarchar(max), not null | the text with `{fields}` |
+| `provider_template_name` | nvarchar(100) | WhatsApp later: the template approved at the provider |
+| `active` (`_BaseEntity`) | bit | on or off |
+
+| `comm_rule` column | Type | Meaning |
+|---|---|---|
+| `code` | nvarchar(50), not null, unique `uk_comm_rule_code` | e.g. `TICKET_THANKS_SMS` |
+| `event_type` | nvarchar(50), not null | `MEMBER_CREATED`, `TICKET_VALIDATED` |
+| `recipient_type` | nvarchar(30), not null | `LOYALTY_MEMBER` |
+| `channel` | nvarchar(20), not null | must be the template's |
+| `template_code` | nvarchar(50), not null | `comm_template.code` |
+| `lifetime_hours` | int, not null | a message is never sent more than this after its **event happened** (24) |
+| `active` (`_BaseEntity`) | bit | on or off |
+
+**Seeded at the start** (`CommunicationSeed`, where it sends), only when the code is missing, **inactive**; a row that
+exists is never touched:
+- `MEMBER_CARD_SMS_FR` / rule `MEMBER_CARD_SMS` (`MEMBER_CREATED`): `Bienvenue {firstName} ! Votre carte de fidélité
+  {companyName} : {cardNumber}. Présentez-la à chaque achat pour cumuler des points.`
+- `TICKET_THANKS_SMS_FR` / rule `TICKET_THANKS_SMS` (`TICKET_VALIDATED`): `Merci {firstName} pour votre achat chez
+  {companyName} ({total} TND) : +{pointsEarned} points, solde {balanceAfter} points (carte {cardNumber}).`
+
+Both use only the basic SMS alphabet (no ç, ê, ô: one of them makes the whole SMS Unicode, 70 characters a part) and
+stay in one part (160) with long usual values (`CommunicationSettingsTest.seededTexts`).
+
+### The processor (`CommunicationEventProcessor`, order 10, code `MESSAGES_MADE`)
+
+Each `PENDING` event (and `ERROR` with fewer than 5 attempts), by id, each in its own transaction, until the cycle's
+bound:
+- No active rule of its type: `SKIPPED`, `no active rule for TICKET_VALIDATED`. The member (by the card,
+  `recipient_ref`) not found or inactive: `SKIPPED`.
+- Each active rule of its type: its channel off, its template missing or inactive or of another channel, no address,
+  or the event older than the rule's lifetime: no message, the reason (`TICKET_THANKS_SMS: channel sms off`). Else one
+  `PENDING` message: the address read from the member now (SMS and WhatsApp `+` country code + the 8 digits, only when
+  the phone is 8 digits; email only when it looks like one), the text from the template and the payload, the
+  template's code and language, the channel's provider, `recipient_ref` the card, `expires_at` the event's
+  `occurred_at` plus the lifetime, dedup key `<event id>:<rule code>` (a second pass makes nothing).
+- `PROCESSED` when it has at least one message (the reasons of the other rules kept in `last_error`), else `SKIPPED`
+  with the reasons. A technical failure: `ERROR`, one more attempt, the cause; tried again at the next cycles, at most
+  5 times; the other events go on.
+- Rules being inactive by default, with the module and a channel on every event is `SKIPPED` until a rule is turned
+  on; turning a rule on later never sends the events of before.
+
+**The fields** (`CommunicationTemplates`): `firstName`, `lastName`, `cardNumber`, `ticketNumber`, `total` (3
+decimals), `pointsEarned`, `pointsSpent`, `balanceAfter`, `storeName`, `companyName`. A field without a value gives an
+empty text, never `null`; a field not in the list is left out (empty) and logged once per template.
+
+### The sender (`CommunicationSender`, order 20, code `MESSAGES_SENT`) and the providers
+
+The `PENDING` messages due (`next_attempt_at` empty or passed), by id, 50 a page, one at a time, until the cycle's
+bound:
+- Past `expires_at`: `EXPIRED`, not sent. Its channel off now: `SKIPPED` (switching a channel off also stops the
+  messages already waiting). Its provider unknown: `FAILED`.
+- `CommunicationProvider.send`: accepted, `SENT`, `sent_at`, `provider_message_id`; a temporary failure (or a throw):
+  one more attempt, `next_attempt_at` 1, 5, 15 then 60 minutes later, `FAILED` at the 5th; a permanent failure:
+  `FAILED` at once. `last_error` says why.
+- **The provider `test`** (`TestCommunicationProvider`): sends nothing, one INFO line (the address masked,
+  `+2169****002`), accepted as `TEST-<message id>-<8 characters>`.
+- Trap for the real providers: if the application stops after a provider accepted a message and before `SENT` is
+  saved, the message is sent again at the next start (at least once). Step 8: give the provider our dedup key as its
+  idempotency key where it has one, or add a SENDING status.
+
+**Proof on the PC (2026-11-20, `pos_franchise_customer`)**: `communication.sms.enabled=true` in the local file, the
+script run again (the two tables), `LOYALTY_ENABLED` on for the test; the start wrote the 4 rows inactive, turned on by
+SQL before the first cycle. First cycle: the 2 `PENDING` events of step 2 became 2 messages `SENT` by `test`
+(`TEST-1-...`, `TEST-2-...`, `+21699000002`, 117 and 105 characters, the accents stored as Unicode). A new sale with
+the member (FKAIROUAN261120003, 17:56:31): its message `SENT` at 17:57:16. Then `communication.sms.enabled=false` and a
+restart: the next sale with the member (FKAIROUAN261120004) gave an event `SKIPPED`, `TICKET_THANKS_SMS: channel sms
+off`, no message. No ERROR line.
+
+Tests: `CommunicationMessagesTest` (processor and sender on in-memory tables, a fake provider),
+`CommunicationSettingsTest` (the lines, where it runs, the seeded texts, the fields), `InstallationBeansProofTest`,
+`ConfigurationKeysProofTest` (keys 77).
+
 ## Next steps (to be agreed one at a time)
 
-The test channel and its sender job, the push up to the head office when it owns loyalty, the member's consent and
-language (they travel with the shared loyalty register; no language field exists today), templates and rules, the
-campaign page.
+Step 4 the admin pages (rules, templates, messages), step 5 the member's consent and language (they travel with the
+shared loyalty register; templates then need a key on code and language; a rule then needs a purpose, service or
+marketing), step 6 the head office side (the events of its stores whose loyalty it owns), the campaign (a
+`campaign_id` on the message), step 8 the real providers.

@@ -87,7 +87,12 @@ communication.enabled: true (the communication module is on) or false (off, also
 On, the startup summary adds `communication on`. No customer file names it. With it on, `communication.cycle-seconds`
 (step 2): the seconds between two cycles of the module, absent or empty `60`, otherwise a whole number of at least 1
 (anything else stops the startup: `Invalid value '<v>' for property communication.cycle-seconds: a whole number of
-seconds, at least 1 (absent or empty: 60)`).
+seconds, at least 1 (absent or empty: 60)`). Step 3, the channels: `communication.whatsapp.enabled`,
+`communication.sms.enabled`, `communication.email.enabled` (`true` / `false`, absent or empty `false`, another value
+read as off with a WARN line, never a refused start); `communication.<channel>.provider` (absent or empty `test`, the
+only provider so far; an unknown name stops the start); `communication.phone-country-code` (absent or empty `216`, 1 to
+3 digits, else the start stops). All are in core's `application.properties`; details:
+`docs/modules/communication.md`, "Step 3".
 
 **The old enabled lines are refused** (code cleanup step 8, decision of 2026-10-11): `erp.dynamicsnav.enabled` and
 `erp.navpospages.enabled`, found in any property source (the outside file, a configuration file, a `-D`, an environment
@@ -457,7 +462,8 @@ own questions stay `@ConditionalOnErpAbility` and `@ConditionalOnErpConnector` (
 | `LOYALTY_FROM_HEAD_OFFICE` | A linked store whose loyalty program and members are the head office's. | 8 |
 | `SUPPLY_FROM_HEAD_OFFICE` | A linked store whose goods come from the head office by BL (`ownership.supply=HEAD_OFFICE` written in its file). | 11 (3.1.1: the orders to the head office, 4) |
 | `RFID` | A store that reads RFID tags: `rfid.enabled=true` (`docs/modules/rfid.md`). | 7 (and its 2 repositories) |
-| `COMMUNICATION` | 3.3.0: an installation whose communication module is on, `communication.enabled=true` (`docs/modules/communication.md`). Store and head office. | 5 (step 2: the scheduler and its states in core; the store's source and its two finders) |
+| `COMMUNICATION` | 3.3.0: an installation whose communication module is on, `communication.enabled=true` (`docs/modules/communication.md`). Store and head office. | 7 (step 2: the scheduler and its states in core; the store's source and its two finders; step 3: the settings and the test provider) |
+| `COMMUNICATION_SENDS_HERE` | 3.3.0, step 3: the module on, on a store whose loyalty is not the head office's; it makes and sends its own messages. | 3 (the processor, the sender, the seeding) |
 
 Three answers combine `NodeOwnership` methods as the old conditions did: `HEAD_OFFICE` (`nodeTypeOf == HEAD_OFFICE`),
 `HEAD_OFFICE_OWN_SUPPLY` (without ERP, not supply from the ERP and, 3.1.1, not NONE), `HEAD_OFFICE_ERP_SUPPLY`

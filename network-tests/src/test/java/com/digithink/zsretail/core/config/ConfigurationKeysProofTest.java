@@ -68,6 +68,10 @@ import com.digithink.zsretail.support.Installations;
  * 3.3.0, communication module step 1: the record gained communication.enabled (core's application.properties says
  * false, no outside file names it): "keys 69" and one line per configuration, false everywhere; app.version is 3.3.0;
  * every other line unchanged.
+ * <p>
+ * 3.3.0, communication module step 3: the record gained communication.cycle-seconds (60), the three channels' enabled
+ * (false) and provider (test) lines and communication.phone-country-code (216), all from core's application.properties:
+ * "keys 77", eight lines per configuration, the same everywhere; every other line unchanged.
  */
 class ConfigurationKeysProofTest {
 

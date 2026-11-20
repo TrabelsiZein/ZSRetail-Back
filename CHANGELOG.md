@@ -18,18 +18,26 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   completed with a loyalty member, `MEMBER_CREATED` for each member enrolled at this store, both only after the
   activation instant (the first start with the module on). Its own scheduler (one thread, `comm-1`, a cycle every 60 s).
   Proof on the PC (2026-11-20, `pos_franchise_customer`): see `docs/modules/communication.md`.
+- Communication module, step 3: where the store sends (module on, loyalty not the head office's), each PENDING event
+  becomes one message per active rule of its type whose channel is on (address read from the member, text from the
+  template, never sent more than the rule's lifetime after the event), and the sender hands them to the provider
+  `test`, which sends nothing and answers accepted. Two French SMS templates and their rules are written at the start,
+  inactive. On a store whose loyalty is the head office's the events stay PENDING.
 
 ### DB script
 - `db/3.3.0/update.sql`: the tables `comm_event` (what happened) and `comm_message` (what to send), every text column
   nvarchar, with their unique dedup keys and queue indexes; APP_VERSION 3.3.0. Step 2: the table `comm_state` (the
   activation instant, the finders' cursors) and the index `ix_comm_event_source`; run the script again on a database
-  that ran its step 1 version.
+  that ran its step 1 version. Step 3: the tables `comm_template` and `comm_rule`.
 
 ### Config
 - `communication.enabled` (store and head office): `true` turns the module on; absent, empty or `false` (core's
   `application.properties`): off; any other value stops the start. No customer file names it.
 - `communication.cycle-seconds` (step 2): seconds between two cycles, absent or empty 60, a whole number of at least
-  1 (anything else stops the start).
+  1 (anything else stops the start). Written in core's `application.properties` since step 3.
+- Step 3: `communication.whatsapp.enabled`, `communication.sms.enabled`, `communication.email.enabled` (absent or
+  empty false, never a refused start), `communication.<channel>.provider` (absent or empty `test`; an unknown name stops
+  the start), `communication.phone-country-code` (absent or empty 216). No customer file names them.
 
 ## 3.2.0 — in progress (branch `release/3.2.0`)
 

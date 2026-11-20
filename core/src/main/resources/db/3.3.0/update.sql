@@ -1,5 +1,5 @@
 -- ============================================================
--- Version 3.3.0 (in progress) — communication module: comm_event, comm_message (step 1), comm_state (step 2)
+-- Version 3.3.0 (in progress) — communication module: comm_event, comm_message (step 1), comm_state (step 2), comm_template, comm_rule (step 3)
 -- ============================================================
 -- Deployment order (a database at 3.2.0; CHANGELOG.md, 3.3.0, "Before deployment"):
 --   1) Bring the database to 3.2.0 first (db/3.2.0/update.sql). This script stops, without changing anything, while
@@ -12,8 +12,8 @@
 -- Re-runnable: each statement is guarded and changes nothing the second time. The tables are created in the form
 -- Hibernate gives them (the constraints and indexes named as in the entities), so the start finds them whole; on a
 -- database without them Hibernate would create them at the first start too. They stay empty while
--- communication.enabled is not true (docs/modules/communication.md). Step 2 added 1b and 3: run the script again on a
--- database that ran its step 1 version.
+-- communication.enabled is not true (docs/modules/communication.md). Steps 2 and 3 added 1b, 3, 4 and 5: run the script
+-- again on a database that ran an earlier version of it.
 
 SET QUOTED_IDENTIFIER ON;
 SET ANSI_NULLS ON;
@@ -77,6 +77,32 @@ BEGIN
 		updated_at datetime2, updated_by varchar(255), code nvarchar(50) not null, id_value bigint,
 		time_value datetime2, primary key (id));
 	ALTER TABLE comm_state ADD CONSTRAINT uk_comm_state_code UNIQUE (code);
+END
+GO
+
+-- 4) Step 3: the message texts (CommunicationTemplate), one per code, for one channel and one language; the body holds
+-- {fields}. Active or not: the column active. The application writes the two French SMS templates, inactive, at its
+-- start where it sends. Every database.
+IF OBJECT_ID(N'comm_template', N'U') IS NULL
+BEGIN
+	CREATE TABLE comm_template (id bigint identity not null, active bit, created_at datetime2, created_by varchar(255),
+		updated_at datetime2, updated_by varchar(255), body nvarchar(max) not null, channel nvarchar(20) not null,
+		code nvarchar(50) not null, language_code nvarchar(5) not null, name nvarchar(100) not null,
+		provider_template_name nvarchar(100), subject nvarchar(255), primary key (id));
+	ALTER TABLE comm_template ADD CONSTRAINT uk_comm_template_code UNIQUE (code);
+END
+GO
+
+-- 5) Step 3: the rules event -> template -> channel (CommunicationRule); lifetime_hours: a message is never sent more
+-- than that after its event happened (24 by default). Active or not: the column active. The application writes the two
+-- rules of the templates above, inactive. Every database.
+IF OBJECT_ID(N'comm_rule', N'U') IS NULL
+BEGIN
+	CREATE TABLE comm_rule (id bigint identity not null, active bit, created_at datetime2, created_by varchar(255),
+		updated_at datetime2, updated_by varchar(255), channel nvarchar(20) not null, code nvarchar(50) not null,
+		event_type nvarchar(50) not null, lifetime_hours int not null, recipient_type nvarchar(30) not null,
+		template_code nvarchar(50) not null, primary key (id));
+	ALTER TABLE comm_rule ADD CONSTRAINT uk_comm_rule_code UNIQUE (code);
 END
 GO
 

@@ -103,7 +103,15 @@ public enum Installation {
 
 	/** 3.3.0: the communication module is on (communication.enabled=true); off when absent, blank or false. */
 	COMMUNICATION("An installation whose communication module is on: communication.enabled=true.",
-			NodeOwnership::isCommunicationSet);
+			NodeOwnership::isCommunicationSet),
+
+	/**
+	 * 3.3.0, step 3: an installation that makes and sends its own messages: the module on, on a store whose loyalty is
+	 * not the head office's (a store alone, or loyalty LOCAL). A store whose loyalty is the head office's keeps its
+	 * events for the head office (a later step); a head office does not send yet.
+	 */
+	COMMUNICATION_SENDS_HERE("An installation with the communication module on that makes and sends its own messages: a"
+			+ " store whose loyalty is not the head office's.", NodeOwnership::isCommunicationSentHere);
 
 	private final String meaning;
 	private final Predicate<PropertyResolver> answer;
