@@ -97,7 +97,13 @@ public enum Installation {
 	// ─── Store ──────────────────────────────────────────────────
 
 	/** A store that reads RFID tags (rfid.enabled=true): its readers, its POS machines, the reads (RFID step 2). */
-	RFID("A store that reads RFID tags: rfid.enabled=true.", NodeOwnership::isRfidSet);
+	RFID("A store that reads RFID tags: rfid.enabled=true.", NodeOwnership::isRfidSet),
+
+	// ─── Store and head office ──────────────────────────────────
+
+	/** 3.3.0: the communication module is on (communication.enabled=true); off when absent, blank or false. */
+	COMMUNICATION("An installation whose communication module is on: communication.enabled=true.",
+			NodeOwnership::isCommunicationSet);
 
 	private final String meaning;
 	private final Predicate<PropertyResolver> answer;

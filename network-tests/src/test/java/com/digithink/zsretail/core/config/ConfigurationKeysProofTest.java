@@ -64,6 +64,10 @@ import com.digithink.zsretail.support.Installations;
  * 3.2.0, table management out of General setup: the record gained pos.table-management.enabled and
  * pos.table-management.table-count (the store type file says false and 10): "keys 68" and two lines per configuration,
  * false and 10 on a store, (none) on a head office; every other line unchanged.
+ * <p>
+ * 3.3.0, communication module step 1: the record gained communication.enabled (core's application.properties says
+ * false, no outside file names it): "keys 69" and one line per configuration, false everywhere; app.version is 3.3.0;
+ * every other line unchanged.
  */
 class ConfigurationKeysProofTest {
 

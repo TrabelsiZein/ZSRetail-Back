@@ -28,7 +28,8 @@ repositories.
 `decimal-quantities` · `rfid` (3.1.0: the store's RFID readers, tags and reads) · `pos-machines` (3.2.0: the POS
 machines of every store) · `cash-sessions` (3.1.0: the
 session tickets X and Z) · `store-orders` (3.1.1: the orders of a store to its head office, "Commandes centrale") ·
-`bulk-sale` (3.1.2: "vente en vrac", the item flag and the quick quantities; the till step to come)
+`bulk-sale` (3.1.2: "vente en vrac", the item flag and the quick quantities; the till step to come) ·
+`communication` (3.3.0: messages to loyalty members by WhatsApp, SMS and email; step 1, the switch and the two tables)
 
 ## Specs and plans
 

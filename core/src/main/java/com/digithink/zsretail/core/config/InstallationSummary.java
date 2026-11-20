@@ -54,6 +54,9 @@ public class InstallationSummary {
 		if (NodeOwnership.isRfidSet(env)) {
 			line.add("RFID on");
 		}
+		if (NodeOwnership.isCommunicationSet(env)) {
+			line.add("communication on"); // 3.3.0: off says nothing, so the line stays as in 3.2.0
+		}
 		line.add("ERP connector " + ErpAbilities.connectorInEffect(env));
 		String address = ErpConnectorEnvironmentPostProcessor.summaryAddress(env);
 		if (address != null) {

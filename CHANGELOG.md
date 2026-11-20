@@ -4,6 +4,24 @@ One section per product version, newest first. Every commit that changes behavio
 its line here, under the version of its branch. The screens are in `ZSRetail-Front/CHANGELOG.md`. The French notes shown
 in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql` from this file when a version is closed.
 
+## 3.3.0 — in progress (branch `release/3.3.0`, opened from `release/3.2.0` on 2026-11-20)
+
+### Before deployment
+- A database at 3.2.0: `db/3.3.0/update.sql`, then the 3.3.0 WAR (`AppVersionGuard`). The script stops, changing
+  nothing, while APP_VERSION is not 3.2.0 or 3.3.0; it may run again. Same script on a store and a head office.
+
+### Features
+- Communication module, step 1 (`docs/modules/communication.md`): the switch and the two tables, nothing else (no job,
+  no endpoint, no screen, nothing sent). Off, the application behaves as 3.2.0.
+
+### DB script
+- `db/3.3.0/update.sql`: the tables `comm_event` (what happened) and `comm_message` (what to send), every text column
+  nvarchar, with their unique dedup keys and queue indexes; APP_VERSION 3.3.0.
+
+### Config
+- `communication.enabled` (store and head office): `true` turns the module on; absent, empty or `false` (core's
+  `application.properties`): off; any other value stops the start. No customer file names it.
+
 ## 3.2.0 — in progress (branch `release/3.2.0`)
 
 ### Before deployment

@@ -68,6 +68,9 @@ import com.digithink.zsretail.erp.api.ErpAbility;
  * <p>
  * RFID (RFID step 2): {@code rfid.enabled}, true or false (false when absent); any other value stops the startup, and
  * true on a head office too ({@link #isRfidSet}).
+ * <p>
+ * Communication (3.3.0, step 1): {@code communication.enabled}, true or false; absent or blank is false (the module does
+ * nothing, as 3.2.0); any other value stops the startup ({@link #isCommunicationSet}). A store and a head office alike.
  */
 public final class NodeOwnership {
 
@@ -102,6 +105,8 @@ public final class NodeOwnership {
 	 * true on a head office.
 	 */
 	static final String RFID_KEY = "rfid.enabled";
+	/** 3.3.0: the communication module is on (true) or off (false, absent or blank: the default). */
+	public static final String COMMUNICATION_KEY = "communication.enabled";
 
 	/**
 	 * Domains a store receives as copies down from its head office today (step 3: promotions; step 4: loyalty; step 6:
@@ -290,6 +295,24 @@ public final class NodeOwnership {
 	}
 
 	/**
+	 * 3.3.0, step 1: communication.enabled, trimmed and case-insensitive. Absent or blank: false (the module does
+	 * nothing). Any value other than true or false throws {@link IllegalStateException} naming the key, like the startup.
+	 * Also used by {@link Installation#COMMUNICATION}.
+	 */
+	public static boolean isCommunicationSet(PropertyResolver env) {
+		String raw = env.getProperty(COMMUNICATION_KEY);
+		String value = raw == null ? "" : raw.trim();
+		if (value.isEmpty() || "false".equalsIgnoreCase(value)) {
+			return false;
+		}
+		if ("true".equalsIgnoreCase(value)) {
+			return true;
+		}
+		throw new IllegalStateException("Invalid value '" + raw + "' for property " + COMMUNICATION_KEY
+				+ ": true (the communication module is on) or false (off, also when the line is absent or empty)");
+	}
+
+	/**
 	 * Invoices from the ERP: true on a head office with headoffice.supply.source=ERP (accepted only on a head office whose
 	 * catalogue only comes from the ERP, with a connector that reads the ERP's invoices). The key is read on a head office
 	 * only: a store never reads it. Also used by {@link Installation#HEAD_OFFICE_OWN_SUPPLY} and
@@ -463,6 +486,7 @@ public final class NodeOwnership {
 		boolean headOffice = nodeType == NodeType.HEAD_OFFICE;
 		checkHeadOfficeLink(env, headOffice);
 		isRfidSet(env);
+		isCommunicationSet(env);
 		if (headOffice) {
 			checkWholeSeconds(env, OFFLINE_AFTER_KEY);
 			headOfficeStockEnabled(env);
