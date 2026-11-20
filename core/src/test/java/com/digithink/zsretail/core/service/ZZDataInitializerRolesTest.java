@@ -397,9 +397,10 @@ class ZZDataInitializerRolesTest {
 		assertTrue(headOffice.get("ADMIN").getPermissions().contains("read:admin-headoffice-license"));
 	}
 
-	/** 3.1.2: the keys the API checks on the users and on saving the company information. */
+	/** 3.1.2: the keys the API checks on the users and on saving the company information; 3.2.0: on the roles' writes. */
 	private static final Set<String> API_CHECKED = new HashSet<>(java.util.Arrays.asList("read:admin-users", "write:admin-users",
-			"delete:admin-users", "read:admin-company-information", "write:admin-company-information"));
+			"delete:admin-users", "read:admin-company-information", "write:admin-company-information", "write:admin-roles",
+			"delete:admin-roles"));
 
 	@Test
 	@DisplayName("3.1.2: the keys the API checks reach the ADMIN of a store of before at its start, once, so no administrator is"

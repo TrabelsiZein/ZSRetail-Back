@@ -4,8 +4,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,21 +18,50 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.dto.AppRoleRequestDTO;
 import com.digithink.zsretail.core.model.AppRole;
 import com.digithink.zsretail.core.model.enumeration.BadgePermission;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.service.AppRoleService;
 
+import lombok.extern.log4j.Log4j2;
+
+/**
+ * The roles. 3.2.0: the writes behind the Roles page's permissions (without them any logged user, a cashier included,
+ * created, changed or deleted a role, and so gave their own role every permission): POST and PUT need write:admin-roles,
+ * DELETE delete:admin-roles; on a head office its page's one key, read:admin-headoffice-roles, for all three. The reads
+ * stay open to any logged user (the Users pages list the roles).
+ */
 @RestController
 @RequestMapping("app-roles")
+@Log4j2
 public class AppRoleAPI {
+
+    static final String WRITE_ROLES = "write:admin-roles";
+    static final String DELETE_ROLES = "delete:admin-roles";
+
+    /** The head office's Roles page has this one key, for reading and for its actions. */
+    static final String HEAD_OFFICE_ROLES = "read:admin-headoffice-roles";
 
     @Autowired
     private AppRoleService appRoleService;
 
     @Autowired
     private CurrentUserProvider currentUserProvider;
+
+    @Autowired
+    private ApplicationModeService applicationModeService;
+
+    /** The 403 of a logged user whose role lacks the key; null when it holds it. */
+    private ResponseEntity<?> refusedWithout(String key) {
+        if (currentUserProvider.currentUserHasPermission(key) || (applicationModeService.isHeadOffice()
+                && currentUserProvider.currentUserHasPermission(HEAD_OFFICE_ROLES))) {
+            return null;
+        }
+        log.warn("AppRoleAPI: refused without the right {}", key);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "The roles need the right " + key + "."));
+    }
 
     // All available permission keys — single source of truth for the frontend UI
     private static final List<String> ALL_PERMISSIONS = Arrays.asList(
@@ -131,27 +162,39 @@ public class AppRoleAPI {
     }
 
     @PostMapping
-    public AppRole create(@RequestBody AppRoleRequestDTO dto) {
+    public ResponseEntity<?> create(@RequestBody AppRoleRequestDTO dto) {
+        ResponseEntity<?> refused = refusedWithout(WRITE_ROLES);
+        if (refused != null) {
+            return refused;
+        }
         String actor = currentUserProvider.getCurrentUser().getUsername();
-        return appRoleService.create(
+        return ResponseEntity.ok(appRoleService.create(
             dto.getName(), dto.getLabel(),
             Boolean.TRUE.equals(dto.getIsPosRole()),
             dto.getPermissions(), actor
-        );
+        ));
     }
 
     @PutMapping("/{id}")
-    public AppRole update(@PathVariable Long id, @RequestBody AppRoleRequestDTO dto) {
+    public ResponseEntity<?> update(@PathVariable Long id, @RequestBody AppRoleRequestDTO dto) {
+        ResponseEntity<?> refused = refusedWithout(WRITE_ROLES);
+        if (refused != null) {
+            return refused;
+        }
         String actor = currentUserProvider.getCurrentUser().getUsername();
-        return appRoleService.update(
+        return ResponseEntity.ok(appRoleService.update(
             id, dto.getLabel(),
             Boolean.TRUE.equals(dto.getIsPosRole()),
             dto.getPermissions(), actor
-        );
+        ));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<?> delete(@PathVariable Long id) {
+        ResponseEntity<?> refused = refusedWithout(DELETE_ROLES);
+        if (refused != null) {
+            return refused;
+        }
         appRoleService.delete(id);
         return ResponseEntity.noContent().build();
     }

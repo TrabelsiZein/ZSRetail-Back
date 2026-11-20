@@ -27,6 +27,10 @@ list of its own (labels: i18n `pos.badge.permissions.<code lower case>`).
 
 - A role holds a right when its permissions (`app_role_permission`) hold the key. The Roles page shows them in the
   "Actions de caisse" block (from `tillActions`); `GET /app-roles/permissions` lists them after the page permissions.
+- 3.2.0: a role is written only with the Roles page's rights: `POST` / `PUT /app-roles` need `write:admin-roles`,
+  `DELETE` `delete:admin-roles`, on a head office `read:admin-headoffice-roles`, else 403 (`AppRoleAPI`; before, a
+  cashier could give their own role every right). The store page hides its create / save and delete buttons without
+  them. The reads stay open to any logged user. ADMIN of a store gets the two keys at each start when missing.
 - They reach the till with the login's `permissions`, as the page permissions (CASL ability `till` on
   `<key without "till:">`). A role edited takes effect at the user's next login; until then the server, which reads
   the role on each request, has the last word (a 403 asks for a badge).

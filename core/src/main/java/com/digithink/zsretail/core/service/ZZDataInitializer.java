@@ -418,10 +418,12 @@ public class ZZDataInitializer {
 	/**
 	 * 3.1.2: the keys the API checks on the users (UserAccountAPI) and on saving the company information
 	 * (CompanyInformationAPI). In ADMIN_PERMISSIONS for a new database; no script ever added them, so they are given to ADMIN
-	 * at every start for a database of before. A head office's own keys come with HEAD_OFFICE_ADMIN_PERMISSIONS.
+	 * at every start for a database of before. A head office's own keys come with HEAD_OFFICE_ADMIN_PERMISSIONS. 3.2.0: the
+	 * writes of the roles (AppRoleAPI).
 	 */
 	static final Set<String> API_CHECKED_ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList("read:admin-users", "write:admin-users",
-			"delete:admin-users", "read:admin-company-information", "write:admin-company-information"));
+			"delete:admin-users", "read:admin-company-information", "write:admin-company-information", "write:admin-roles",
+			"delete:admin-roles"));
 
 	/**
 	 * RFID (3.1.0): the RFID pages (readers, tags, tag assignment), on a store with rfid.enabled=true only: in ADMIN's set

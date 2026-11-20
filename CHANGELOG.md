@@ -30,6 +30,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - The Journal's own right (`read:day-journal`): run `db/3.2.0/update.sql` (step 20) before the 3.2.0 WAR starts, else
   the roles of before get 403 on the Journal until it runs (it gives the right to every role holding
   `read:admin-sessions-history`).
+- The roles' writes (Fixes, "`/app-roles`"): ADMIN of a store gets `write:admin-roles` and `delete:admin-roles` at its
+  first start if it lacks them; a custom role that creates, changes or deletes roles needs them ticked on the Roles page
+  (its `read:admin-roles` alone now only reads the page).
 
 ### Features
 - "Caisse en direct" (`docs/modules/cash-sessions.md`, "Caisse en direct"): `GET /cashier-session/live` (`store.livecash`),
@@ -281,6 +284,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `ConsolidatedSalesServiceTest`, `ZZDataInitializerRolesTest`; `PosMachineSellingGuardTest` classes the endpoint.
 
 ### Fixes
+- `/app-roles`: POST, PUT and DELETE checked no right, so any logged user (a cashier's token) created, changed or deleted
+  a role and could give their own role every permission. POST and PUT now need `write:admin-roles`, DELETE
+  `delete:admin-roles`, on a head office `read:admin-headoffice-roles` (its page's one key), else 403 (`AppRoleAPI`,
+  the `UserAccountAPI` style); the reads stay open. ADMIN of a store gets the two keys at each start when missing
+  (`ZZDataInitializer.API_CHECKED_ADMIN_PERMISSIONS`); no script. Test: `AppRoleApiAccessTest`.
 - The opening amount, after the browser test: the store ticket's "Laissé dans le tiroir" is what is in the drawers at
   the end (each drawer's last answer; it added every session up); the Journal's écarts d'ouverture keep only the
   non-zero ones; `/{id}/details` gives the list's differences (the cash movements were missing) and its `openingGap`
