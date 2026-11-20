@@ -14,8 +14,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.digithink.zsretail.core.communication.service.CommunicationSettings;
 import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.dto.AppConfigDTO;
+import com.digithink.zsretail.core.dto.CommunicationConfigDTO;
 import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.model.enumeration.SalesUpstream;
 import com.digithink.zsretail.core.model.enumeration.TillActions;
@@ -126,6 +128,10 @@ public class AppConfigAPI {
 	@Autowired(required = false)
 	private NavItemService navItemService;
 
+	/** 3.3.0: only with the communication module on (Installation.COMMUNICATION); absent: no channel. */
+	@Autowired(required = false)
+	private CommunicationSettings communicationSettings;
+
 	/** As navItemService: absent in the hand-built tests (itemCategories, itemSections false). */
 	@Autowired(required = false)
 	private ItemTreeService itemTreeService;
@@ -179,8 +185,16 @@ public class AppConfigAPI {
 				applicationModeService.isHeadOffice() ? Collections.emptyList() : TillActions.all(),
 				applicationModeService.getStoreOrdersPost(), // 3.1.1: ERP, MANUAL or null (a store: always null)
 				"true".equalsIgnoreCase(generalSetupService.findValueByCode(POS_CATALOGUE_VISIBLE)), // 3.1.1
-				applicationModeService.isHeadOfficeStockPoints() // 3.1.1: the points de stock pages and filters
+				applicationModeService.isHeadOfficeStockPoints(), // 3.1.1: the points de stock pages and filters
+				communication() // 3.3.0, communication step 4
 		));
+	}
+
+	/** 3.3.0, communication step 4: on or off, sent here or not, the channels switched on (none when off). */
+	CommunicationConfigDTO communication() {
+		boolean enabled = applicationModeService.isCommunicationEnabled();
+		return new CommunicationConfigDTO(enabled, applicationModeService.isCommunicationSentHere(),
+				enabled && communicationSettings != null ? communicationSettings.enabledChannels() : Collections.emptyList());
 	}
 
 	/** Every DataDomain name to its DataOwner name, in DataDomain order. */

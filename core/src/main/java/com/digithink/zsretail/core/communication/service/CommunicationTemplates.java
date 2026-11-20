@@ -56,6 +56,37 @@ public final class CommunicationTemplates {
 		return text.toString();
 	}
 
+	/** Step 4: the {fields} of a body that are not in {@link #FIELDS}, each once, in the order met. */
+	public static java.util.List<String> unknownFields(String body) {
+		Set<String> unknown = new LinkedHashSet<>();
+		if (body != null) {
+			Matcher matcher = FIELD.matcher(body);
+			while (matcher.find()) {
+				if (!FIELDS.contains(matcher.group(1))) {
+					unknown.add(matcher.group(1));
+				}
+			}
+		}
+		return new java.util.ArrayList<>(unknown);
+	}
+
+	/** Step 4, the preview: as {@link #render}, but an unknown field is kept as typed ({xyz}) and nothing is logged. */
+	public static String preview(String body, Map<String, Object> values) {
+		if (body == null) {
+			return "";
+		}
+		Matcher matcher = FIELD.matcher(body);
+		StringBuffer text = new StringBuffer();
+		while (matcher.find()) {
+			String field = matcher.group(1);
+			String value = FIELDS.contains(field) ? text(field, values == null ? null : values.get(field))
+					: matcher.group();
+			matcher.appendReplacement(text, Matcher.quoteReplacement(value));
+		}
+		matcher.appendTail(text);
+		return text.toString();
+	}
+
 	private static String text(String field, Object value) {
 		if (value == null) {
 			return "";

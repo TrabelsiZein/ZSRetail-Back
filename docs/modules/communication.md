@@ -1,8 +1,8 @@
 # Communication (3.3.0)
 
 **Status**: step 1 (the switch and the two tables), step 2 (the store finds its events and writes `comm_event` rows),
-step 3 (rules and templates make the messages, a test provider "sends" them; channels in the properties). No endpoint,
-no screen, no consent, no head office side, no real provider yet.
+step 3 (rules and templates make the messages, a test provider "sends" them; channels in the properties), step 4 (the
+Communication page: messages, rules, templates). No consent, no head office side, no campaign, no real provider yet.
 
 Messages to loyalty members by WhatsApp, SMS and email: two automatic events in version 1 ("loyalty member created",
 "ticket validated for a member") and a simple campaign (one template to every member with consent). The till never
@@ -260,9 +260,85 @@ Tests: `CommunicationMessagesTest` (processor and sender on in-memory tables, a 
 `CommunicationSettingsTest` (the lines, where it runs, the seeded texts, the fields), `InstallationBeansProofTest`,
 `ConfigurationKeysProofTest` (keys 77).
 
+## Step 4: the Communication page
+
+Where the store sends (`Installation.COMMUNICATION_SENDS_HERE`; `ApplicationModeService.isCommunicationSentHere`):
+`core/communication/controller/CommunicationAPI` and `core/communication/service/CommunicationAdmin`; the store answers
+the ticket number search (`store/communication/StoreTicketSearch`, the interface `CommunicationTicketSearch` in core).
+Elsewhere no endpoint (404) and no page.
+
+**`GET /config`** gains `communication`: `{enabled, sendsHere, channels}` (`channels`: the channels switched on, e.g.
+`["SMS"]`; empty when off). The front shows the page when `enabled && sendsHere` (never a head office).
+
+**Rights**: `read:admin-communication` (every read, and the preview), `write:admin-communication` (every change); 403
+otherwise. Given to ADMIN at every start where the store sends (`ZZDataInitializer.COMMUNICATION_ADMIN_PERMISSIONS`, as
+the RFID pages); other roles are ticked on the Roles page (group "Communication", shown only there).
+
+**Endpoints** (`/communication`; a refusal is `{error, code, params}`, 400 or 404 for a row not found, the front shows
+`serverErrors.<code>`):
+
+| Call | What |
+|---|---|
+| `GET /messages?status=&channel=&dateFrom=&dateTo=&q=&page=&size=` | messages newest first, `{content, totalElements, totalPages, number, size}`; `status` one or several joined by commas (`FAILED,EXPIRED`); dates on the day the message was made; `q` the card, the address or a ticket number (the store's tickets whose number contains it, through the event's `source_id`); each row with the member's name now |
+| `GET /messages/{id}` | one message, its event (values read from the payload) |
+| `POST /messages/{id}/resend` | a FAILED or EXPIRED message: `PENDING`, attempts 0, no next attempt, a new lifetime from now (its rule's, the code after the `:` of its dedup key; 24 h when gone), the channel's provider now, **the address read again from the member** (a phone corrected on the card is used; a member gone keeps the message's address; a member without a valid one now: refused); `last_error` keeps the history: `resent 2026-11-21 10:00 by admin (FAILED after 5 attempt(s)); before: ...`. Refused while its channel is off |
+| `GET /events?status=SKIPPED\|ERROR&dateFrom=&dateTo=&q=` | the events that made no message (`SKIPPED`) or failed (`ERROR`), with the reason |
+| `GET /counters` | `sentToday` (made today, SENT), `waiting` (PENDING), `failed` (FAILED or EXPIRED, any day: sending one again takes it out), `skippedToday` (events of today SKIPPED); each the count of a list filter |
+| `GET /rules`, `GET /rules/{id}`, `PUT /rules/{id}` `{channel, templateCode, lifetimeHours}`, `PUT /rules/{id}/active` `{active}` | the seeded rules; no create, no delete (switched off) |
+| `GET /templates`, `GET /templates/{id}`, `POST /templates`, `PUT /templates/{id}`, `PUT /templates/{id}/active` `{active}` | no delete (switched off: the codes stay in the messages) |
+| `POST /templates/preview` `{channel, body}` | the body filled with sample values (the company's name is the installation's): `{text, length, encoding, parts, unknownFields}`; SMS: GSM 7-bit 160 / 153 a part (an extension character counts two), Unicode 70 / 67 (`SmsParts`) |
+| `GET /templates/fields` | the fields in order with their sample values (the buttons) |
+
+**The checks** (`CommunicationAdmin`, codes in `CommunicationException`):
+- A rule: its template exists and is on the rule's channel; an active rule also needs its channel on and its template
+  active (an inactive rule may point to a template still off: switch the template on first, then the rule); lifetime 1
+  to 720 hours. On: its channel on and its template active. Off: always.
+- A template: code `A-Z 0-9 _`, 2 to 50, unique (any case), fixed once created; name required (100); language fr, ar
+  or en; email: a subject; WhatsApp: the provider's template name (kept for step 8); body required (2000), an unknown
+  `{field}` refused with its name (`COMM_TEMPLATE_UNKNOWN_FIELD`). Created on a channel switched on, created on. Its
+  channel changes only to a channel on and only when no rule uses it. Off refused while an active rule uses it; on
+  only with its channel on.
+- A rule or template on a channel switched off in the properties stays listed, marked, and cannot be switched on.
+
+**The page** (front `views/admin/communication/`, route `admin-communication`, menu Clients › Communication, the
+search bar; `COMMUNICATION_ROUTES`): the banner with the channels on; three tabs in General setup's look, on top.
+- Messages: the four counters (a click shows their rows), the switch "Messages | Événements ignorés", the filters, the
+  list (date, channel, member and card, address, template, status, attempts), the wide detail window (text, history,
+  event and its values, dates, provider id) with "Renvoyer" (write right, FAILED or EXPIRED, its channel on). The known
+  skip reasons are shown in the screen's language (`services/communication.js` `reasonText`), any other as written.
+- Règles: event in clear words, channel, template, lifetime, on / off switch; a wide edit window (only the channels on,
+  the templates of the channel).
+- Modèles: code, name (and the rule that uses it), channel, language, on / off, start of the text; a wide window with a
+  button per field (inserted at the cursor), the live preview from the backend, its length and SMS parts.
+- The read right alone: everything read only (the eye, no switch, no button).
+
+Tests: `CommunicationAdminTest` (resend, the rules' and templates' checks, preview, SMS parts), `AppConfigAPITest`
+(`communication`), `ZZDataInitializerRolesTest` (the two rights), `InstallationBeansProofTest` (store, communication on:
+13 beans). Front: `tools/store-menu-check.mjs` (the page shown only with the module sending here and the read right,
+the search bar), `tools/i18n-keys-check.mjs`. The lists (JPA criteria) are proven by the run on the PC.
+
+**Proof on the PC (2026-11-20, `pos_franchise_customer`, store FKAIROUAN)**, admin logged in again (the browser held
+the rights of a login made before ADMIN got the two keys):
+1. Menu Clients › Communication and the three tabs in fr, ar (right to left) and en.
+2. Messages: the 3 SENT messages and the SKIPPED event of step 3 ("TICKET_THANKS_SMS : canal SMS désactivé"), the
+   counters 3 / 0 / 0 / 1; the search "120003" found the message of FKAIROUAN261120003; its detail window.
+3. Modèles: the thanks text edited with the field button "Solde" inserted at the cursor (preview 106 characters, 1 SMS,
+   GSM 7-bit), saved; a new template `MEMBER_CARD_SMS_AR` (Arabic, 94 characters, 2 SMS Unicode); `{prenom}` shown in
+   red and refused by the API (400 `COMM_TEMPLATE_UNKNOWN_FIELD`, `{prenom}`); switching off the thanks template while
+   its rule is on refused.
+4. Règles: the welcome rule off (database `active` 0, `updated_by` admin), then on.
+5. `LOYALTY_ENABLED` on, a sale with LYL-000001 (FKAIROUAN261120005, 21:29:09): message 4 SENT at 21:29:44 with the
+   edited text ("Merci TEST ! Votre achat chez Happyness : 48.900 TND, +48 points. Nouveau solde : 209 points. A
+   bientot !"), in the list.
+6. A role with `read:admin-communication` only: the page read only, a change by hand 403; a role without it: no menu
+   line, the address typed by hand sent to "not authorized", the API 403.
+7. `communication.enabled=false` and a restart: `/config` off, no menu line, the address sent to the dashboard; the
+   line back to true.
+No ERROR in the back-end log, no console error.
+
 ## Next steps (to be agreed one at a time)
 
-Step 4 the admin pages (rules, templates, messages), step 5 the member's consent and language (they travel with the
+Step 5 the member's consent and language (they travel with the
 shared loyalty register; templates then need a key on code and language; a rule then needs a purpose, service or
 marketing), step 6 the head office side (the events of its stores whose loyalty it owns), the campaign (a
 `campaign_id` on the message), step 8 the real providers.

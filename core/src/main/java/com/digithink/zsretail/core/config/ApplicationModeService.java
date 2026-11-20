@@ -58,6 +58,15 @@ public class ApplicationModeService {
 	/** 3.1.1: a head office with headoffice.storeorders.post set, MANUAL or ERP (NodeOwnership.isStoreOrdersSet). */
 	private boolean storeOrders;
 
+	/** 3.3.0: communication.enabled=true (NodeOwnership.isCommunicationSet). */
+	private boolean communicationEnabled;
+
+	/**
+	 * 3.3.0, communication step 4: the module on, on a store whose loyalty is not the head office's
+	 * (NodeOwnership.isCommunicationSentHere): the messages are made and sent here, the Communication page exists.
+	 */
+	private boolean communicationSentHere;
+
 	/** Fails the startup when node.type, ownership.* or sales.upstream holds an invalid value. */
 	@PostConstruct
 	void initOwnership() {
@@ -74,6 +83,8 @@ public class ApplicationModeService {
 		rfidEnabled = NodeOwnership.isRfidSet(environment);
 		storeOrdersByErp = NodeOwnership.isStoreOrdersByErpSet(environment);
 		storeOrders = NodeOwnership.isStoreOrdersSet(environment);
+		communicationEnabled = NodeOwnership.isCommunicationSet(environment);
+		communicationSentHere = NodeOwnership.isCommunicationSentHere(environment);
 	}
 
 	/**
@@ -105,6 +116,16 @@ public class ApplicationModeService {
 	/** RFID step 2: true on a store with rfid.enabled=true, the RFID beans exist (Installation.RFID). */
 	public boolean isRfidEnabled() {
 		return rfidEnabled;
+	}
+
+	/** 3.3.0: communication.enabled=true. */
+	public boolean isCommunicationEnabled() {
+		return communicationEnabled;
+	}
+
+	/** 3.3.0, step 4: the module on, on a store whose loyalty is not the head office's (the Communication page exists). */
+	public boolean isCommunicationSentHere() {
+		return communicationSentHere;
 	}
 
 	/**

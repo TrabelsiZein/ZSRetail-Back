@@ -111,6 +111,11 @@ public class CommunicationSettings {
 		return Boolean.TRUE.equals(enabled.get(channel));
 	}
 
+	/** Step 4: the channels switched on, in CommunicationTypes.CHANNELS order (GET /config, the page's lists). */
+	public List<String> enabledChannels() {
+		return CommunicationTypes.CHANNELS.stream().filter(this::isEnabled).collect(Collectors.toList());
+	}
+
 	/** The provider of the channel, e.g. test; null for an unknown channel. */
 	public String provider(String channel) {
 		return providers.get(channel);

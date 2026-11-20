@@ -224,12 +224,17 @@ public class CommunicationEventProcessor implements CommunicationTask {
 
 	/** SMS and WhatsApp: + country code + the 8 digits; email: a plausible address. Null when there is none. */
 	String address(String channel, LoyaltyMember member) {
+		return address(channel, member, settings.getCountryCode());
+	}
+
+	/** As {@link #address(String, LoyaltyMember)} with the country code given (step 4: a message sent again). */
+	static String address(String channel, LoyaltyMember member, String countryCode) {
 		if (CommunicationTypes.EMAIL.equals(channel)) {
 			String email = member.getEmail() == null ? "" : member.getEmail().trim();
 			return email.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+") ? email : null;
 		}
 		String phone = member.getPhone() == null ? "" : member.getPhone().trim();
-		return phone.matches("\\d{8}") ? "+" + settings.getCountryCode() + phone : null;
+		return phone.matches("\\d{8}") ? "+" + countryCode + phone : null;
 	}
 
 	private static CommunicationEventStatus close(CommunicationEvent event, CommunicationEventStatus status, String why,

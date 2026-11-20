@@ -426,6 +426,46 @@ class ZZDataInitializerRolesTest {
 		assertTrue(nextStart.isEmpty(), "once, saved: " + nextStart);
 	}
 
+	/** 3.3.0: the Communication page, ADMIN of a store where the messages are made and sent only. */
+	private static final Set<String> COMMUNICATION = new HashSet<>(
+			java.util.Arrays.asList("read:admin-communication", "write:admin-communication"));
+
+	@Test
+	@DisplayName("3.3.0, communication step 4: ADMIN of a new store with the module on (loyalty here) has the page; a store"
+			+ " of before gets it at its start, once; module off, a head office, loyalty from the head office: nothing")
+	void communicationPageGivenToAdmin() throws Exception {
+		assertEquals(COMMUNICATION, staticSet("COMMUNICATION_ADMIN_PERMISSIONS"));
+		MockEnvironment on = new MockEnvironment().withProperty("communication.enabled", "true");
+		for (boolean[] flags : STORE_PROFILES) {
+			Map<String, AppRole> roles = seedRoles(on, flags[0], Collections.emptyMap());
+			Set<String> expected = storeAdminPermissions(flags[0]);
+			expected.addAll(COMMUNICATION);
+			assertEquals(expected, roles.get("ADMIN").getPermissions(), "new database, module on");
+			assertTrue(Collections.disjoint(COMMUNICATION, roles.get("RESPONSIBLE").getPermissions()));
+			assertTrue(Collections.disjoint(COMMUNICATION, roles.get("POS_USER").getPermissions()));
+			assertEquals(storeAdminPermissions(flags[0]), seedRoles(new MockEnvironment(), flags[0],
+					Collections.emptyMap()).get("ADMIN").getPermissions(), "new database, module off");
+		}
+		MockEnvironment loyaltyUp = new MockEnvironment().withProperty("communication.enabled", "true")
+				.withProperty("ownership.loyalty", "HEAD_OFFICE").withProperty("headoffice.url", "http://ho:888/zsretail/api")
+				.withProperty("headoffice.api-key", "k");
+		assertTrue(Collections.disjoint(COMMUNICATION, seedRoles(loyaltyUp, false, Collections.emptyMap()).get("ADMIN")
+				.getPermissions()), "loyalty from the head office: not sent here");
+		Map<String, AppRole> headOffice = seedRoles(headOffice().withProperty("communication.enabled", "true"), false,
+				Collections.emptyMap());
+		assertTrue(Collections.disjoint(COMMUNICATION, headOffice.get("ADMIN").getPermissions()), "head office");
+
+		// A store of before, the module turned on: ADMIN gets the page at its start, once
+		Map<String, AppRole> existing = existingRoles("read:home", LICENSE);
+		List<String> saves = new ArrayList<>();
+		seedRoles(on, false, existing, saves);
+		assertEquals(Collections.singletonList("ADMIN"), saves);
+		assertTrue(existing.get("ADMIN").getPermissions().containsAll(COMMUNICATION));
+		List<String> nextStart = new ArrayList<>();
+		seedRoles(on, false, existing, nextStart);
+		assertTrue(nextStart.isEmpty(), "next start, saved: " + nextStart);
+	}
+
 	/** The RFID pages (readers, tags, tag assignment): ADMIN of a store with rfid.enabled=true only. */
 	private static final Set<String> RFID = new HashSet<>(
 			java.util.Arrays.asList("read:admin-rfid-readers", "read:admin-rfid-tags", "read:admin-rfid-assignment"));

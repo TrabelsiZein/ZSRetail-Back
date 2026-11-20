@@ -205,4 +205,11 @@ public class AppConfigDTO {
 	 * stock pages, the stores' point and the Item cards' point filter on it; always false on a store.
 	 */
 	private boolean headOfficeStockPoints;
+	/**
+	 * 3.3.0, communication step 4: the module of this installation, {enabled, sendsHere, channels}: on or off
+	 * (communication.enabled), whether the messages are made and sent here (a store whose loyalty is not the head
+	 * office's: the Communication page exists) and the channels switched on (communication.&lt;channel&gt;.enabled, e.g.
+	 * ["SMS"]; empty when the module is off). Read as off by the frontend when missing (an older backend).
+	 */
+	private CommunicationConfigDTO communication;
 }

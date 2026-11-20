@@ -136,7 +136,8 @@ public class CommunicationSender implements CommunicationTask {
 			case ACCEPTED:
 				message.setSentAt(now);
 				message.setProviderMessageId(result.getProviderMessageId());
-				return save(message, CommunicationMessageStatus.SENT, null);
+				// Step 4: last_error kept, the row's history (a failed attempt before, a message sent again)
+				return save(message, CommunicationMessageStatus.SENT, message.getLastError());
 			case PERMANENT_FAILURE:
 				return save(message, CommunicationMessageStatus.FAILED, result.getError());
 			default:

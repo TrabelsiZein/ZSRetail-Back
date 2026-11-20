@@ -463,7 +463,7 @@ own questions stay `@ConditionalOnErpAbility` and `@ConditionalOnErpConnector` (
 | `SUPPLY_FROM_HEAD_OFFICE` | A linked store whose goods come from the head office by BL (`ownership.supply=HEAD_OFFICE` written in its file). | 11 (3.1.1: the orders to the head office, 4) |
 | `RFID` | A store that reads RFID tags: `rfid.enabled=true` (`docs/modules/rfid.md`). | 7 (and its 2 repositories) |
 | `COMMUNICATION` | 3.3.0: an installation whose communication module is on, `communication.enabled=true` (`docs/modules/communication.md`). Store and head office. | 7 (step 2: the scheduler and its states in core; the store's source and its two finders; step 3: the settings and the test provider) |
-| `COMMUNICATION_SENDS_HERE` | 3.3.0, step 3: the module on, on a store whose loyalty is not the head office's; it makes and sends its own messages. | 3 (the processor, the sender, the seeding) |
+| `COMMUNICATION_SENDS_HERE` | 3.3.0, step 3: the module on, on a store whose loyalty is not the head office's; it makes and sends its own messages; step 4: the Communication page exists (ApplicationModeService.isCommunicationSentHere, GET /config `communication.sendsHere`). | 6 (step 3: the processor, the sender, the seeding; step 4: the page's API and service, the store's ticket search) |
 
 Three answers combine `NodeOwnership` methods as the old conditions did: `HEAD_OFFICE` (`nodeTypeOf == HEAD_OFFICE`),
 `HEAD_OFFICE_OWN_SUPPLY` (without ERP, not supply from the ERP and, 3.1.1, not NONE), `HEAD_OFFICE_ERP_SUPPLY`

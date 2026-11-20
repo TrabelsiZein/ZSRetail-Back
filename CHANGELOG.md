@@ -23,6 +23,17 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   template, never sent more than the rule's lifetime after the event), and the sender hands them to the provider
   `test`, which sends nothing and answers accepted. Two French SMS templates and their rules are written at the start,
   inactive. On a store whose loyalty is the head office's the events stay PENDING.
+- Communication module, step 4: the Communication page's API (`/communication/...`, only where the store sends; every
+  read needs `read:admin-communication`, every change `write:admin-communication`, given to ADMIN at each start there):
+  the messages (filters status, channel, dates, card / address / ticket number; one message with its event; "send
+  again" for a FAILED or EXPIRED one), the events left out, four counters, the rules (change, on / off) and the
+  templates (create, change, on / off, a preview with the SMS parts, the fields). Refusals coded (`COMM_*`, shown in fr,
+  ar, en). Nothing is deleted: a rule or a template is switched off. `GET /config` gains `communication` {enabled,
+  sendsHere, channels}.
+
+### Enhancements
+- Communication, step 4: a message sent again keeps its history in `last_error` ("resent ... by ...; before: ..."), and
+  a message SENT keeps the `last_error` of its earlier attempts (step 3 cleared it).
 
 ### DB script
 - `db/3.3.0/update.sql`: the tables `comm_event` (what happened) and `comm_message` (what to send), every text column

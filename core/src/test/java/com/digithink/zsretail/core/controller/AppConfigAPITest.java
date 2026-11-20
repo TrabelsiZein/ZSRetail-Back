@@ -9,6 +9,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -19,8 +20,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
+import com.digithink.zsretail.core.communication.service.CommunicationSettings;
 import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.dto.AppConfigDTO;
+import com.digithink.zsretail.core.dto.CommunicationConfigDTO;
 import com.digithink.zsretail.core.model.enumeration.BadgePermission;
 import com.digithink.zsretail.core.model.enumeration.LicenseStatus;
 import com.digithink.zsretail.core.service.GeneralSetupService;
@@ -56,12 +59,12 @@ class AppConfigAPITest {
 	 * RFID step 2 (rfidEnabled); then 3.1.0 cashierClosingTicket and the NAV items page of item variants (navItems), then
 	 * its Catégories and Sections pages (itemCategories, itemSections); then step B's till actions registry (tillActions);
 	 * then 3.1.1 store orders (storeOrdersPost), the POS screen's catalogue shown when it opens (posCatalogueVisible) and
-	 * the head office's points de stock (headOfficeStockPoints). */
+	 * the head office's points de stock (headOfficeStockPoints); then 3.3.0 the communication module (communication). */
 	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
 			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock", "supplySource",
 			"allowDecimalQuantity", "taxStampActive", "posAmountsThreeDecimals", "rfidEnabled", "cashierClosingTicket",
 			"navItems", "itemCategories", "itemSections", "tillActions", "storeOrdersPost", "posCatalogueVisible",
-			"headOfficeStockPoints");
+			"headOfficeStockPoints", "communication");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";
@@ -156,6 +159,7 @@ class AppConfigAPITest {
 		inject(api, AppConfigAPI.class, "taxStampRule", TaxStampRuleTest.rule(setup.get(TaxStampRule.SETTING), true));
 		inject(api, AppConfigAPI.class, "navItemService", NAV_ITEM_SERVICE[0]);
 		inject(api, AppConfigAPI.class, "itemTreeService", ITEM_TREE_SERVICE[0]);
+		inject(api, AppConfigAPI.class, "communicationSettings", COMMUNICATION_SETTINGS[0]); // 3.3.0
 		return api.getConfig().getBody();
 	}
 
@@ -453,6 +457,40 @@ class AppConfigAPITest {
 		assertEquals(null, store.getStoreOrdersPost(), "a store never reads the key");
 		assertEquals(null, linkedStore().getStoreOrdersPost());
 		// ERP needs a connector with ErpAbility.STORE_ORDERS (zen): network-tests StoreOrdersPostKeyTest
+	}
+
+	/** The communication settings config() injects, null = none (the module off: no bean). */
+	private static final CommunicationSettings[] COMMUNICATION_SETTINGS = { null };
+
+	@Test
+	@DisplayName("3.3.0, communication step 4: off without the line; on a store with loyalty LOCAL, sent here with the"
+			+ " channels switched on; on a head office or a store whose loyalty is the head office's, not sent here")
+	void communication() throws Exception {
+		CommunicationConfigDTO off = standalone().getCommunication();
+		assertFalse(off.isEnabled());
+		assertFalse(off.isSendsHere());
+		assertEquals(Collections.emptyList(), off.getChannels());
+		MockEnvironment on = new MockEnvironment().withProperty("communication.enabled", "true")
+				.withProperty("communication.sms.enabled", "true");
+		COMMUNICATION_SETTINGS[0] = new CommunicationSettings(on, Collections.singletonList("test"));
+		try {
+			CommunicationConfigDTO store = config(on, true, true).getCommunication();
+			assertTrue(store.isEnabled());
+			assertTrue(store.isSendsHere());
+			assertEquals(Collections.singletonList("SMS"), store.getChannels());
+			MockEnvironment headOffice = new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")
+					.withProperty("communication.enabled", "true");
+			CommunicationConfigDTO ho = config(headOffice, true, true).getCommunication();
+			assertTrue(ho.isEnabled());
+			assertFalse(ho.isSendsHere());
+			MockEnvironment loyaltyUp = new MockEnvironment().withProperty("communication.enabled", "true")
+					.withProperty("headoffice.url", "http://localhost:888/zsretail/api")
+					.withProperty("headoffice.api-key", "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde")
+					.withProperty("ownership.loyalty", "HEAD_OFFICE");
+			assertFalse(config(loyaltyUp, true, true).getCommunication().isSendsHere());
+		} finally {
+			COMMUNICATION_SETTINGS[0] = null;
+		}
 	}
 
 	private static void inject(Object target, Class<?> declaringClass, String fieldName, Object value) throws Exception {

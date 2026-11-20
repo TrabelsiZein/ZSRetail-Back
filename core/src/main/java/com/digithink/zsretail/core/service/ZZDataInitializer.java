@@ -220,6 +220,9 @@ public class ZZDataInitializer {
 			if (applicationModeService.isRfidEnabled()) {
 				wanted.addAll(RFID_ADMIN_PERMISSIONS); // RFID: the readers and POS machines pages
 			}
+			if (applicationModeService.isCommunicationSentHere()) {
+				wanted.addAll(COMMUNICATION_ADMIN_PERMISSIONS); // 3.3.0: the Communication page
+			}
 			if (applicationModeService.keepsOwnStock()) {
 				wanted.addAll(COST_ADMIN_PERMISSIONS); // CMP: "Ajuster le CMP", a store that keeps its own stock
 			}
@@ -286,6 +289,9 @@ public class ZZDataInitializer {
 		}
 		if (applicationModeService.isRfidEnabled()) {
 			permissions.addAll(RFID_ADMIN_PERMISSIONS);
+		}
+		if (applicationModeService.isCommunicationSentHere()) {
+			permissions.addAll(COMMUNICATION_ADMIN_PERMISSIONS); // 3.3.0: the Communication page
 		}
 		if (applicationModeService.keepsOwnStock()) {
 			permissions.addAll(COST_ADMIN_PERMISSIONS); // CMP: "Ajuster le CMP"
@@ -432,6 +438,16 @@ public class ZZDataInitializer {
 	 */
 	static final Set<String> RFID_ADMIN_PERMISSIONS = new HashSet<>(
 			Arrays.asList("read:admin-rfid-readers", "read:admin-rfid-tags", "read:admin-rfid-assignment"));
+
+	/**
+	 * 3.3.0, communication step 4: the Communication page (messages, rules, templates; docs/modules/communication.md), on
+	 * a store where the messages are made and sent (ApplicationModeService.isCommunicationSentHere): in ADMIN's set of a
+	 * new database, given to ADMIN at every start there (a database of before, or the module turned on later), so the
+	 * keys the API checks (CommunicationAPI) never lock an administrator out. With the module off nothing is added; other
+	 * roles are ticked on the Roles page.
+	 */
+	static final Set<String> COMMUNICATION_ADMIN_PERMISSIONS = new HashSet<>(
+			Arrays.asList("read:admin-communication", "write:admin-communication"));
 
 	/**
 	 * 3.2.0, POS machines step 1: the POS machines page, on every store (RFID or not; docs/modules/pos-machines.md). The key

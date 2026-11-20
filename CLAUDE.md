@@ -81,8 +81,10 @@ without one the type file applies. Step 8: a `spring.profiles.active` or `node.t
   routes with `meta.resource`. The API has no `@PreAuthorize` and the JWT carries no authorities; only some endpoints check
   a permission themselves (`CurrentUserProvider.currentUserHasPermission`), `/user-account` and `PUT /company-info` among
   them since 3.1.2, the writes of `/app-roles` since 3.2.0 (`write:admin-roles`, `delete:admin-roles`; head office
-  `read:admin-headoffice-roles`). Most of the API still asks only for a logged user: a new endpoint that changes something
-  sensitive checks its permission itself, and its key joins `ZZDataInitializer.API_CHECKED_ADMIN_PERMISSIONS`.
+  `read:admin-headoffice-roles`), every call of `/communication` since 3.3.0 (`read:admin-communication`,
+  `write:admin-communication`, given to ADMIN where the store sends: `COMMUNICATION_ADMIN_PERMISSIONS`). Most of the API
+  still asks only for a logged user: a new endpoint that changes something sensitive checks its permission itself, and
+  its key joins `ZZDataInitializer.API_CHECKED_ADMIN_PERMISSIONS` (or a set given to ADMIN where the page exists).
 - **Money and VAT**: totals are computed VAT-inclusive first, then reduced backwards to
   the excluding-VAT amounts. See `docs/modules/discounts.md`.
 - New public endpoints must be added to `SecurityConfig` `permitAll()` explicitly.
