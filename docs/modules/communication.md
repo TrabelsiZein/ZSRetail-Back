@@ -1,6 +1,7 @@
 # Communication (3.3.0)
 
-**Status**: step 1 of the module, the switch and the two tables. No job, no finder, no endpoint, no screen, nothing sent.
+**Status**: step 1 (the switch and the two tables) and step 2 (the store finds its events and writes `comm_event` rows).
+Nothing reads the events yet: no message, no template, no endpoint, no screen, nothing sent.
 
 Messages to loyalty members by WhatsApp, SMS and email: two automatic events in version 1 ("loyalty member created",
 "ticket validated for a member") and a simple campaign (one template to every member with consent). The till never
@@ -85,8 +86,81 @@ Index `ix_comm_event_queue (status, created_at)`.
 
 Index `ix_comm_message_queue (status, next_attempt_at)`.
 
+Index `ix_comm_event_source (source_type, source_id)` (step 2): does this ticket, this member have its event.
+
+### `comm_state` (`CommunicationState`, step 2): the module's state
+
+One row per `code` (nvarchar(50), unique `uk_comm_state_code`), with `time_value` (datetime2) and `id_value` (bigint).
+`ACTIVE_SINCE`: the instant of the first start with the module on, written by the application (no configuration
+line), never moved: turning the module off and on again keeps it, and nothing older is ever picked.
+`TICKET_CURSOR`: the ticket finder's cursor (updated_at and id of the last ticket read).
+
+## Step 2: the scheduler and the store's two finders
+
+**The scheduler** (`core/communication/scheduler/CommunicationScheduler`), built like the head office link's
+`LinkJobScheduler`: one thread `comm-1`, its pool not a bean; the first cycle 30 s after the start, then
+`communication.cycle-seconds` after the end of the previous one (absent or empty: 60; otherwise a whole number of at
+least 1, anything else stops the start). A cycle runs every `CommunicationTask` bean in its `@Order`; a task stops
+starting new work 20 s after the cycle began. A task that throws is logged (WARN, once per cycle) and the next task
+and the next cycle go on. At its start it writes `ACTIVE_SINCE` when the row is absent. Log: one INFO line at start
+(`Communication: on since ..., a cycle every 60 s on comm-1: TICKET_EVENTS, MEMBER_EVENTS`), one INFO line per task
+that wrote something. The scheduler, `CommunicationStates`, the source and the finders exist only with
+`Installation.COMMUNICATION`: off, no bean and no thread (`InstallationBeansProofTest`: none in any configuration,
+5 beans in the shape "store, communication on", 2 in "head office, communication on").
+
+Nothing is hooked into the selling services or `LoyaltyService`: the finders read the tables
+(`store/communication/JpaStoreEventSource`, JPQL, read only), as the sales copies do.
+
+**Tickets: `TICKET_VALIDATED`** (`TicketEventFinder`, order 1, code `TICKET_EVENTS`).
+- Picked: `sales_header` rows with status `COMPLETED`, a loyalty member, `completed_date` from `ACTIVE_SINCE`; read by
+  a cursor on (`updated_at`, id) starting at `ACTIVE_SINCE`, the rows changed less than 30 s ago read at a later cycle
+  (`updated_at` is written before the sale's transaction commits), 200 per page.
+- A parked ticket completed later has an old id but a new `updated_at`: it is read. A ticket with a member and 0 points
+  gives its event (the ticket is watched, not `loyalty_transaction`).
+- Skipped: `PENDING` (parked, not paid: read when it is completed), `CANCELLED` (a parked ticket dropped, never
+  paid), `REFUNDED` (no 3.3.0 code sets it; a ticket refunded later keeps the event made when it was completed),
+  tickets without a member (split and pay makes such tickets), tickets completed before `ACTIVE_SINCE` even when
+  changed after it. Returns are `return_header` rows, not watched.
+- Once per ticket: a ticket read again (the ERP export, the head office push or an invoice moving its `updated_at`)
+  already has its event, found by `source_type` + `source_id` (so a later change of the store code cannot make a
+  second one); the unique dedup key `TICKET_VALIDATED:<store code>:<ticket id>` keeps it unique at the head office.
+- `recipient_type` `LOYALTY_MEMBER`, `recipient_ref` the card, `occurred_at` the completion, `origin_store_code`
+  `DEFAULT_LOCATION`. Payload: `ticketNumber`, `ticketDate` (completion), `total`, `pointsEarned`, `pointsSpent`,
+  `pointsDeduction` (the money the points paid), `balanceAfter` (the sale's last `loyalty_transaction.balance_after`;
+  a sale without a loyalty row, the member's balance when the event is written), `cardNumber`, `firstName`,
+  `lastName`, `storeCode`, `storeName` (the location of `DEFAULT_LOCATION`), `companyName` (Company information). No
+  phone or email: the address is read when the message is made.
+
+**Members: `MEMBER_CREATED`** (`MemberEventFinder`, order 2, code `MEMBER_EVENTS`).
+- Picked: active members created from `ACTIVE_SINCE` without an event yet (by `source_type` + `source_id`, no cursor:
+  the table is small), by id, 200 per page. Loyalty `LOCAL`: the members made here (origin not `HEAD_OFFICE`, so a card
+  of the network register left from before is not). Loyalty owned by the head office
+  (`Installation.LOYALTY_FROM_HEAD_OFFICE`): the members with a `hol_loyalty_member_copy` row (enrolled here) whose
+  outcome is not `MERGED`; never a copy received from the head office (no such row), never a deactivated duplicate.
+- The trap: the head office decides a merge (same phone) when the `LOYALTY_PUSH` job sends the member (every 10 min),
+  after this finder (every minute). A card merged later keeps its event; the head office, which will handle the
+  events of such a store, drops `MEMBER_CREATED` of an alias card (later step).
+- Dedup key `MEMBER_CREATED:<card>`. Payload: `cardNumber`, `firstName`, `lastName`, `pointsBalance`, `enrolledAt`,
+  `storeCode`, `storeName`, `companyName`.
+
+Both finders write nothing while `DEFAULT_LOCATION` is empty (one WARN line); nothing is lost, the rows are found once
+it is set. The events stay `PENDING`.
+
+Tests: `CommunicationEventFindersTest` (the two finders on in-memory lists read with the queries' rules),
+`StoreMemberEventsQueryTest` (the member queries on H2), `CommunicationSchedulerTest`, `InstallationBeansProofTest`.
+The ticket query (it needs the whole sale graph) is proven by the run on the PC.
+
+**Proof on the PC (2026-11-20, `pos_franchise_customer`, store FKAIROUAN, loyalty LOCAL)**: `communication.enabled=true`
+in the local file `configs/local/test_happyness_store.properties`; at the start `ACTIVE_SINCE` 16:42:15. In Chrome: one
+member enrolled at the till (LYL-000001), one sale with it (FKAIROUAN261120001, 65 TND, 65 points), one sale without a
+member (FKAIROUAN261120002). After the cycles: 2 `comm_event` rows, `MEMBER_CREATED:LYL-000001` and
+`TICKET_VALIDATED:FKAIROUAN:490` (`balanceAfter` 65 from the sale's EARNED row), both `PENDING`; none for the sale
+without a member, none for the 489 tickets of before; `TICKET_CURSOR` on ticket 490; no ERROR line. `storeName` is
+null there: that store has no `location` row (its catalogue and supply are the head office's), a point for the
+message step.
+
 ## Next steps (to be agreed one at a time)
 
-The finder of the two events at the store, the test channel and its sender job, the push up to the head office when
-it owns loyalty, the member's consent and language (they travel with the shared loyalty register), templates and
-rules, the campaign page.
+The test channel and its sender job, the push up to the head office when it owns loyalty, the member's consent and
+language (they travel with the shared loyalty register; no language field exists today), templates and rules, the
+campaign page.

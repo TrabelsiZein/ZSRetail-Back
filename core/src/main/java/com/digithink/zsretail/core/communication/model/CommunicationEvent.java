@@ -29,7 +29,8 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "comm_event",
 		uniqueConstraints = @UniqueConstraint(name = "uk_comm_event_dedup", columnNames = "dedup_key"),
-		indexes = @Index(name = "ix_comm_event_queue", columnList = "status, created_at"))
+		indexes = { @Index(name = "ix_comm_event_queue", columnList = "status, created_at"),
+				@Index(name = "ix_comm_event_source", columnList = "source_type, source_id") })
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor

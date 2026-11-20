@@ -13,14 +13,23 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 ### Features
 - Communication module, step 1 (`docs/modules/communication.md`): the switch and the two tables, nothing else (no job,
   no endpoint, no screen, nothing sent). Off, the application behaves as 3.2.0.
+- Communication module, step 2: with the module on, the store finds its events by query (nothing added to the selling
+  services or `LoyaltyService`) and writes `comm_event` rows, left `PENDING`: `TICKET_VALIDATED` for each ticket
+  completed with a loyalty member, `MEMBER_CREATED` for each member enrolled at this store, both only after the
+  activation instant (the first start with the module on). Its own scheduler (one thread, `comm-1`, a cycle every 60 s).
+  Proof on the PC (2026-11-20, `pos_franchise_customer`): see `docs/modules/communication.md`.
 
 ### DB script
 - `db/3.3.0/update.sql`: the tables `comm_event` (what happened) and `comm_message` (what to send), every text column
-  nvarchar, with their unique dedup keys and queue indexes; APP_VERSION 3.3.0.
+  nvarchar, with their unique dedup keys and queue indexes; APP_VERSION 3.3.0. Step 2: the table `comm_state` (the
+  activation instant, the finders' cursors) and the index `ix_comm_event_source`; run the script again on a database
+  that ran its step 1 version.
 
 ### Config
 - `communication.enabled` (store and head office): `true` turns the module on; absent, empty or `false` (core's
   `application.properties`): off; any other value stops the start. No customer file names it.
+- `communication.cycle-seconds` (step 2): seconds between two cycles, absent or empty 60, a whole number of at least
+  1 (anything else stops the start).
 
 ## 3.2.0 — in progress (branch `release/3.2.0`)
 

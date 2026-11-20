@@ -84,7 +84,10 @@ alike. `false` in core's `application.properties`; an installation turns it on w
 outside file (trimmed, any case). Absent or empty is off too: the module does nothing and the application behaves as
 3.2.0 (its two tables stay empty). Any other value stops the startup: `Invalid value '<v>' for property
 communication.enabled: true (the communication module is on) or false (off, also when the line is absent or empty)`.
-On, the startup summary adds `communication on`. No customer file names it.
+On, the startup summary adds `communication on`. No customer file names it. With it on, `communication.cycle-seconds`
+(step 2): the seconds between two cycles of the module, absent or empty `60`, otherwise a whole number of at least 1
+(anything else stops the startup: `Invalid value '<v>' for property communication.cycle-seconds: a whole number of
+seconds, at least 1 (absent or empty: 60)`).
 
 **The old enabled lines are refused** (code cleanup step 8, decision of 2026-10-11): `erp.dynamicsnav.enabled` and
 `erp.navpospages.enabled`, found in any property source (the outside file, a configuration file, a `-D`, an environment
@@ -454,7 +457,7 @@ own questions stay `@ConditionalOnErpAbility` and `@ConditionalOnErpConnector` (
 | `LOYALTY_FROM_HEAD_OFFICE` | A linked store whose loyalty program and members are the head office's. | 8 |
 | `SUPPLY_FROM_HEAD_OFFICE` | A linked store whose goods come from the head office by BL (`ownership.supply=HEAD_OFFICE` written in its file). | 11 (3.1.1: the orders to the head office, 4) |
 | `RFID` | A store that reads RFID tags: `rfid.enabled=true` (`docs/modules/rfid.md`). | 7 (and its 2 repositories) |
-| `COMMUNICATION` | 3.3.0: an installation whose communication module is on, `communication.enabled=true` (`docs/modules/communication.md`). Store and head office. | 0 (step 1: the switch and the tables only) |
+| `COMMUNICATION` | 3.3.0: an installation whose communication module is on, `communication.enabled=true` (`docs/modules/communication.md`). Store and head office. | 5 (step 2: the scheduler and its states in core; the store's source and its two finders) |
 
 Three answers combine `NodeOwnership` methods as the old conditions did: `HEAD_OFFICE` (`nodeTypeOf == HEAD_OFFICE`),
 `HEAD_OFFICE_OWN_SUPPLY` (without ERP, not supply from the ERP and, 3.1.1, not NONE), `HEAD_OFFICE_ERP_SUPPLY`

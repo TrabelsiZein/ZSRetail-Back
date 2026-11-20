@@ -58,14 +58,16 @@ class InstallationBeansProofTest {
 	static final List<String> ERP_CONDITIONS = Arrays.asList("OnErpAbilityCondition", "OnErpConnectorCondition");
 
 	/** Every class and @Bean method these questions decide, by name: a lost or new annotation shows here. */
-	static final int EXPECTED_DECIDED = 110; // RFID: 3 services, the reader, 3 APIs; tags: 2 services, the check, the API;
+	static final int EXPECTED_DECIDED = 115; // RFID: 3 services, the reader, 3 APIs; tags: 2 services, the check, the API;
 	// POS: the sale tags hook, the POS service and its API; item variants (ZEN), step 9: the stores'
 	// ERP customers for the invoices read (HoErpInvoiceCustomers); 3.1.1, orders to the head office: the API, the
 	// service, the status writer, the draft index (store); the reception and admin APIs, the service, the posting
 	// (head office, headoffice.storeorders.post); 3.1.1, ParaFendri on stores and a head office: the catalogue engine's 7
 	// beans of core also need the installation HEAD_OFFICE_ERP_CATALOGUE_ONLY; 3.1.1, Items by point de stock retired:
 	// HoStockPointItemsService gone (113 to 112); 3.2.0, POS machines on every store: PosMachineService and PosMachineAPI
-	// no longer RFID's (112 to 110)
+	// no longer RFID's (112 to 110); 3.3.0, communication module step 2 (Installation.COMMUNICATION): the scheduler and
+	// its states (core), the store's source and its two finders (110 to 115), present in the two "communication on"
+	// shapes only
 
 	/** True for an annotation whose condition is an installation question (a class of config, not an ERP one). */
 	static boolean isQuestion(Annotation annotation) {
@@ -210,6 +212,13 @@ class InstallationBeansProofTest {
 		MockEnvironment rfidStore = Installations.type("store");
 		rfidStore.setProperty("rfid.enabled", "true");
 		environments.put("store, RFID on", rfidStore);
+		// 3.3.0, communication module step 2: the shapes with the module's beans, after the others (no file names the
+		// switch, so every configuration above has none: the module off has no bean and no thread)
+		MockEnvironment communicationStore = Installations.type("store");
+		communicationStore.setProperty("communication.enabled", "true");
+		environments.put("store, communication on", communicationStore);
+		MockEnvironment communicationHeadOffice = headOffice("communication.enabled=true");
+		environments.put("head office, communication on", communicationHeadOffice);
 		return environments;
 	}
 

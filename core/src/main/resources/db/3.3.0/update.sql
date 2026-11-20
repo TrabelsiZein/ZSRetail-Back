@@ -1,5 +1,5 @@
 -- ============================================================
--- Version 3.3.0 (in progress) — communication module, step 1: its two tables
+-- Version 3.3.0 (in progress) — communication module: comm_event, comm_message (step 1), comm_state (step 2)
 -- ============================================================
 -- Deployment order (a database at 3.2.0; CHANGELOG.md, 3.3.0, "Before deployment"):
 --   1) Bring the database to 3.2.0 first (db/3.2.0/update.sql). This script stops, without changing anything, while
@@ -12,7 +12,8 @@
 -- Re-runnable: each statement is guarded and changes nothing the second time. The tables are created in the form
 -- Hibernate gives them (the constraints and indexes named as in the entities), so the start finds them whole; on a
 -- database without them Hibernate would create them at the first start too. They stay empty while
--- communication.enabled is not true (docs/modules/communication.md).
+-- communication.enabled is not true (docs/modules/communication.md). Step 2 added 1b and 3: run the script again on a
+-- database that ran its step 1 version.
 
 SET QUOTED_IDENTIFIER ON;
 SET ANSI_NULLS ON;
@@ -43,6 +44,13 @@ BEGIN
 END
 GO
 
+-- 1b) Step 2: the events of a source (does this ticket, this member, have its event?). Its own guard: comm_event may
+-- have been created by an earlier run of this script (step 1). Every database.
+IF OBJECT_ID(N'comm_event', N'U') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_comm_event_source' AND object_id = OBJECT_ID(N'comm_event'))
+	CREATE INDEX ix_comm_event_source ON comm_event (source_type, source_id)
+GO
+
 -- 2) Communication, the messages ("what to send"), one row per message, once per dedup key (CommunicationMessage):
 -- the event that made it (none for a campaign), the address and the text copied when it is made. Every database.
 IF OBJECT_ID(N'comm_message', N'U') IS NULL
@@ -57,6 +65,18 @@ BEGIN
 	ALTER TABLE comm_message ADD CONSTRAINT uk_comm_message_dedup UNIQUE (dedup_key);
 	CREATE INDEX ix_comm_message_queue ON comm_message (status, next_attempt_at);
 	CREATE INDEX ix_comm_message_event ON comm_message (event_id);
+END
+GO
+
+-- 3) Step 2: the module's state, one row per code (CommunicationState): ACTIVE_SINCE, the instant of the first start
+-- with the module on (written by the application, never moved), and the finders' cursors (TICKET_CURSOR). Empty
+-- while the module was never on. Every database.
+IF OBJECT_ID(N'comm_state', N'U') IS NULL
+BEGIN
+	CREATE TABLE comm_state (id bigint identity not null, active bit, created_at datetime2, created_by varchar(255),
+		updated_at datetime2, updated_by varchar(255), code nvarchar(50) not null, id_value bigint,
+		time_value datetime2, primary key (id));
+	ALTER TABLE comm_state ADD CONSTRAINT uk_comm_state_code UNIQUE (code);
 END
 GO
 
