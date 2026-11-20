@@ -31,6 +31,7 @@ import com.digithink.zsretail.core.model.LoyaltyMember;
 import com.digithink.zsretail.core.model.LoyaltyProgram;
 import com.digithink.zsretail.core.model.LoyaltyTransaction;
 import com.digithink.zsretail.core.model.MemberFunction;
+import com.digithink.zsretail.core.model.MessageConsent;
 import com.digithink.zsretail.core.model.ReturnHeader;
 import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.enumeration.LoyaltyTransactionType;
@@ -127,6 +128,25 @@ public class LoyaltyService {
 				.map(this::toMemberDTO);
 	}
 
+	/**
+	 * 3.3.0, communication step 5: the members page with its consent filter, true or false (null: every member, as
+	 * {@link #getMembersPage(String, Pageable)}).
+	 */
+	public Page<LoyaltyMemberDTO> getMembersPage(String search, Boolean consent, Pageable pageable) {
+		if (consent == null) {
+			return getMembersPage(search, pageable);
+		}
+		Page<LoyaltyMember> page = loyaltyMemberRepository.findAllBySearchTermAndConsent(search != null ? search : "",
+				consent, pageable);
+		return new PageImpl<>(page.getContent().stream().map(this::toMemberDTO).collect(Collectors.toList()), pageable,
+				page.getTotalElements());
+	}
+
+	/** 3.3.0, communication step 5: how many members accept to receive messages. */
+	public long countMembersWithConsent() {
+		return loyaltyMemberRepository.countByMessageConsentTrue();
+	}
+
 	public Page<LoyaltyMemberDTO> getMembersPage(String search, Pageable pageable) {
 		Page<LoyaltyMember> page = loyaltyMemberRepository.findAllBySearchTerm(
 				search != null ? search : "", pageable);
@@ -168,6 +188,8 @@ public class LoyaltyService {
 		member.setActive(true);
 		member.setCreatedBy("System");
 		member.setUpdatedBy("System");
+		// 3.3.0, communication step 5: the tick of the enrolment (null: not shown, no consent)
+		MessageConsent.apply(member, request.getMessageConsent(), MessageConsent.currentUser(), LocalDateTime.now());
 
 		if (request.getBirthDate() != null && !request.getBirthDate().isBlank()) {
 			try {
@@ -215,6 +237,8 @@ public class LoyaltyService {
 			member.setMemberFunction(memberFunction);
 		}
 		member.setUpdatedBy("System");
+		// 3.3.0, communication step 5: the tick of the form; null (not shown) leaves the consent as it is
+		MessageConsent.apply(member, request.getMessageConsent(), MessageConsent.currentUser(), LocalDateTime.now());
 
 		if (request.getBirthDate() != null && !request.getBirthDate().isBlank()) {
 			try {
@@ -998,6 +1022,10 @@ public class LoyaltyService {
 			dto.setMemberFunctionId(m.getMemberFunction().getId());
 			dto.setMemberFunctionName(m.getMemberFunction().getName());
 		}
+		// 3.3.0, communication step 5
+		dto.setMessageConsent(MessageConsent.given(m));
+		dto.setMessageConsentAt(m.getMessageConsentAt() != null ? m.getMessageConsentAt().toString() : null);
+		dto.setMessageConsentBy(m.getMessageConsentBy());
 		return dto;
 	}
 

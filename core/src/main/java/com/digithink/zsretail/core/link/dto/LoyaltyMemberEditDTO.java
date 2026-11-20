@@ -25,4 +25,10 @@ public class LoyaltyMemberEditDTO {
 	private String memberFunctionName;
 	private String customerCode;
 	private Boolean active;
+	/**
+	 * 3.3.0, communication step 5: the consent asked on the store's form; null (not shown, an older store, a
+	 * deactivation sent "as it is") leaves the head office's value. messageConsentBy: the store's user who changed it.
+	 */
+	private Boolean messageConsent;
+	private String messageConsentBy;
 }

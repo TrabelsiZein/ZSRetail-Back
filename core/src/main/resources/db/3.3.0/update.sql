@@ -106,6 +106,20 @@ BEGIN
 END
 GO
 
+-- 6) Step 5: the member's consent to receive messages (SMS, WhatsApp, e-mail), a member field like the phone (it exists
+-- with the module on or off). loyalty_member is the one member table of a store and of a head office (the store's copy
+-- table hol_loyalty_member_copy holds no member content). Existing members: no consent (0). Every database.
+IF COL_LENGTH(N'loyalty_member', N'message_consent') IS NULL
+	ALTER TABLE loyalty_member ADD message_consent bit NOT NULL
+		CONSTRAINT df_loyalty_member_message_consent DEFAULT 0;
+GO
+IF COL_LENGTH(N'loyalty_member', N'message_consent_at') IS NULL
+	ALTER TABLE loyalty_member ADD message_consent_at datetime2 NULL;
+GO
+IF COL_LENGTH(N'loyalty_member', N'message_consent_by') IS NULL
+	ALTER TABLE loyalty_member ADD message_consent_by nvarchar(100) NULL;
+GO
+
 UPDATE APP_VERSION SET version = '3.3.0';
 
 -- The release notes of 3.3.0 are written from CHANGELOG.md when the version is closed (nothing to tell the users yet).

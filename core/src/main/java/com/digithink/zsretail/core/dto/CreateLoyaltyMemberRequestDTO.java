@@ -18,4 +18,9 @@ public class CreateLoyaltyMemberRequestDTO {
 	private Long customerId;
 
 	private Long memberFunctionId;
+	/**
+	 * 3.3.0, communication step 5: the member accepts to receive messages. Null (the tick not shown: the module off, an
+	 * older screen): nothing asked, a new member without consent, an existing one unchanged.
+	 */
+	private Boolean messageConsent;
 }

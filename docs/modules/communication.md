@@ -2,7 +2,8 @@
 
 **Status**: step 1 (the switch and the two tables), step 2 (the store finds its events and writes `comm_event` rows),
 step 3 (rules and templates make the messages, a test provider "sends" them; channels in the properties), step 4 (the
-Communication page: messages, rules, templates). No consent, no head office side, no campaign, no real provider yet.
+Communication page: messages, rules, templates), step 5 (the member's consent; rules created from the page). No head
+office sending, no campaign, no member language, no real provider yet.
 
 Messages to loyalty members by WhatsApp, SMS and email: two automatic events in version 1 ("loyalty member created",
 "ticket validated for a member") and a simple campaign (one template to every member with consent). The till never
@@ -336,9 +337,73 @@ the rights of a login made before ADMIN got the two keys):
    line back to true.
 No ERROR in the back-end log, no console error.
 
+## Step 5: the member's consent, rules created
+
+**The field** (`loyalty_member`, the member table of a store and of a head office; `db/3.3.0/update.sql`, section 6):
+`message_consent` (bit, not null, default 0: every existing member has none), `message_consent_at` (the last change),
+`message_consent_by` (who made it: a user, `STORE:RS01/sami` through the head office). A member field like the phone:
+it exists with the module on or off. The store's copy table `hol_loyalty_member_copy` holds no member content (the push
+reads the member), the head office builds each copy down from the member: no other table has it.
+
+**One rule** (`core/model/MessageConsent`): `apply` (a change asked: null asks nothing, the same value keeps its date, a
+new one gets now and the user), `copy` (the owner's value as it is; null, from an older version, changes nothing),
+`mergeYes` (a merge by phone: a yes of the new enrolment is kept on the surviving card with its date when it is newer
+than the card's last change; a no, or a yes older than a withdrawal recorded at the head office, changes nothing).
+
+**Where it changes**: the till's enrolment window and the members page (create, edit; the same Vue page on a store and a
+head office), with the right to edit a member, through the same paths as the other fields:
+- loyalty `LOCAL` (and the head office's own page): `LoyaltyService.createMember`, `updateMember`
+  (`CreateLoyaltyMemberRequestDTO.messageConsent`, null when the tick is not shown);
+- loyalty owned by the head office: the enrolment is made here and pushed (`LoyaltyMemberCopyDTO` carries
+  `messageConsent`, `messageConsentAt`, `messageConsentBy`); the head office creates the member with it
+  (`HoLoyaltyReceiver.receiveMember`) or, on a merge, `mergeYes` on the card that holds the phone (then a copy down);
+  an edit goes through `LoyaltyMemberEditDTO.messageConsent` / `messageConsentBy` (`StoreLoyaltyNetwork.edit`,
+  `HoLoyaltyReceiver.applyEdit`; a deactivation or a link to a customer sends none: unchanged); the copies down and the
+  head office's answers apply it with `copy` (`LoyaltyCopyWriter.saveMember`, part of the change detection).
+- Version tolerance: both DTOs ignore unknown fields (an older receiver drops the consent); every receiver applies it
+  only when present (an older sender sends none: nothing changes, nothing fails). With an older head office a consent
+  given at a newer store stays on that store only.
+
+**Screens** (only when `GET /config` says `communication.enabled`, also on a store that does not send here: its head
+office will): the tick "Accepte de recevoir des messages (SMS, WhatsApp, e-mail)", unticked by default, in the till's
+enrolment window and the members page's create and edit windows (the last change shown in edit and in the detail);
+the members list: a Messages column, a filter (`GET /loyalty/members?consent=yes|no`) and the count of members with
+consent (`consentCount`). The form sends the consent only when its tick is shown.
+
+**The module**: the processor skips an event of a member without consent (`SKIPPED`, `no consent`, translated on the
+page); the sender reads the consent again just before sending (`SKIPPED`, `no consent when it was to be sent`; also a
+member gone: `member X not found when it was to be sent`); "send again" is refused (`COMM_RESEND_NO_CONSENT`).
+
+**Rules created** (`POST /communication/rules` {code, eventType, channel, templateCode, lifetimeHours, active}; the
+Règles tab's "Nouvelle règle"): code `A-Z 0-9 _` unique, a known event (`MEMBER_CREATED`, `TICKET_VALIDATED`), a channel
+switched on, an active template of that channel, lifetime 1 to 720 h, on (default) or off. One rule per event +
+channel + template (`COMM_RULE_DUPLICATE`, also when a rule is changed onto another's template). Never deleted. Trap:
+two rules of one event and channel with two templates (French and Arabic) both send, so a member gets two messages
+until members have a language.
+
+Tests: `MessageConsentTest` (the rule; a store with loyalty `LOCAL`), `SharedLoyaltyConsentTest` (network-tests, the
+harness of `SharedLoyaltyRoundTripTest`: up at enrolment, down, through the edit, missing values, merge yes / no /
+withdrawn after), `CommunicationMessagesTest` (no consent, withdrawn before sending, member gone),
+`CommunicationAdminTest` (send again refused, rules created). The loyalty tests of before are not changed
+(`LoyaltyCardNumbersTest`, `LoyaltyEarningTiersTest`, `LoyaltyMemberFunctionTest`, `LoyaltyMemberPhoneTest`,
+`HoLoyaltyRegisterTest`, `LoyaltyAPINetworkTest`, `SharedLoyaltyRoundTripTest`).
+
+**Proof on the PC (2026-11-20, `pos_franchise_customer`, loyalty `LOCAL`)**: the script run twice (the three columns,
+the one member without consent). `LOYALTY_ENABLED` on for the test.
+1. LYL-000001 without consent, a sale (FKAIROUAN261120006): event 6 `SKIPPED` "no consent", no message.
+2. The tick on the members page (Accepte, "Dernier changement 20/11/2026 22:08 par admin"), a sale (…007): message 5
+   `SENT` with the thanks text.
+3. At the till: TEST CONSENT OUI (99000003) with the tick: LYL-000002, its welcome message 6 `SENT`; TEST CONSENT NON
+   (99000004) without: LYL-000003, event 9 `SKIPPED` "no consent".
+4. The members list: the Messages column, "2 membres acceptent les messages", the filter yes (2) / no (1).
+5. A rule MEMBER_CARD_SMS_BIS (welcome, SMS, MEMBER_CARD_SMS_FR) refused: duplicate of MEMBER_CARD_SMS; the rule
+   MEMBER_CARD_SMS_AR (welcome, SMS, MEMBER_CARD_SMS_AR) accepted, saved off (two welcome SMS otherwise).
+6. `communication.enabled=false` and a restart: no tick (till, create window), no column, no filter, no count; the line
+   back to true. No ERROR in the back-end log, no console error.
+
 ## Next steps (to be agreed one at a time)
 
-Step 5 the member's consent and language (they travel with the
+The member's language (it travels with the
 shared loyalty register; templates then need a key on code and language; a rule then needs a purpose, service or
 marketing), step 6 the head office side (the events of its stores whose loyalty it owns), the campaign (a
 `campaign_id` on the message), step 8 the real providers.

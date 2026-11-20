@@ -30,6 +30,14 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   templates (create, change, on / off, a preview with the SMS parts, the fields). Refusals coded (`COMM_*`, shown in fr,
   ar, en). Nothing is deleted: a rule or a template is switched off. `GET /config` gains `communication` {enabled,
   sendsHere, channels}.
+- Communication module, step 5: the loyalty member's consent to receive messages (yes / no, no by default; the date
+  and the author of its last change), a member field with the module on or off (`MessageConsent`). It travels with the
+  shared loyalty: up at enrolment, down with the copies, through the head office edit; a missing value (an older store
+  or head office) changes nothing; a merge by phone keeps a yes of the new enrolment (with its date, when newer than the
+  card's last change) and never lets a no remove a yes. The processor skips a member without consent ("no consent"),
+  the sender reads it again just before sending (SKIPPED when withdrawn, or the member gone), "send again" is refused
+  (`COMM_RESEND_NO_CONSENT`). `GET /loyalty/members?consent=yes|no` and `consentCount`. Rules created from the page
+  (`POST /communication/rules`; one rule per event + channel + template, `COMM_RULE_DUPLICATE`).
 
 ### Enhancements
 - Communication, step 4: a message sent again keeps its history in `last_error` ("resent ... by ...; before: ..."), and
@@ -39,7 +47,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - `db/3.3.0/update.sql`: the tables `comm_event` (what happened) and `comm_message` (what to send), every text column
   nvarchar, with their unique dedup keys and queue indexes; APP_VERSION 3.3.0. Step 2: the table `comm_state` (the
   activation instant, the finders' cursors) and the index `ix_comm_event_source`; run the script again on a database
-  that ran its step 1 version. Step 3: the tables `comm_template` and `comm_rule`.
+  that ran its step 1 version. Step 3: the tables `comm_template` and `comm_rule`. Step 5: `loyalty_member` gains
+  `message_consent` (bit, not null, default 0: every existing member without consent), `message_consent_at`,
+  `message_consent_by`, on a store and on a head office alike.
 
 ### Config
 - `communication.enabled` (store and head office): `true` turns the module on; absent, empty or `false` (core's

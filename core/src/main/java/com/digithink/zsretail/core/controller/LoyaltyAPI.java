@@ -124,13 +124,18 @@ public class LoyaltyAPI {
 	public ResponseEntity<?> getMembers(
 			@RequestParam(defaultValue = "") String search,
 			@RequestParam(defaultValue = "0") int page,
-			@RequestParam(defaultValue = "20") int size) {
+			@RequestParam(defaultValue = "20") int size,
+			@RequestParam(required = false) String consent) {
 		try {
+			// 3.3.0, communication step 5: consent=yes / no filters the members on their consent to receive messages
+			Boolean withConsent = "yes".equalsIgnoreCase(consent) ? Boolean.TRUE
+					: "no".equalsIgnoreCase(consent) ? Boolean.FALSE : null;
 			Page<LoyaltyMemberDTO> result = loyaltyService.getMembersPage(
-					search,
+					search, withConsent,
 					PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
 
 			Map<String, Object> response = new HashMap<>();
+			response.put("consentCount", loyaltyService.countMembersWithConsent()); // 3.3.0: every member with consent
 			response.put("content", result.getContent());
 			response.put("totalElements", result.getTotalElements());
 			response.put("totalPages", result.getTotalPages());

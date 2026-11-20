@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +15,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
+import com.digithink.zsretail.core.communication.CommunicationTypes;
 import com.digithink.zsretail.core.communication.enumeration.CommunicationMessageStatus;
 import com.digithink.zsretail.core.communication.model.CommunicationMessage;
 import com.digithink.zsretail.core.communication.provider.CommunicationProvider;
@@ -22,6 +24,9 @@ import com.digithink.zsretail.core.communication.repository.CommunicationMessage
 import com.digithink.zsretail.core.communication.scheduler.CommunicationTask;
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.model.LoyaltyMember;
+import com.digithink.zsretail.core.model.MessageConsent;
+import com.digithink.zsretail.core.repository.LoyaltyMemberRepository;
 import com.digithink.zsretail.core.utils.ErrorTexts;
 
 /**
@@ -45,20 +50,22 @@ public class CommunicationSender implements CommunicationTask {
 			Duration.ofMinutes(15), Duration.ofMinutes(60));
 
 	private final CommunicationMessageRepository messages;
+	private final LoyaltyMemberRepository members;
 	private final CommunicationSettings settings;
 	private final Map<String, CommunicationProvider> providers = new LinkedHashMap<>();
 	private final Supplier<LocalDateTime> clock;
 
 	@Autowired
-	public CommunicationSender(CommunicationMessageRepository messages, CommunicationSettings settings,
-			List<CommunicationProvider> providers) {
-		this(messages, settings, providers, LocalDateTime::now);
+	public CommunicationSender(CommunicationMessageRepository messages, LoyaltyMemberRepository members,
+			CommunicationSettings settings, List<CommunicationProvider> providers) {
+		this(messages, members, settings, providers, LocalDateTime::now);
 	}
 
 	/** With a given clock: used by the tests. */
-	public CommunicationSender(CommunicationMessageRepository messages, CommunicationSettings settings,
-			List<CommunicationProvider> providers, Supplier<LocalDateTime> clock) {
+	public CommunicationSender(CommunicationMessageRepository messages, LoyaltyMemberRepository members,
+			CommunicationSettings settings, List<CommunicationProvider> providers, Supplier<LocalDateTime> clock) {
 		this.messages = messages;
+		this.members = members;
 		this.settings = settings;
 		providers.forEach(provider -> this.providers.put(provider.getName(), provider));
 		this.clock = clock;
@@ -118,6 +125,11 @@ public class CommunicationSender implements CommunicationTask {
 			return save(message, CommunicationMessageStatus.SKIPPED, "channel "
 					+ message.getChannel().toLowerCase(java.util.Locale.ROOT) + " off when it was to be sent");
 		}
+		// Step 5: the consent read again just before sending; withdrawn meanwhile (or the member gone): not sent
+		String notAllowed = consentRefusal(message);
+		if (notAllowed != null) {
+			return save(message, CommunicationMessageStatus.SKIPPED, notAllowed);
+		}
 		CommunicationProvider provider = message.getProvider() == null ? null : providers.get(message.getProvider());
 		if (provider == null) {
 			return save(message, CommunicationMessageStatus.FAILED, "provider " + message.getProvider() + " unknown");
@@ -149,6 +161,21 @@ public class CommunicationSender implements CommunicationTask {
 				return save(message, CommunicationMessageStatus.PENDING, "attempt " + message.getAttempts() + " failed: "
 						+ result.getError());
 		}
+	}
+
+	/**
+	 * Step 5: why a message to a loyalty member may not leave now (its consent withdrawn, the member gone), null when it
+	 * may. A message to anyone else is not checked here.
+	 */
+	String consentRefusal(CommunicationMessage message) {
+		if (!CommunicationTypes.LOYALTY_MEMBER.equals(message.getRecipientType()) || message.getRecipientRef() == null) {
+			return null;
+		}
+		Optional<LoyaltyMember> member = members.findByCardNumber(message.getRecipientRef());
+		if (!member.isPresent()) {
+			return "member " + message.getRecipientRef() + " not found when it was to be sent";
+		}
+		return MessageConsent.given(member.get()) ? null : "no consent when it was to be sent";
 	}
 
 	private CommunicationMessageStatus save(CommunicationMessage message, CommunicationMessageStatus status, String error) {

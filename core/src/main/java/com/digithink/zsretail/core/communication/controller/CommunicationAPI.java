@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.digithink.zsretail.core.communication.CommunicationException;
 import com.digithink.zsretail.core.communication.service.CommunicationAdmin;
 import com.digithink.zsretail.core.communication.service.CommunicationAdmin.Filters;
+import com.digithink.zsretail.core.communication.service.CommunicationAdmin.NewRuleForm;
 import com.digithink.zsretail.core.communication.service.CommunicationAdmin.TemplateForm;
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
@@ -37,7 +38,8 @@ import lombok.extern.log4j.Log4j2;
  * <li>GET /communication/events?status=SKIPPED|ERROR&amp;dateFrom=&amp;dateTo=&amp;q=&amp;page=&amp;size=;</li>
  * <li>GET /communication/counters;</li>
  * <li>GET /communication/rules, GET /communication/rules/{id}, PUT /communication/rules/{id} {channel, templateCode,
- * lifetimeHours}, PUT /communication/rules/{id}/active {active};</li>
+ * lifetimeHours}, PUT /communication/rules/{id}/active {active}; step 5: POST /communication/rules {code, eventType,
+ * channel, templateCode, lifetimeHours, active};</li>
  * <li>GET /communication/templates, GET /communication/templates/{id}, POST /communication/templates, PUT
  * /communication/templates/{id}, PUT /communication/templates/{id}/active {active}, POST
  * /communication/templates/preview {channel, body}, GET /communication/templates/fields.</li>
@@ -114,6 +116,12 @@ public class CommunicationAPI {
 	/** {active: true | false}. */
 	public static final class ActiveForm {
 		public Boolean active;
+	}
+
+	/** Step 5: a new rule {code, eventType, channel, templateCode, lifetimeHours, active}. */
+	@PostMapping("/rules")
+	public ResponseEntity<?> createRule(@RequestBody NewRuleForm form) {
+		return write(() -> admin.createRule(form, currentUserProvider.getCurrentUserName()));
 	}
 
 	@PutMapping("/rules/{id}")

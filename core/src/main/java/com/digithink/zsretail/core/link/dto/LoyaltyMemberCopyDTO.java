@@ -46,6 +46,15 @@ public class LoyaltyMemberCopyDTO {
 	/** When the member was created where it was enrolled. */
 	private LocalDateTime enrolledAt;
 
+	/**
+	 * 3.3.0, communication step 5: the consent to receive messages, its last change and who made it. Null from an older
+	 * store or head office (it sends none): the receiver changes nothing (MessageConsent.copy, mergeYes); an older
+	 * receiver ignores the three (ignoreUnknown).
+	 */
+	private Boolean messageConsent;
+	private LocalDateTime messageConsentAt;
+	private String messageConsentBy;
+
 	/** The record code of a member in the LOYALTY copies down. */
 	public static String recordCode(String cardNumber) {
 		return CODE_PREFIX + cardNumber;
@@ -71,6 +80,9 @@ public class LoyaltyMemberCopyDTO {
 		copy.setTotalPointsRedeemed(member.getTotalPointsRedeemed());
 		copy.setActive(member.getActive());
 		copy.setEnrolledAt(member.getCreatedAt());
+		copy.setMessageConsent(Boolean.TRUE.equals(member.getMessageConsent()));
+		copy.setMessageConsentAt(member.getMessageConsentAt());
+		copy.setMessageConsentBy(member.getMessageConsentBy());
 		return copy;
 	}
 }

@@ -30,6 +30,7 @@ import com.digithink.zsretail.core.communication.scheduler.CommunicationTask;
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.model.LoyaltyMember;
+import com.digithink.zsretail.core.model.MessageConsent;
 import com.digithink.zsretail.core.repository.LoyaltyMemberRepository;
 import com.digithink.zsretail.core.utils.ErrorTexts;
 
@@ -160,6 +161,10 @@ public class CommunicationEventProcessor implements CommunicationTask {
 		LoyaltyMember member = found.get();
 		if (!Boolean.TRUE.equals(member.getActive())) {
 			return close(event, CommunicationEventStatus.SKIPPED, "member " + member.getCardNumber() + " inactive", now);
+		}
+		// Step 5: no message to a member who has not accepted them (LoyaltyMember.messageConsent)
+		if (!MessageConsent.given(member)) {
+			return close(event, CommunicationEventStatus.SKIPPED, "no consent", now);
 		}
 		Map<String, Object> values = CommunicationTypes.values(event.getPayload());
 		List<String> reasons = new ArrayList<>();

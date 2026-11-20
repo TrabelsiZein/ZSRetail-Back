@@ -108,6 +108,7 @@ class CommunicationAdminTest {
 		member.setLastName("Ben Ali");
 		member.setPhone(phone);
 		member.setActive(true);
+		member.setMessageConsent(true); // step 5
 		memberTable.put(card, member);
 		return member;
 	}
@@ -173,6 +174,69 @@ class CommunicationAdminTest {
 		assertEquals("COMM_RESEND_NO_ADDRESS", refusal(() -> admin().resend(failed.getId(), "admin")));
 		assertEquals(CommunicationMessageStatus.FAILED, failed.getStatus());
 		assertEquals("COMM_MESSAGE_NOT_FOUND", refusal(() -> admin().resend(99, "admin")));
+	}
+
+	@Test
+	@DisplayName("Step 5: send again refused when the member withdrew the consent; the message stays FAILED")
+	void resendRefusedWithoutConsent() {
+		member("LYL-1", "99000002").setMessageConsent(false);
+		CommunicationMessage message = failed("LYL-1", "+21699000002");
+		CommunicationException refused = assertThrows(CommunicationException.class,
+				() -> admin().resend(message.getId(), "admin"));
+		assertEquals("COMM_RESEND_NO_CONSENT", refused.getCode());
+		assertEquals("LYL-1", refused.getParams().get("card"));
+		assertEquals(CommunicationMessageStatus.FAILED, message.getStatus());
+	}
+
+	// --- Step 5: rules created ---
+
+	private static CommunicationAdmin.NewRuleForm newRule(String code, String event, String channel, String template) {
+		CommunicationAdmin.NewRuleForm form = new CommunicationAdmin.NewRuleForm();
+		form.code = code;
+		form.eventType = event;
+		form.channel = channel;
+		form.templateCode = template;
+		form.lifetimeHours = 12;
+		return form;
+	}
+
+	@Test
+	@DisplayName("Step 5: a rule created: known event, channel on, active template of the channel, code unique; one rule"
+			+ " per event + channel + template")
+	void ruleCreated() {
+		template("MEMBER_CARD_SMS_FR", CommunicationTypes.SMS, true);
+		template("MEMBER_CARD_SMS_AR", CommunicationTypes.SMS, true);
+		template("OFF_SMS", CommunicationTypes.SMS, false);
+		template("CARD_EMAIL", CommunicationTypes.EMAIL, true);
+		CommunicationRule seeded = rule("MEMBER_CARD_SMS", "MEMBER_CARD_SMS_FR", true);
+		seeded.setEventType(CommunicationTypes.MEMBER_CREATED);
+		CommunicationAdmin admin = admin();
+		assertEquals("COMM_RULE_CODE_INVALID",
+				refusal(() -> admin.createRule(newRule("x", "MEMBER_CREATED", "SMS", "MEMBER_CARD_SMS_AR"), "a")));
+		assertEquals("COMM_RULE_CODE_TAKEN",
+				refusal(() -> admin.createRule(newRule("MEMBER_CARD_SMS", "MEMBER_CREATED", "SMS", "MEMBER_CARD_SMS_AR"), "a")));
+		assertEquals("COMM_RULE_EVENT_UNKNOWN",
+				refusal(() -> admin.createRule(newRule("BIRTHDAY_SMS", "BIRTHDAY", "SMS", "MEMBER_CARD_SMS_AR"), "a")));
+		assertEquals("COMM_CHANNEL_OFF",
+				refusal(() -> admin.createRule(newRule("CARD_EMAIL", "MEMBER_CREATED", "EMAIL", "CARD_EMAIL"), "a")));
+		assertEquals("COMM_RULE_TEMPLATE_INACTIVE",
+				refusal(() -> admin.createRule(newRule("OFF_RULE", "MEMBER_CREATED", "SMS", "OFF_SMS"), "a")));
+		CommunicationException duplicate = assertThrows(CommunicationException.class,
+				() -> admin.createRule(newRule("MEMBER_CARD_SMS_2", "MEMBER_CREATED", "SMS", "MEMBER_CARD_SMS_FR"), "a"));
+		assertEquals("COMM_RULE_DUPLICATE", duplicate.getCode());
+		assertEquals("MEMBER_CARD_SMS", duplicate.getParams().get("rule"));
+
+		CommunicationRule made = admin.createRule(newRule(" member_card_sms_ar ", "member_created", "sms",
+				"MEMBER_CARD_SMS_AR"), "zein");
+		assertEquals("MEMBER_CARD_SMS_AR", made.getCode());
+		assertEquals(CommunicationTypes.MEMBER_CREATED, made.getEventType());
+		assertEquals(CommunicationTypes.LOYALTY_MEMBER, made.getRecipientType());
+		assertEquals(12, made.getLifetimeHours());
+		assertTrue(made.getActive(), "absent: on");
+		assertEquals("zein", made.getCreatedBy());
+		// The duplicate rule also holds when a rule is changed onto another's template
+		assertEquals("COMM_RULE_DUPLICATE",
+				refusal(() -> admin.updateRule(made.getId(), "SMS", "MEMBER_CARD_SMS_FR", 24, "a")));
 	}
 
 	// --- Rules ---
@@ -339,7 +403,12 @@ class CommunicationAdminTest {
 			case "findAll":
 				return new ArrayList<>(ruleTable);
 			case "save":
-				return args[0];
+				CommunicationRule saved = (CommunicationRule) args[0];
+				if (saved.getId() == null) {
+					saved.setId((long) ruleTable.size() + 1);
+					ruleTable.add(saved);
+				}
+				return saved;
 			default:
 				return UNHANDLED;
 		}

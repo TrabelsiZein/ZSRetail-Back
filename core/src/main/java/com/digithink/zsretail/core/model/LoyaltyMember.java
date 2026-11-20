@@ -1,6 +1,7 @@
 package com.digithink.zsretail.core.model;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
@@ -9,6 +10,8 @@ import javax.persistence.Enumerated;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 import javax.persistence.Table;
+
+import org.hibernate.annotations.Nationalized;
 
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
 
@@ -76,4 +79,21 @@ public class LoyaltyMember extends _BaseEntity {
 	@Enumerated(EnumType.STRING)
 	@Column(length = 20)
 	private RecordOrigin origin;
+
+	/**
+	 * 3.3.0, communication step 5: the member accepts to receive messages (SMS, WhatsApp, e-mail). A member field like
+	 * the phone, with the module on or off; no by default. Changed only through {@link MessageConsent#apply}, which
+	 * keeps the date and the user of the last change.
+	 */
+	@Column(name = "message_consent", nullable = false, columnDefinition = "bit default 0 not null")
+	private Boolean messageConsent = Boolean.FALSE;
+
+	/** Step 5: when the consent last changed (null: never given nor withdrawn). */
+	@Column(name = "message_consent_at")
+	private LocalDateTime messageConsentAt;
+
+	/** Step 5: who changed it last (a user, or a store through the head office). */
+	@Nationalized
+	@Column(name = "message_consent_by", length = 100)
+	private String messageConsentBy;
 }

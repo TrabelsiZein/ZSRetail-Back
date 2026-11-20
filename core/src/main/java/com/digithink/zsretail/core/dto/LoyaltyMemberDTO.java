@@ -35,4 +35,9 @@ public class LoyaltyMemberDTO {
 	// Member function
 	private Long memberFunctionId;
 	private String memberFunctionName;
+
+	// 3.3.0, communication step 5: consent to receive messages, its last change and who made it
+	private Boolean messageConsent;
+	private String messageConsentAt;
+	private String messageConsentBy;
 }

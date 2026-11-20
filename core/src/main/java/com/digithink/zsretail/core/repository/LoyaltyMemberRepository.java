@@ -54,6 +54,19 @@ public interface LoyaltyMemberRepository extends _BaseRepository<LoyaltyMember, 
 		   "m.phone LIKE CONCAT('%', :search, '%'))")
 	Page<LoyaltyMember> findAllBySearchTerm(@Param("search") String search, Pageable pageable);
 
+	/** 3.3.0, communication step 5: {@link #findAllBySearchTerm} with the members' consent to receive messages. */
+	@Query("SELECT m FROM LoyaltyMember m WHERE m.messageConsent = :consent AND " +
+		   "(:search IS NULL OR :search = '' OR " +
+		   "LOWER(m.cardNumber) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+		   "LOWER(m.firstName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+		   "LOWER(m.lastName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+		   "m.phone LIKE CONCAT('%', :search, '%'))")
+	Page<LoyaltyMember> findAllBySearchTermAndConsent(@Param("search") String search, @Param("consent") Boolean consent,
+			Pageable pageable);
+
+	/** 3.3.0, communication step 5: the members (active or not) who accept to receive messages. */
+	long countByMessageConsentTrue();
+
 	/**
 	 * Highest number of today's LYL-000001 cards (loyalty LOCAL). Only cards whose part after LYL- is all digits count
 	 * (L2 of step 4: a store back to LOCAL after holding network cards LYL-HO-000001, LYL-STORE-B-000001 failed with

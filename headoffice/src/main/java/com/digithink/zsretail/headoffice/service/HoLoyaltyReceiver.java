@@ -1,5 +1,6 @@
 package com.digithink.zsretail.headoffice.service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -25,6 +26,7 @@ import com.digithink.zsretail.core.link.dto.LoyaltyPointsAdjustDTO;
 import com.digithink.zsretail.core.link.dto.SalesCopyResultDTO;
 import com.digithink.zsretail.core.model.LoyaltyMember;
 import com.digithink.zsretail.core.model.LoyaltyTransaction;
+import com.digithink.zsretail.core.model.MessageConsent;
 import com.digithink.zsretail.core.model.enumeration.LoyaltyTransactionType;
 import com.digithink.zsretail.core.repository.CustomerRepository;
 import com.digithink.zsretail.core.repository.LoyaltyMemberRepository;
@@ -189,6 +191,15 @@ public class HoLoyaltyReceiver {
 			created.setStoreId(store.getId());
 			created.setCreatedBy(storeUser(store));
 			aliases.save(created);
+			// 3.3.0, communication step 5: a yes given at this enrolment is kept on the card that holds the phone, with its
+			// date, when it is newer than that card's last change; a no never removes a yes
+			LoyaltyMember survivor = holder.get();
+			if (MessageConsent.mergeYes(survivor, copy.getMessageConsent(), copy.getMessageConsentAt(),
+					consentBy(store, copy.getMessageConsentBy()), LocalDateTime.now())) {
+				survivor.setUpdatedBy(storeUser(store));
+				members.save(survivor);
+				register.recordMember(survivor.getCardNumber());
+			}
 			return accepted(card, LoyaltyMemberResultDTO.MERGED, holder.get());
 		}
 		LoyaltyMember member = new LoyaltyMember();
@@ -206,6 +217,9 @@ public class HoLoyaltyReceiver {
 		if (copy.getEnrolledAt() != null) {
 			member.setCreatedAt(copy.getEnrolledAt());
 		}
+		// 3.3.0, communication step 5: the store's value as it is (none from an older store: no consent)
+		MessageConsent.copy(member, copy.getMessageConsent(), copy.getMessageConsentAt(),
+				copy.getMessageConsentAt() == null ? null : consentBy(store, copy.getMessageConsentBy()));
 		member.setCreatedBy(storeUser(store));
 		member.setUpdatedBy(storeUser(store));
 		LoyaltyMember saved = members.save(member);
@@ -427,6 +441,10 @@ public class HoLoyaltyReceiver {
 		if (edit.getActive() != null) {
 			member.setActive(edit.getActive());
 		}
+		// 3.3.0, communication step 5: the tick of the store's form; null (not shown, an older store, a deactivation)
+		// leaves it as it is
+		MessageConsent.apply(member, edit.getMessageConsent(), consentBy(store, edit.getMessageConsentBy()),
+				LocalDateTime.now());
 		member.setUpdatedBy(storeUser(store));
 		LoyaltyMember saved = members.save(member);
 		register.recordMember(saved.getCardNumber());
@@ -493,6 +511,11 @@ public class HoLoyaltyReceiver {
 
 	private static String storeUser(Store store) {
 		return STORE_USER_PREFIX + store.getCode();
+	}
+
+	/** 3.3.0, communication step 5: who changed a consent through a store: "store:RS01/sami", or the store alone. */
+	private static String consentBy(Store store, String user) {
+		return user == null || user.trim().isEmpty() ? storeUser(store) : storeUser(store) + "/" + user.trim();
 	}
 
 	private static String trim(String value) {

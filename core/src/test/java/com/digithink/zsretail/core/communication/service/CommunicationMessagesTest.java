@@ -84,6 +84,7 @@ class CommunicationMessagesTest {
 		member.setCardNumber(card);
 		member.setPhone(phone);
 		member.setActive(true);
+		member.setMessageConsent(true); // step 5: messages only to a member who accepts them
 		memberTable.put(card, member);
 		return member;
 	}
@@ -189,7 +190,7 @@ class CommunicationMessagesTest {
 	}
 
 	private String send(CommunicationProvider... providers) {
-		return new CommunicationSender(messages, settings(), Arrays.asList(providers), () -> now)
+		return new CommunicationSender(messages, members, settings(), Arrays.asList(providers), () -> now)
 				.run(Instant.now().plusSeconds(20));
 	}
 
@@ -427,6 +428,40 @@ class CommunicationMessagesTest {
 	void masked() {
 		assertEquals("+2169****002", TestCommunicationProvider.masked("+21699000002"));
 		assertEquals("s***@example.tn", TestCommunicationProvider.masked("sana@example.tn"));
+	}
+
+	// --- Step 5: the consent ---
+
+	@Test
+	@DisplayName("Step 5: a member who has not accepted messages: the event SKIPPED, no consent, no message")
+	void noConsent() {
+		ticketRule();
+		member("LYL-000001", "99000002").setMessageConsent(false);
+		CommunicationEvent event = ticket("LYL-000001");
+		assertEquals("0 event(s) with messages, 1 skipped, 0 in error", process());
+		assertEquals(CommunicationEventStatus.SKIPPED, event.getStatus());
+		assertEquals("no consent", event.getLastError());
+		assertTrue(messageTable.isEmpty());
+	}
+
+	@Test
+	@DisplayName("Step 5: the consent withdrawn after the message was made: SKIPPED when it was to be sent, never given to"
+			+ " the provider; the member gone: SKIPPED too")
+	void consentReadAgainBeforeSending() {
+		CommunicationMessage message = waiting();
+		memberTable.get("LYL-000001").setMessageConsent(false);
+		FakeProvider provider = new FakeProvider();
+		assertEquals("1 skipped", send(provider));
+		assertEquals(CommunicationMessageStatus.SKIPPED, message.getStatus());
+		assertEquals("no consent when it was to be sent", message.getLastError());
+		assertEquals(0, provider.calls);
+
+		message.setStatus(CommunicationMessageStatus.PENDING);
+		memberTable.clear();
+		send(provider);
+		assertEquals(CommunicationMessageStatus.SKIPPED, message.getStatus());
+		assertEquals("member LYL-000001 not found when it was to be sent", message.getLastError());
+		assertEquals(0, provider.calls);
 	}
 
 	// --- Stubs ---

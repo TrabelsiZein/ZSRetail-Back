@@ -44,6 +44,7 @@ import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.dto.CompanyInformationDTO;
 import com.digithink.zsretail.core.model.LoyaltyMember;
+import com.digithink.zsretail.core.model.MessageConsent;
 import com.digithink.zsretail.core.repository.LoyaltyMemberRepository;
 import com.digithink.zsretail.core.service.CompanyInformationService;
 
@@ -234,6 +235,10 @@ public class CommunicationAdmin {
 		if (CommunicationTypes.LOYALTY_MEMBER.equals(message.getRecipientType()) && message.getRecipientRef() != null) {
 			Optional<LoyaltyMember> member = members.findByCardNumber(message.getRecipientRef());
 			if (member.isPresent()) {
+				if (!MessageConsent.given(member.get())) { // step 5: never to a member who withdrew the consent
+					throw CommunicationException.refused("COMM_RESEND_NO_CONSENT", "Member " + message.getRecipientRef()
+							+ " does not accept messages any more", "card", message.getRecipientRef());
+				}
 				String address = CommunicationEventProcessor.address(message.getChannel(), member.get(),
 						settings.getCountryCode());
 				if (address == null) {
@@ -343,11 +348,80 @@ public class CommunicationAdmin {
 					+ MAX_LIFETIME_HOURS + " hours", "min", MIN_LIFETIME_HOURS, "max", MAX_LIFETIME_HOURS);
 		}
 		CommunicationTemplate template = templateOfRule(templateCode, newChannel, Boolean.TRUE.equals(rule.getActive()));
+		refuseDuplicate(rule.getEventType(), newChannel, template.getCode(), rule.getId());
 		rule.setChannel(newChannel);
 		rule.setTemplateCode(template.getCode());
 		rule.setLifetimeHours(lifetimeHours);
 		rule.setUpdatedBy(user);
 		return rules.save(rule);
+	}
+
+	/** Step 5: the events a rule may answer, in the order the page lists them. */
+	public static final List<String> EVENT_TYPES = Collections.unmodifiableList(Arrays.asList(
+			CommunicationTypes.MEMBER_CREATED, CommunicationTypes.TICKET_VALIDATED));
+
+	/** Step 5: the values of a new rule. */
+	public static final class NewRuleForm {
+		public String code;
+		public String eventType;
+		public String channel;
+		public String templateCode;
+		public Integer lifetimeHours;
+		public Boolean active;
+	}
+
+	/**
+	 * Step 5: a new rule for a loyalty member: code A-Z 0-9 _ (2 to 50, unique), a known event, a channel switched on, an
+	 * active template of that channel, lifetime 1 to 720 hours, on or off (absent: on). One rule per event + channel +
+	 * template (COMM_RULE_DUPLICATE). Never deleted: switched off.
+	 */
+	@Transactional
+	public CommunicationRule createRule(NewRuleForm form, String user) {
+		String code = form.code == null ? "" : form.code.trim().toUpperCase(Locale.ROOT);
+		if (!code.matches("[A-Z0-9_]{2,50}")) {
+			throw CommunicationException.refused("COMM_RULE_CODE_INVALID",
+					"The code is 2 to 50 letters, digits or _ (e.g. MEMBER_CARD_SMS_AR)");
+		}
+		if (rules.findByCode(code).isPresent()) {
+			throw CommunicationException.refused("COMM_RULE_CODE_TAKEN", "A rule " + code + " exists already", "code", code);
+		}
+		String eventType = upper(form.eventType);
+		if (eventType == null || !EVENT_TYPES.contains(eventType)) {
+			throw CommunicationException.refused("COMM_RULE_EVENT_UNKNOWN", "Unknown event " + form.eventType + ": "
+					+ String.join(", ", EVENT_TYPES), "event", form.eventType == null ? "" : form.eventType);
+		}
+		String channel = channel(form.channel);
+		requireChannelOn(channel);
+		Integer lifetimeHours = form.lifetimeHours == null ? CommunicationRule.DEFAULT_LIFETIME_HOURS : form.lifetimeHours;
+		if (lifetimeHours < MIN_LIFETIME_HOURS || lifetimeHours > MAX_LIFETIME_HOURS) {
+			throw CommunicationException.refused("COMM_RULE_LIFETIME", "The lifetime is " + MIN_LIFETIME_HOURS + " to "
+					+ MAX_LIFETIME_HOURS + " hours", "min", MIN_LIFETIME_HOURS, "max", MAX_LIFETIME_HOURS);
+		}
+		CommunicationTemplate template = templateOfRule(form.templateCode, channel, true);
+		refuseDuplicate(eventType, channel, template.getCode(), null);
+		CommunicationRule rule = new CommunicationRule();
+		rule.setCode(code);
+		rule.setEventType(eventType);
+		rule.setRecipientType(CommunicationTypes.LOYALTY_MEMBER);
+		rule.setChannel(channel);
+		rule.setTemplateCode(template.getCode());
+		rule.setLifetimeHours(lifetimeHours);
+		rule.setActive(form.active == null || form.active);
+		rule.setCreatedBy(user);
+		rule.setUpdatedBy(user);
+		return rules.save(rule);
+	}
+
+	/** Step 5: one rule per event + channel + template; {@code exceptId}: the rule being changed. */
+	private void refuseDuplicate(String eventType, String channel, String templateCode, Long exceptId) {
+		rules.findAll(Sort.by("code")).stream()
+				.filter(r -> exceptId == null || !exceptId.equals(r.getId()))
+				.filter(r -> eventType.equals(r.getEventType()) && channel.equals(r.getChannel())
+						&& templateCode.equals(r.getTemplateCode()))
+				.findFirst().ifPresent(r -> {
+					throw CommunicationException.refused("COMM_RULE_DUPLICATE", "The rule " + r.getCode()
+							+ " already sends this template on this channel for this event", "rule", r.getCode());
+				});
 	}
 
 	/** A rule on or off; on needs its channel on and its template there, active and on its channel. */

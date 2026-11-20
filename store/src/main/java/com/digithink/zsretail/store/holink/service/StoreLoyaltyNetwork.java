@@ -23,6 +23,7 @@ import com.digithink.zsretail.core.link.dto.LoyaltyPointsAdjustDTO;
 import com.digithink.zsretail.core.model.Customer;
 import com.digithink.zsretail.core.model.LoyaltyMember;
 import com.digithink.zsretail.core.model.MemberFunction;
+import com.digithink.zsretail.core.model.MessageConsent;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
 import com.digithink.zsretail.core.repository.CustomerRepository;
 import com.digithink.zsretail.core.repository.LoyaltyMemberRepository;
@@ -180,6 +181,10 @@ public class StoreLoyaltyNetwork implements LoyaltyMemberNetwork {
 		edit.setMemberFunctionName(function == null ? null : function.getName());
 		edit.setCustomerCode(request.getCustomerId() == null ? null
 				: customers.findById(request.getCustomerId()).map(Customer::getCustomerCode).orElse(null));
+		// 3.3.0, communication step 5: the tick of the form, with who changed it; null (not shown) leaves the head
+		// office's value
+		edit.setMessageConsent(request.getMessageConsent());
+		edit.setMessageConsentBy(request.getMessageConsent() == null ? null : MessageConsent.currentUser());
 		return send(member, edit);
 	}
 

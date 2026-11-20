@@ -16,6 +16,7 @@ import com.digithink.zsretail.core.link.dto.LoyaltyMemberResultDTO;
 import com.digithink.zsretail.core.link.dto.LoyaltyProgramCopyDTO;
 import com.digithink.zsretail.core.model.LoyaltyEarningTier;
 import com.digithink.zsretail.core.model.LoyaltyMember;
+import com.digithink.zsretail.core.model.MessageConsent;
 import com.digithink.zsretail.core.model.LoyaltyProgram;
 import com.digithink.zsretail.core.model.enumeration.LoyaltyTransactionType;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
@@ -105,6 +106,8 @@ public class LoyaltyCopyWriter {
 			customers.findByCustomerCode(copy.getCustomerCode()).ifPresent(member::setCustomer);
 		}
 		member.setActive(copy.getActive() == null ? Boolean.TRUE : copy.getActive());
+		// 3.3.0, communication step 5: the head office's consent as it is; none (an older head office) keeps ours
+		MessageConsent.copy(member, copy.getMessageConsent(), copy.getMessageConsentAt(), copy.getMessageConsentBy());
 		LoyaltyLedger.State state = balance(copy, member.getId());
 		member.setLoyaltyPoints(state.getBalance());
 		member.setTotalPointsEarned(state.getEarned());
@@ -280,7 +283,8 @@ public class LoyaltyCopyWriter {
 		return Arrays.asList(m.getFirstName(), m.getLastName(), m.getPhone(), m.getEmail(), m.getBirthDate(),
 				m.getMemberFunction() == null ? null : m.getMemberFunction().getId(),
 				m.getCustomer() == null ? null : m.getCustomer().getId(), m.getActive(), m.getLoyaltyPoints(),
-				m.getTotalPointsEarned(), m.getTotalPointsRedeemed());
+				m.getTotalPointsEarned(), m.getTotalPointsRedeemed(), m.getMessageConsent(), m.getMessageConsentAt(),
+				m.getMessageConsentBy());
 	}
 
 	private static List<Object> signature(LoyaltyProgram p) {
