@@ -50,6 +50,21 @@ public interface CommunicationMessageRepository extends _BaseRepository<Communic
 	/** Step 7: the messages of a campaign in a status (DONE once none is PENDING). */
 	long countByCampaignIdAndStatus(Long campaignId, CommunicationMessageStatus status);
 
+	/**
+	 * Step 8a, at the start: the messages left SENDING (the application stopped between the provider's call and its
+	 * answer) FAILED with the reason, never sent again by themselves. Returns how many.
+	 */
+	@Modifying
+	@Query("update CommunicationMessage m set m.status = :failed, m.lastError = :reason, m.updatedAt = :now"
+			+ " where m.status = :sending")
+	int markInterrupted(@Param("sending") CommunicationMessageStatus sending,
+			@Param("failed") CommunicationMessageStatus failed, @Param("reason") String reason,
+			@Param("now") LocalDateTime now);
+
+	/** Step 8a: the latest message of a channel given to its provider (the Canaux tab's last result). */
+	Optional<CommunicationMessage> findFirstByChannelAndAttemptsGreaterThanOrderByUpdatedAtDesc(String channel,
+			int attempts);
+
 	/** Step 7: a campaign cancelled: its waiting messages SKIPPED with the reason, in one statement. */
 	@Modifying
 	@Query("update CommunicationMessage m set m.status = :skipped, m.lastError = :reason, m.updatedAt = :now,"

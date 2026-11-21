@@ -33,6 +33,8 @@ import com.digithink.zsretail.core.model.MessageConsent;
 import com.digithink.zsretail.core.repository.LoyaltyMemberRepository;
 import com.digithink.zsretail.core.utils.ErrorTexts;
 
+import lombok.extern.log4j.Log4j2;
+
 /**
  * 3.3.0, communication module, step 3: sends the PENDING messages that are due (no next attempt, or one passed), by id,
  * one at a time, until the cycle's deadline. Past its expires_at: EXPIRED, not sent. Its channel off now: SKIPPED (the
@@ -43,6 +45,7 @@ import com.digithink.zsretail.core.utils.ErrorTexts;
 @Component
 @ConditionalOnInstallation(Installation.COMMUNICATION_SENDS_HERE)
 @Order(20)
+@Log4j2
 public class CommunicationSender implements CommunicationTask {
 
 	public static final String CODE = "MESSAGES_SENT";
@@ -172,6 +175,30 @@ public class CommunicationSender implements CommunicationTask {
 		return read.status != CommunicationCampaignStatus.CANCELLED;
 	}
 
+	/** Step 8a: the reason of a message left SENDING by a stop (it may have left: sent again by hand only). */
+	public static final String INTERRUPTED = "interrupted while it was being sent (the application stopped): it may have"
+			+ " left, check before sending it again";
+
+	/**
+	 * Step 8a, at the start, before the first cycle: the messages left SENDING become FAILED with {@link #INTERRUPTED},
+	 * never sent again by themselves (one WARN line with their number).
+	 */
+	@org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+	@org.springframework.transaction.annotation.Transactional
+	public void interruptedAtStart() {
+		int left = messages.markInterrupted(CommunicationMessageStatus.SENDING, CommunicationMessageStatus.FAILED,
+				INTERRUPTED, clock.get());
+		if (left > 0) {
+			log.warn("Communication: {} message(s) were being sent when the application stopped: FAILED, to send again by"
+					+ " hand if they did not arrive", left);
+		}
+	}
+
+	/** Step 8a: one message sent now, outside the cycle (the Canaux tab's test). Returns its new status. */
+	public CommunicationMessageStatus sendNow(CommunicationMessage message) {
+		return handle(message);
+	}
+
 	/** One message: sent (or not) and saved. Returns its new status; null when its campaign was cancelled (not touched). */
 	CommunicationMessageStatus handle(CommunicationMessage message) {
 		if (!campaignRunning(message.getCampaignId())) {
@@ -194,9 +221,15 @@ public class CommunicationSender implements CommunicationTask {
 		if (provider == null) {
 			return save(message, CommunicationMessageStatus.FAILED, "provider " + message.getProvider() + " unknown");
 		}
+		// Step 8a, the test-recipient mode: given to the test address, the member's kept on the row
+		String testAddress = settings.testRecipient(message.getChannel());
+		message.setRedirectedTo(testAddress != null && !testAddress.equals(message.getAddress()) ? testAddress : null);
+		// Step 8a, no double send: SENDING written before the provider is called; left so by a stop, never sent again
+		message.setStatus(CommunicationMessageStatus.SENDING);
+		messages.save(message);
 		SendResult result;
 		try {
-			result = provider.send(message);
+			result = provider.send(message.sentTo(message.getRedirectedTo()));
 		} catch (RuntimeException e) {
 			result = SendResult.temporaryFailure(ErrorTexts.cause(e));
 		}

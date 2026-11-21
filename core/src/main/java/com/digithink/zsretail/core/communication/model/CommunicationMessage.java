@@ -70,6 +70,14 @@ public class CommunicationMessage extends _BaseEntity {
 	@Column(name = "address", nullable = false, length = 255)
 	private String address;
 
+	/**
+	 * Step 8a, the test-recipient mode: the address it was actually given to (communication.test-recipient.*), the
+	 * member's kept in {@link #address}; null when sent to its own address.
+	 */
+	@Nationalized
+	@Column(name = "redirected_to", length = 255)
+	private String redirectedTo;
+
 	/** Email only. */
 	@Nationalized
 	@Column(name = "subject", length = 255)
@@ -119,4 +127,29 @@ public class CommunicationMessage extends _BaseEntity {
 	/** When the provider accepted it. */
 	@Column(name = "sent_at")
 	private LocalDateTime sentAt;
+
+	/**
+	 * Step 8a: what the provider is given: this message itself, or a copy to another address (the test-recipient mode),
+	 * never saved.
+	 */
+	public CommunicationMessage sentTo(String other) {
+		if (other == null || other.equals(address)) {
+			return this;
+		}
+		CommunicationMessage copy = new CommunicationMessage();
+		copy.setId(getId());
+		copy.setEventId(eventId);
+		copy.setCampaignId(campaignId);
+		copy.setChannel(channel);
+		copy.setProvider(provider);
+		copy.setRecipientType(recipientType);
+		copy.setRecipientRef(recipientRef);
+		copy.setAddress(other);
+		copy.setSubject(subject);
+		copy.setBody(body);
+		copy.setTemplateCode(templateCode);
+		copy.setLanguageCode(languageCode);
+		copy.setDedupKey(dedupKey);
+		return copy;
+	}
 }

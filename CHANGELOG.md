@@ -55,6 +55,20 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   goes on after the last batch), DONE when none waits, cancelled while running (its waiting messages SKIPPED). Its own
   lifetime, 24 h by default, set at the launch. The new field `{pointsBalance}`; the example template `PROMO_SMS_FR`
   written inactive at the start.
+- Communication module, step 8a, the email channel for real (`docs/modules/communication.md`, "Step 8a"): the
+  provider `smtp` (javax.mail, its own session per message with connect / read / write timeouts, plain text in UTF-8,
+  the template's subject, the sender's address and name). An address that is not an email: FAILED at once, no retry; a
+  temporary failure (no connection, timeout, 4xx, a refused login) waits 1, 5, 15, 60 min; a 5xx or a refused address:
+  FAILED at once with the server's reason. Email on with `smtp` and no host or sender: one WARN, the channel off, never
+  a refused start. The Message-ID on the sender's domain (never this computer's name). The email examples of the
+  welcome and the thanks, with their rules, written inactive at the start. SMS and WhatsApp stay on the provider `test`.
+- Communication, step 8a: the test-recipient mode (one optional line per kind of address: every message of that kind
+  goes to it, the row keeps the member's address and `redirected_to` the test one); `GET /communication/channels` (each
+  channel on / off and why, its provider's settings without any password, its sender, its test recipient, its last
+  result; Company information empty and what stands in) and `POST /communication/channels/{channel}/test` {address} (a
+  fixed short text sent now, kept as a message of type TEST, tried once; `COMM_TEST_ADDRESS`).
+- Communication, step 8a: the right `write:admin-communication-campaigns` launches and cancels a campaign (403 without
+  it, even with the write right), given to ADMIN at each start where the page exists, store and head office.
 
 ### Enhancements
 - Communication, step 4: a message sent again keeps its history in `last_error` ("resent ... by ...; before: ..."), and
@@ -64,6 +78,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   was made (step 5 read the consent only). The empty-field guard of every message: the company's name empty takes the
   store's, the store's empty takes the company's, both empty the licence holder's; a field still empty, no message (the
   reason names it); the previews show such a field as typed. An email's subject is filled like its text.
+- Communication, step 8a, no double send: the sender saves SENDING before the provider is called; a message found
+  SENDING at the start (the application stopped meanwhile) becomes FAILED "interrupted while it was being sent", never
+  sent again by itself ("Renvoyer" sends it). The message's detail gives its author (`createdBy`). A member's email
+  that is not one: the event's reason says so (`email '<x>' is not valid`), no longer `no email address`.
 
 ### DB script
 - `db/3.3.0/update.sql`: the tables `comm_event` (what happened) and `comm_message` (what to send), every text column
@@ -73,7 +91,7 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `message_consent` (bit, not null, default 0: every existing member without consent), `message_consent_at`,
   `message_consent_by`, on a store and on a head office alike. Step 7: the table `comm_campaign` and
   `comm_message.campaign_id` with the index `ix_comm_message_campaign`; run the script again on a database that ran an
-  earlier version of it.
+  earlier version of it. Step 8a: `comm_message.redirected_to` (nvarchar(255), the test-recipient mode).
 
 ### Config
 - `communication.enabled` (store and head office): `true` turns the module on; absent, empty or `false` (core's
@@ -83,6 +101,13 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Step 3: `communication.whatsapp.enabled`, `communication.sms.enabled`, `communication.email.enabled` (absent or
   empty false, never a refused start), `communication.<channel>.provider` (absent or empty `test`; an unknown name stops
   the start), `communication.phone-country-code` (absent or empty 216). No customer file names them.
+- Step 8a, all optional with their default in core's `application.properties`: `communication.email.smtp.host` (empty),
+  `communication.email.smtp.port` (587), `communication.email.smtp.security` (starttls; none, starttls, ssl),
+  `communication.email.smtp.username` (empty), `communication.email.smtp.password` (empty; only in the outside file),
+  `communication.email.smtp.timeout-seconds` (15), `communication.email.from-address` (empty),
+  `communication.email.from-name` (empty), `communication.test-recipient.phone` (empty),
+  `communication.test-recipient.email` (empty); `communication.email.provider` accepts `smtp`. A value not valid is a
+  WARN and its channel off, never a refused start. No customer file names them.
 
 ## 3.2.0 — in progress (branch `release/3.2.0`)
 

@@ -92,7 +92,13 @@ seconds, at least 1 (absent or empty: 60)`). Step 3, the channels: `communicatio
 read as off with a WARN line, never a refused start); `communication.<channel>.provider` (absent or empty `test`, the
 only provider so far; an unknown name stops the start); `communication.phone-country-code` (absent or empty `216`, 1 to
 3 digits, else the start stops). All are in core's `application.properties`; details:
-`docs/modules/communication.md`, "Step 3".
+`docs/modules/communication.md`, "Step 3". Step 8a, the email for real: `communication.email.provider=smtp` with
+`communication.email.smtp.host`, `.port` (587), `.security` (`none`, `starttls` (default), `ssl`), `.username`,
+`.password` (only in the outside file), `.timeout-seconds` (15), `communication.email.from-address` and `.from-name`;
+email on with `smtp` and no host (or no sender) is one WARN and the channel off, never a refused start. The
+test-recipient mode: `communication.test-recipient.phone` (SMS and WhatsApp) and `communication.test-recipient.email`,
+empty by default; filled, every message of that kind goes to that address (a line that is not an address: a WARN and
+those channels off). Details: `docs/modules/communication.md`, "Step 8a".
 
 **The old enabled lines are refused** (code cleanup step 8, decision of 2026-10-11): `erp.dynamicsnav.enabled` and
 `erp.navpospages.enabled`, found in any property source (the outside file, a configuration file, a `-D`, an environment
@@ -462,8 +468,8 @@ own questions stay `@ConditionalOnErpAbility` and `@ConditionalOnErpConnector` (
 | `LOYALTY_FROM_HEAD_OFFICE` | A linked store whose loyalty program and members are the head office's. | 8 |
 | `SUPPLY_FROM_HEAD_OFFICE` | A linked store whose goods come from the head office by BL (`ownership.supply=HEAD_OFFICE` written in its file). | 11 (3.1.1: the orders to the head office, 4) |
 | `RFID` | A store that reads RFID tags: `rfid.enabled=true` (`docs/modules/rfid.md`). | 7 (and its 2 repositories) |
-| `COMMUNICATION` | 3.3.0: an installation whose communication module is on, `communication.enabled=true` (`docs/modules/communication.md`). Store and head office. | 7 (step 2: the scheduler and its states in core; the store's source and its two finders; step 3: the settings and the test provider) |
-| `COMMUNICATION_SENDS_HERE` | 3.3.0, step 3: the module on, on a store whose loyalty is not the head office's; it makes and sends its own messages; step 4: the Communication page exists (ApplicationModeService.isCommunicationSentHere, GET /config `communication.sendsHere`). | 6 (step 3: the processor, the sender, the seeding; step 4: the page's API and service, the store's ticket search) |
+| `COMMUNICATION` | 3.3.0: an installation whose communication module is on, `communication.enabled=true` (`docs/modules/communication.md`). Store and head office. | 8 (step 2: the scheduler and its states in core; the store's source and its two finders; step 3: the settings and the test provider; step 8a: the provider smtp) |
+| `COMMUNICATION_SENDS_HERE` | 3.3.0, step 3: the module on, on a store whose loyalty is not the head office's; it makes and sends its own messages; step 4: the Communication page exists (ApplicationModeService.isCommunicationSentHere, GET /config `communication.sendsHere`). | 9 (step 3: the processor, the sender, the seeding; step 4: the page's API and service, the store's ticket search; step 7: the campaigns' service and maker; step 8a: the Canaux tab's service) |
 | | Step 6: also a head office with the module on (it owns the loyalty): it makes and sends the messages of its stores' events and of its own members. | |
 | `COMMUNICATION_PUSHED_UP` | 3.3.0, step 6: the module on, on a store whose loyalty is the head office's: it pushes its events up and sends nothing. | 2 (the push service and its link job) |
 

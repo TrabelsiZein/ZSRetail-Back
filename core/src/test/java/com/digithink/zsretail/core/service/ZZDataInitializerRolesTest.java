@@ -427,8 +427,8 @@ class ZZDataInitializerRolesTest {
 	}
 
 	/** 3.3.0: the Communication page, ADMIN of a store where the messages are made and sent only. */
-	private static final Set<String> COMMUNICATION = new HashSet<>(
-			java.util.Arrays.asList("read:admin-communication", "write:admin-communication"));
+	private static final Set<String> COMMUNICATION = new HashSet<>(java.util.Arrays.asList("read:admin-communication",
+			"write:admin-communication", "write:admin-communication-campaigns")); // step 8a: the right to launch
 
 	@Test
 	@DisplayName("3.3.0, communication step 4: ADMIN of a new store with the module on (loyalty here) has the page; a store"

@@ -335,6 +335,7 @@ public class CommunicationAdmin {
 		detail.put("lastError", message.getLastError());
 		detail.put("updatedAt", message.getUpdatedAt());
 		detail.put("updatedBy", message.getUpdatedBy());
+		detail.put("createdBy", message.getCreatedBy()); // step 8a: who sent a test of the Canaux tab
 		CommunicationEvent event = message.getEventId() == null ? null : events.findById(message.getEventId()).orElse(null);
 		detail.put("event", event == null ? null : eventRow(event, null));
 		if (storeNames.isPresent()) { // step 6: the store where it happened (null: the head office's own)
@@ -867,6 +868,8 @@ public class CommunicationAdmin {
 		row.put("sentAt", m.getSentAt());
 		row.put("eventId", m.getEventId());
 		row.put("campaignId", m.getCampaignId()); // step 7
+		row.put("recipientType", m.getRecipientType()); // step 8a: TEST for a test of the Canaux tab
+		row.put("redirectedTo", m.getRedirectedTo()); // step 8a: the test-recipient mode
 		return row;
 	}
 

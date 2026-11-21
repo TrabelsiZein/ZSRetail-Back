@@ -12,8 +12,8 @@
 -- Re-runnable: each statement is guarded and changes nothing the second time. The tables are created in the form
 -- Hibernate gives them (the constraints and indexes named as in the entities), so the start finds them whole; on a
 -- database without them Hibernate would create them at the first start too. They stay empty while
--- communication.enabled is not true (docs/modules/communication.md). Steps 2, 3, 5 and 7 added 1b and 3 to 8: run the
--- script again on a database that ran an earlier version of it.
+-- communication.enabled is not true (docs/modules/communication.md). Steps 2, 3, 5, 7 and 8a added 1b and 3 to 9: run
+-- the script again on a database that ran an earlier version of it.
 
 SET QUOTED_IDENTIFIER ON;
 SET ANSI_NULLS ON;
@@ -146,6 +146,12 @@ GO
 IF OBJECT_ID(N'comm_message', N'U') IS NOT NULL
 	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_comm_message_campaign' AND object_id = OBJECT_ID(N'comm_message'))
 	CREATE INDEX ix_comm_message_campaign ON comm_message (campaign_id, status);
+GO
+
+-- 9) Step 8a, the test-recipient mode: the address a message was actually given to when it was not the member's
+-- (communication.test-recipient.*), the member's kept in address. Null otherwise. Every database.
+IF COL_LENGTH(N'comm_message', N'redirected_to') IS NULL
+	ALTER TABLE comm_message ADD redirected_to nvarchar(255) NULL;
 GO
 
 UPDATE APP_VERSION SET version = '3.3.0';

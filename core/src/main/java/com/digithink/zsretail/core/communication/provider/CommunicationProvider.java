@@ -18,6 +18,22 @@ public interface CommunicationProvider {
 
 	SendResult send(CommunicationMessage message);
 
+	/**
+	 * Step 8a: why this provider cannot send now (e.g. smtp without a host), null when it can. A channel on with a
+	 * provider that cannot send is treated as off, with one WARN line at the start (CommunicationSettings).
+	 */
+	default String unavailableReason() {
+		return null;
+	}
+
+	/**
+	 * Step 8a: what the Canaux tab shows of this provider (host, port, sender...), never a password or a key: only
+	 * whether it is set. Empty for a provider without settings.
+	 */
+	default java.util.Map<String, Object> describe() {
+		return java.util.Collections.emptyMap();
+	}
+
 	enum Outcome {
 		/** Taken by the provider: SENT. */
 		ACCEPTED,

@@ -5,7 +5,9 @@ step 3 (rules and templates make the messages, a test provider "sends" them; cha
 Communication page: messages, rules, templates), step 5 (the member's consent; rules created from the page), step 6
 (the head office shape: a store whose loyalty is the head office's pushes its events up, the head office makes and
 sends the messages), step 7 (the campaigns: one template to every member who accepts messages; the empty-field guard of
-every message). No member language, no member filter on a campaign, no real provider yet.
+every message), step 8a (the email channel for real through SMTP, the test-recipient mode, no double send, the Canaux
+tab, the right to launch a campaign). SMS and WhatsApp still on the test provider; no member language, no member filter
+on a campaign.
 
 Messages to loyalty members by WhatsApp, SMS and email: two automatic events in version 1 ("loyalty member created",
 "ticket validated for a member") and a simple campaign (one template to every member with consent). The till never
@@ -71,15 +73,15 @@ Index `ix_comm_event_queue (status, created_at)`.
 | `id`, `active`, `created_at`, `created_by`, `updated_at`, `updated_by` | `_BaseEntity` | |
 | `event_id` | bigint, index `ix_comm_message_event` | the `comm_event` that made it; null for a campaign (no foreign key: the two tables can be purged on their own) |
 | `channel` | nvarchar(20), not null | `WHATSAPP`, `SMS`, `EMAIL` |
-| `provider` | nvarchar(30) | who sends it, `TEST` first |
-| `recipient_type` | nvarchar(30), not null | `LOYALTY_MEMBER` |
+| `provider` | nvarchar(30) | who sends it: `test`, step 8a `smtp` (email) |
+| `recipient_type` | nvarchar(30), not null | `LOYALTY_MEMBER`; step 8a `TEST`, a test of the Canaux tab |
 | `recipient_ref` | nvarchar(100) | the card number: consent is read again at send time |
 | `address` | nvarchar(255), not null | copied when made: a phone as `+21612345678`, or an email |
 | `subject` | nvarchar(255) | email only |
 | `body` | nvarchar(max) | the text, made when the message is made |
 | `template_code` | nvarchar(50) | the template used |
 | `language_code` | nvarchar(5) | `ar`, `fr`, `en` |
-| `status` | nvarchar(10), not null | `PENDING`, `SENT` (accepted by the provider), `FAILED` (for good), `EXPIRED` (not sent before `expires_at`), `SKIPPED` |
+| `status` | nvarchar(10), not null | `PENDING`, step 8a `SENDING` (written before the provider is called), `SENT` (accepted by the provider), `FAILED` (for good), `EXPIRED` (not sent before `expires_at`), `SKIPPED` |
 | `attempts` | int, not null | |
 | `next_attempt_at` | datetime2 | not sent before (null: at once) |
 | `expires_at` | datetime2 | never sent after |
@@ -87,6 +89,7 @@ Index `ix_comm_event_queue (status, created_at)`.
 | `last_error` | nvarchar(1000) | |
 | `dedup_key` | nvarchar(200), not null, unique `uk_comm_message_dedup` | once per message |
 | `sent_at` | datetime2 | when the provider accepted it |
+| `redirected_to` | nvarchar(255) | step 8a: the test address the provider was given instead of `address` (the test-recipient mode); null: the member's |
 
 Index `ix_comm_message_queue (status, next_attempt_at)`.
 
@@ -247,9 +250,9 @@ bound:
   `FAILED` at once. `last_error` says why.
 - **The provider `test`** (`TestCommunicationProvider`): sends nothing, one INFO line (the address masked,
   `+2169****002`), accepted as `TEST-<message id>-<8 characters>`.
-- Trap for the real providers: if the application stops after a provider accepted a message and before `SENT` is
-  saved, the message is sent again at the next start (at least once). Step 8: give the provider our dedup key as its
-  idempotency key where it has one, or add a SENDING status.
+- Trap for the real providers (closed by step 8a): if the application stopped after a provider accepted a message and
+  before `SENT` was saved, the message was sent again at the next start. Now `SENDING` is saved before the provider is
+  called, and a message found `SENDING` at the start is `FAILED` "interrupted", sent again by hand only ("Step 8a").
 
 **Proof on the PC (2026-11-20, `pos_franchise_customer`)**: `communication.sms.enabled=true` in the local file, the
 script run again (the two tables), `LOYALTY_ENABLED` on for the test; the start wrote the 4 rows inactive, turned on by
@@ -462,8 +465,8 @@ once at 10 s; its duplicate was answered "already at the head office").
 A campaign sends one template, once, to every member who accepts messages: a promotion, a piece of news. Only where
 the messages are made (`COMMUNICATION_SENDS_HERE`: a store alone, a store that owns its loyalty, a head office); a
 store whose loyalty is the head office's has no tab and no API (404). It needs the module on; it does not depend on
-the activation instant. Rights: the read and write rights of the page (`write:admin-communication` launches and
-cancels).
+the activation instant. Rights: the read right of the page; launch and cancel: `write:admin-communication` until step
+8a, since then their own right `write:admin-communication-campaigns` ("Step 8a").
 
 **Tables** (`db/3.3.0/update.sql`, sections 7 and 8, safe to run twice): `comm_campaign` (`CommunicationCampaign`):
 `code` (CMP- and the launch instant, unique), `name`, `template_code`, `channel`, a copy of the template's
@@ -542,8 +545,111 @@ purpose: `CommunicationMessagesTest.message` (an empty `{storeName}` now takes t
 Screen test (2026-11-21): the Happyness store on `pos_franchise_customer` (`configs/local/test_happyness_store`) and the
 ZEN pair (`test_zen_store` + `test_zen_ho`), the WARs exploded; the 9 points passed, 0 back-end ERROR, 0 console error.
 
+## Step 8a: the email channel for real, the Canaux tab, the safety before real providers
+
+SMS and WhatsApp stay on the provider `test`. Every new line is optional, with its default in core's
+`application.properties`; a password only in the outside file.
+
+**The provider `smtp`** (`SmtpCommunicationProvider`, `communication.email.provider=smtp`): javax.mail of the mail
+starter already in core's pom, its own `Session` per message (never a shared mail bean), with
+`mail.smtp.connectiontimeout`, `mail.smtp.timeout` and `mail.smtp.writetimeout` all at
+`communication.email.smtp.timeout-seconds`; one connection per message. Plain text, UTF-8 (subject, text, the sender's
+name), the subject from the template, the sender `communication.email.from-address` and `from-name`; the message's
+`provider_message_id` is the email's Message-ID, on the sender's domain (`<...@magasin.tn>`, the session's `mail.from`;
+without it javax.mail wrote this computer's name, `<...@DESKTOP-...>`, seen in the screen test).
+
+| Line | Default | Meaning |
+|---|---|---|
+| `communication.email.smtp.host` | empty | the mail server; empty with email on and `smtp`: one WARN, the channel off |
+| `communication.email.smtp.port` | `587` | 1 to 65535 |
+| `communication.email.smtp.security` | `starttls` | `none`, `starttls` (required: a server without it is refused), `ssl` |
+| `communication.email.smtp.username` | empty | no login when empty |
+| `communication.email.smtp.password` | empty | only in the outside file; never shown, never logged |
+| `communication.email.smtp.timeout-seconds` | `15` | connect, read and write, 1 to 300 |
+| `communication.email.from-address` | empty | required with `smtp` (an email) |
+| `communication.email.from-name` | empty | shown as the sender's name |
+| `communication.test-recipient.phone` | empty | the test-recipient mode for SMS and WhatsApp (8 digits or `+` and 8 to 15) |
+| `communication.test-recipient.email` | empty | the test-recipient mode for email |
+
+What the server answers:
+- A member's email that is not one (typed elsewhere than the members page, which refuses it: an import, a copy): no
+  message is made, the event's reason says it (`TICKET_THANKS_EMAIL: email 'sana@' is not valid`; none typed: `no
+  email address`). An address that reaches the provider and is not an email: not sent, `FAILED` at once, `invalid email
+  address '<a>': not sent`, no retry.
+- A temporary failure (no connection, a timeout, a 4xx answer, the connection lost): the waits of every message, 1, 5,
+  15 then 60 minutes, `FAILED` at the 5th attempt (`attempt n failed: SMTP 451: ...`, `SMTP server unreachable: ...`,
+  `SMTP timeout: ...`).
+- A permanent failure (a 5xx answer, the address refused): `FAILED` at once with the server's words (`SMTP 550: ...`).
+- A refused login (535) is **temporary**, not permanent: the wrong password is the installation's, not the member's;
+  the messages wait and leave once the password is fixed (`SMTP login refused (<host>): ...`).
+- Email on, `smtp` and no host (or no sender, a port, a timeout or a security not valid): one WARN at the start
+  (`Communication: email is on with the provider smtp, but communication.email.smtp.host is empty: the channel is off`)
+  and the channel is off; never a refused start.
+
+**Test-recipient mode** (`CommunicationSettings.testRecipient`): one line per kind of address. Filled, every message of
+that kind is given to the provider with this address instead of the member's (`CommunicationMessage.sentTo`, a copy);
+the row keeps the member's address in `address` and the test one in `redirected_to`. A line that is not an address: one
+WARN and the channels of that kind are off (never a send to the members, never a refused start). One INFO line at the
+start when it is on. The Messages tab shows a banner (each channel and its test address) and marks each redirected row;
+the Canaux tab shows it per channel.
+
+**No double send**: the sender saves `SENDING` before the provider is called, then `SENT` / `PENDING` / `FAILED` with
+its answer. A message found `SENDING` at the start (the application stopped meanwhile, `ApplicationReadyEvent`, before
+the first cycle) becomes `FAILED` with `interrupted while it was being sent (the application stopped): it may have left,
+check before sending it again` (one WARN with their number); it never leaves by itself, "Renvoyer" sends it again. A
+`SENDING` message is never due (`findDue` reads `PENDING` only).
+
+**The Canaux tab** (5th tab, everywhere the page exists, read only; `GET /communication/channels`, read right): per
+channel on / off (and why off), its provider, what the provider shows of its settings (`describe()`: host, port,
+security, user, timeout; the password only "set" / "not set"), its sender, its test recipient, the last message given
+to its provider (status, time, reason). A line when Company information is empty: what the members read instead (a
+store: its name, else the licence holder's; a head office: each member's store, its own members the licence holder's).
+"Envoyer un test" (write right, channel on; `POST /communication/channels/{channel}/test` {address}): a fixed short
+text (French, the time in it; the email subject `ZS Retail : message de test`) sent now through the channel's provider,
+the test-recipient mode applying as to any message. Refused: a channel unknown or off, an address that is not one
+(`COMM_TEST_ADDRESS`). Kept in the messages (`recipient_type` `TEST`, shown as a test); tried once (a temporary failure
+is `FAILED` at once).
+
+**The right to launch** (`write:admin-communication-campaigns`): launch and cancel need it (403 without it, even with
+the write right); the Campaigns tab is read only without it. Given to ADMIN at each start where the page exists
+(`ZZDataInitializer.COMMUNICATION_ADMIN_PERMISSIONS`), on a store and a head office; listed on both Roles pages.
+
+**Seed**: `MEMBER_CARD_EMAIL_FR` (welcome, subject "Bienvenue chez {companyName}") and `TICKET_THANKS_EMAIL_FR`
+(thanks, subject "Merci pour votre achat chez {companyName}") with their rules `MEMBER_CARD_EMAIL` and
+`TICKET_THANKS_EMAIL` on the email channel, all inactive, written at the start where the store sends (once each).
+
+**Database** (`db/3.3.0/update.sql`, section 9, safe to run twice): `comm_message.redirected_to` nvarchar(255).
+
+**Speed** (measured 2026-11-21, `SmtpThroughputManualTest`, run by hand with `-Dcomm.smtp.measure=true`): 5,000 emails
+given by the sender to `smtp` against the test mail server on 127.0.0.1, one connection per message, no TLS, the
+messages' table in memory: all 5,000 in 8.7 s (571 per second, inside one cycle's 20 s). The real database adds two
+writes per message (`SENDING`, then the answer) and the maker's inserts, so a campaign of 5,000 through a local server
+takes a few cycles (minutes). A hosted mail server is the limit: with TLS and a login per message, 0.3 to 1 s per email
+gives 20 to 60 emails per cycle (the sender has at most the cycle's 20 s every 60 s), 1,200 to 3,600 an hour: 5,000 in
+1.5 to 4 h; a daily cap below the campaign's size (common on hosted plans) leaves the rest `EXPIRED` after the 24 h
+lifetime. **A campaign can expire before it is fully sent.** Proposed rule (not built): the window shows the time the
+campaign needs at the channel's measured rate (the last sends) and refuses a launch whose time exceeds the lifetime
+(or proposes the lifetime it needs); with it, one SMTP connection kept for a batch of messages.
+
+Tests: `SmtpCommunicationProviderTest` (against `CatchSmtpServer`, a mail server written for the tests in core's test
+sources, 127.0.0.1, no network: Arabic in UTF-8, the sender, an invalid address, 550, 451, no server, a silent server
+and its timeout, a refused login then a good one, no host / no sender, the password never shown),
+`CommunicationSendStatesTest` (SENDING first, interrupted at the start, the test-recipient mode and a bad line, the
+Canaux view and the test send tried once, a member's email not valid, the right to launch, the campaign's preview equal
+to its message),
+`CommunicationEmailSeedTest`. Changed on purpose: `ZZDataInitializerRolesTest` (the right in ADMIN's set),
+`InstallationBeansProofTest` (134 beans: the provider and the tab's service), `ConfigurationKeysProofTest` (keys 87).
+
+Screen test (2026-11-21): the Happyness store on `pos_franchise_customer` (`configs/local/test_happyness_store`, the
+email lines added for the test and taken out after), the WAR exploded, the tests' `CatchSmtpServer` started alone on
+127.0.0.1:2525 with a login (nothing left the PC): the welcome and the thanks by email, an email campaign in Arabic to
+2 members, a wrong password (waits 1 then 5 min, then sent once the password was right), a member's email not valid,
+the test-recipient mode, the Canaux tab and its test, a user without the right to launch, fr and ar; a message left
+SENDING found FAILED "interrupted" at the start. 0 back-end ERROR, 0 console error.
+
 ## Next steps (to be agreed one at a time)
 
 The member's language (it travels with the shared loyalty register; templates then need a key on code and language; a
 rule then needs a purpose, service or marketing), member filters on a campaign (store, points, last purchase), a
-planned date, a promo code per member, step 8 the real providers.
+planned date, a promo code per member, step 8b the real SMS and WhatsApp providers, the campaign's expiry rule ("Step
+8a", "Speed").

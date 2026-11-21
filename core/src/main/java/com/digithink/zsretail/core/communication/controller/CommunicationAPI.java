@@ -23,6 +23,7 @@ import com.digithink.zsretail.core.communication.service.CommunicationAdmin.NewR
 import com.digithink.zsretail.core.communication.service.CommunicationAdmin.TemplateForm;
 import com.digithink.zsretail.core.communication.service.CommunicationCampaigns;
 import com.digithink.zsretail.core.communication.service.CommunicationCampaigns.LaunchForm;
+import com.digithink.zsretail.core.communication.service.CommunicationChannels;
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
@@ -48,8 +49,9 @@ import lombok.extern.log4j.Log4j2;
  * <li>step 7: GET /communication/campaigns?page=&amp;size=, GET /communication/campaigns/names, GET
  * /communication/campaigns/templates, POST /communication/campaigns/audience {templateCode, channel} (read), GET
  * /communication/campaigns/{id}, POST /communication/campaigns {name, templateCode, channel, lifetimeHours,
- * confirmSameDay} and POST /communication/campaigns/{id}/cancel (write); the messages and the counters take
- * campaign=&lt;id&gt;.</li>
+ * confirmSameDay} and POST /communication/campaigns/{id}/cancel (step 8a: write:admin-communication-campaigns); the
+ * messages and the counters take campaign=&lt;id&gt;;</li>
+ * <li>step 8a: GET /communication/channels (read), POST /communication/channels/{channel}/test {address} (write).</li>
  * </ul>
  * No delete: a rule or a template is switched off.
  */
@@ -61,12 +63,17 @@ public class CommunicationAPI {
 
 	public static final String READ = "read:admin-communication";
 	public static final String WRITE = "write:admin-communication";
+	/** Step 8a: launching and cancelling a campaign. */
+	public static final String LAUNCH = "write:admin-communication-campaigns";
 
 	@Autowired
 	private CommunicationAdmin admin;
 
 	@Autowired
 	private CommunicationCampaigns campaigns;
+
+	@Autowired
+	private CommunicationChannels channels;
 
 	@Autowired
 	private CurrentUserProvider currentUserProvider;
@@ -137,15 +144,32 @@ public class CommunicationAPI {
 		return read(() -> campaigns.campaign(id));
 	}
 
-	/** {name, templateCode, channel, lifetimeHours, confirmSameDay}: launched (its messages made in the background). */
+	/**
+	 * {name, templateCode, channel, lifetimeHours, confirmSameDay}: launched (its messages made in the background). Step
+	 * 8a: its own right, write:admin-communication-campaigns.
+	 */
 	@PostMapping("/campaigns")
 	public ResponseEntity<?> launch(@RequestBody LaunchForm form) {
-		return write(() -> campaigns.launch(form, currentUserProvider.getCurrentUserName()));
+		return answer(LAUNCH, () -> campaigns.launch(form, currentUserProvider.getCurrentUserName()));
 	}
 
 	@PostMapping("/campaigns/{id}/cancel")
 	public ResponseEntity<?> cancel(@PathVariable long id) {
-		return write(() -> campaigns.cancel(id, currentUserProvider.getCurrentUserName()));
+		return answer(LAUNCH, () -> campaigns.cancel(id, currentUserProvider.getCurrentUserName()));
+	}
+
+	// ─── Channels (step 8a) ──────────────────────────────────────────
+
+	/** The Canaux tab: each channel, its provider's settings (never a password), its test recipient, its last result. */
+	@GetMapping("/channels")
+	public ResponseEntity<?> channels() {
+		return read(channels::view);
+	}
+
+	/** {address}: a fixed short text sent now through the channel's provider (write right). */
+	@PostMapping("/channels/{channel}/test")
+	public ResponseEntity<?> testSend(@PathVariable String channel, @RequestBody Map<String, String> form) {
+		return write(() -> channels.testSend(channel, form.get("address"), currentUserProvider.getCurrentUserName()));
 	}
 
 	/** Step 6: the stores of a head office for the store filter, [{code, name}]; [] on a store. */

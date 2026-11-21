@@ -40,25 +40,104 @@ public class CommunicationSettings {
 	static final String DEFAULT_COUNTRY_CODE = "216";
 	static final String DEFAULT_PROVIDER = "test";
 
+	/** Step 8a: the test-recipient mode, one line per kind of address. */
+	public static final String TEST_PHONE_KEY = "communication.test-recipient.phone";
+	public static final String TEST_EMAIL_KEY = "communication.test-recipient.email";
+
 	private final Map<String, Boolean> enabled = new LinkedHashMap<>();
 	private final Map<String, String> providers = new LinkedHashMap<>();
+	/** Step 8a: why a channel set on is off (its provider cannot send, its test recipient is not an address). */
+	private final Map<String, String> offReasons = new LinkedHashMap<>();
 	private final String countryCode;
+	private final String testPhone;
+	private final String testEmail;
 
 	@Autowired
 	public CommunicationSettings(Environment environment, List<CommunicationProvider> providers) {
-		this(environment, providers.stream().map(CommunicationProvider::getName).collect(Collectors.toList()));
+		this(environment, providers.stream().map(CommunicationProvider::getName).collect(Collectors.toList()), providers);
 	}
 
 	/** With the names of the providers that exist: used by the tests. */
 	public CommunicationSettings(PropertyResolver env, Collection<String> providerNames) {
+		this(env, providerNames, java.util.Collections.emptyList());
+	}
+
+	/** Step 8a: with the providers, a channel whose provider cannot send is off. */
+	public CommunicationSettings(PropertyResolver env, Collection<String> providerNames,
+			List<CommunicationProvider> providerBeans) {
 		for (String channel : CommunicationTypes.CHANNELS) {
 			enabled.put(channel, channelOn(env, enabledKey(channel)));
 			providers.put(channel, provider(env, providerKey(channel), providerNames));
 		}
 		countryCode = countryCode(env.getProperty(COUNTRY_CODE_KEY));
+		testPhone = testPhone(env.getProperty(TEST_PHONE_KEY), countryCode);
+		testEmail = testEmail(env.getProperty(TEST_EMAIL_KEY));
+		for (String channel : CommunicationTypes.CHANNELS) {
+			if (!isEnabled(channel)) {
+				continue;
+			}
+			String name = providers.get(channel);
+			String cannot = providerBeans.stream().filter(p -> p.getName().equals(name)).findFirst()
+					.map(CommunicationProvider::unavailableReason).orElse(null);
+			if (cannot == null && blank(env.getProperty(testKey(channel))) != null && testRecipient(channel) == null) {
+				cannot = testKey(channel) + "='" + env.getProperty(testKey(channel)) + "' is not "
+						+ (CommunicationTypes.EMAIL.equals(channel) ? "an email" : "a phone (8 digits, or + and 8 to 15 digits)");
+			}
+			if (cannot != null) {
+				enabled.put(channel, false);
+				offReasons.put(channel, cannot);
+				log.warn("Communication: {} is on with the provider {}, but {}: the channel is off",
+						channel.toLowerCase(Locale.ROOT), name, cannot);
+			}
+		}
 		log.info("Communication: channels {}, phone country code {}", enabled.entrySet().stream()
 				.map(e -> e.getKey().toLowerCase(Locale.ROOT) + (e.getValue() ? " on (" + providers.get(e.getKey()) + ")" : " off"))
 				.collect(Collectors.joining(", ")), countryCode);
+		if (testPhone != null || testEmail != null) {
+			log.info("Communication: test-recipient mode: phones to {}, emails to {}", testPhone == null ? "-" : testPhone,
+					testEmail == null ? "-" : testEmail);
+		}
+	}
+
+	/** Step 8a: the test-recipient line of a channel's kind of address. */
+	public static String testKey(String channel) {
+		return CommunicationTypes.EMAIL.equals(channel) ? TEST_EMAIL_KEY : TEST_PHONE_KEY;
+	}
+
+	/** +216 and the 8 digits, or + and 8 to 15 digits as written; null when empty or not a phone. */
+	static String testPhone(String raw, String countryCode) {
+		String value = blank(raw);
+		if (value == null) {
+			return null;
+		}
+		String digits = value.replace(" ", "");
+		if (digits.matches("\\d{8}")) {
+			return "+" + countryCode + digits;
+		}
+		return digits.matches("\\+\\d{8,15}") ? digits : null;
+	}
+
+	/** The email as written; null when empty or not an email. */
+	static String testEmail(String raw) {
+		String value = blank(raw);
+		return value != null && value.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+") ? value : null;
+	}
+
+	private static String blank(String raw) {
+		return raw == null || raw.trim().isEmpty() ? null : raw.trim();
+	}
+
+	/**
+	 * Step 8a, the test-recipient mode: the address every message of this channel goes to instead of its own (the
+	 * phone for SMS and WhatsApp, the email for email); null when the mode is off for it.
+	 */
+	public String testRecipient(String channel) {
+		return CommunicationTypes.EMAIL.equals(channel) ? testEmail : testPhone;
+	}
+
+	/** Step 8a: why a channel set on in the properties is off (null: it is not). */
+	public String offReason(String channel) {
+		return offReasons.get(channel);
 	}
 
 	public static String enabledKey(String channel) {

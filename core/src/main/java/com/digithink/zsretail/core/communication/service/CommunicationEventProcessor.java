@@ -241,8 +241,12 @@ public class CommunicationEventProcessor implements CommunicationTask {
 		}
 		String address = address(rule.getChannel(), member);
 		if (address == null) {
-			return CommunicationTypes.EMAIL.equals(rule.getChannel()) ? "no email address"
-					: "phone '" + (member.getPhone() == null ? "" : member.getPhone()) + "' is not 8 digits";
+			if (CommunicationTypes.EMAIL.equals(rule.getChannel())) {
+				// Step 8a: an email typed but not one says so (not sent, never tried again)
+				String typed = member.getEmail() == null ? "" : member.getEmail().trim();
+				return typed.isEmpty() ? "no email address" : "email '" + typed + "' is not valid";
+			}
+			return "phone '" + (member.getPhone() == null ? "" : member.getPhone()) + "' is not 8 digits";
 		}
 		LocalDateTime happened = event.getOccurredAt() == null ? event.getCreatedAt() : event.getOccurredAt();
 		LocalDateTime expires = happened.plusHours(rule.getLifetimeHours());

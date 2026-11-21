@@ -111,9 +111,19 @@ final class CampaignTestBed {
 
 	// ─── The beans ───────────────────────────────────────────────────
 
+	/** Step 8a: more property lines (the provider of a channel, the test recipients...). */
+	final Map<String, String> properties = new LinkedHashMap<>();
+	/** Step 8a: the providers that exist besides test. */
+	final List<CommunicationProvider> extraProviders = new ArrayList<>();
+
 	CommunicationSettings settings() {
-		return new CommunicationSettings(new MockEnvironment().withProperty("communication.sms.enabled", smsEnabled)
-				.withProperty("communication.email.enabled", emailEnabled), Collections.singletonList("test"));
+		MockEnvironment env = new MockEnvironment().withProperty("communication.sms.enabled", smsEnabled)
+				.withProperty("communication.email.enabled", emailEnabled);
+		properties.forEach(env::setProperty);
+		List<CommunicationProvider> all = new ArrayList<>(extraProviders);
+		all.add(new com.digithink.zsretail.core.communication.provider.TestCommunicationProvider());
+		return new CommunicationSettings(env, all.stream().map(CommunicationProvider::getName).collect(Collectors.toList()),
+				all);
 	}
 
 	CommunicationCampaigns campaigns() {
@@ -230,6 +240,20 @@ final class CampaignTestBed {
 				case "countByCampaignIdAndStatus":
 					return messageTable.values().stream().filter(m -> args[0].equals(m.getCampaignId())
 							&& m.getStatus() == args[1]).count();
+				case "markInterrupted": {
+					int left = 0;
+					for (CommunicationMessage m : messageTable.values()) {
+						if (m.getStatus() == args[0]) {
+							m.setStatus((CommunicationMessageStatus) args[1]);
+							m.setLastError((String) args[2]);
+							left++;
+						}
+					}
+					return left;
+				}
+				case "findFirstByChannelAndAttemptsGreaterThanOrderByUpdatedAtDesc":
+					return messageTable.values().stream().filter(m -> m.getChannel().equals(args[0])
+							&& m.getAttempts() > (Integer) args[1]).reduce((a, b) -> b);
 				case "skipWaiting":
 					int changed = 0;
 					for (CommunicationMessage m : messageTable.values()) {

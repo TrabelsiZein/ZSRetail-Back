@@ -72,6 +72,12 @@ import com.digithink.zsretail.support.Installations;
  * 3.3.0, communication module step 3: the record gained communication.cycle-seconds (60), the three channels' enabled
  * (false) and provider (test) lines and communication.phone-country-code (216), all from core's application.properties:
  * "keys 77", eight lines per configuration, the same everywhere; every other line unchanged.
+ * <p>
+ * 3.3.0, communication module step 8a: the record gained the provider smtp's six keys (communication.email.smtp.host,
+ * port 587, security starttls, username, password, timeout-seconds 15), the sender's two (communication.email.from-address,
+ * from-name) and the two test-recipient lines (communication.test-recipient.phone, .email), all from core's
+ * application.properties, empty but for the three defaults (the password "(set)", the record's rule for a secret):
+ * "keys 87", ten lines per configuration, the same everywhere; every other line unchanged.
  */
 class ConfigurationKeysProofTest {
 

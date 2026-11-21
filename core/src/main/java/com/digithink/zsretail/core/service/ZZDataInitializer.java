@@ -451,10 +451,11 @@ public class ZZDataInitializer {
 	 * a store where the messages are made and sent (ApplicationModeService.isCommunicationSentHere): in ADMIN's set of a
 	 * new database, given to ADMIN at every start there (a database of before, or the module turned on later), so the
 	 * keys the API checks (CommunicationAPI) never lock an administrator out. With the module off nothing is added; other
-	 * roles are ticked on the Roles page.
+	 * roles are ticked on the Roles page. Step 8a: write:admin-communication-campaigns, its own right to launch and cancel
+	 * a campaign (the Campaigns tab is read only without it).
 	 */
 	static final Set<String> COMMUNICATION_ADMIN_PERMISSIONS = new HashSet<>(
-			Arrays.asList("read:admin-communication", "write:admin-communication"));
+			Arrays.asList("read:admin-communication", "write:admin-communication", "write:admin-communication-campaigns"));
 
 	/**
 	 * 3.2.0, POS machines step 1: the POS machines page, on every store (RFID or not; docs/modules/pos-machines.md). The key
