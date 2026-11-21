@@ -58,7 +58,7 @@ class InstallationBeansProofTest {
 	static final List<String> ERP_CONDITIONS = Arrays.asList("OnErpAbilityCondition", "OnErpConnectorCondition");
 
 	/** Every class and @Bean method these questions decide, by name: a lost or new annotation shows here. */
-	static final int EXPECTED_DECIDED = 130; // RFID: 3 services, the reader, 3 APIs; tags: 2 services, the check, the API;
+	static final int EXPECTED_DECIDED = 132; // RFID: 3 services, the reader, 3 APIs; tags: 2 services, the check, the API;
 	// POS: the sale tags hook, the POS service and its API; item variants (ZEN), step 9: the stores'
 	// ERP customers for the invoices read (HoErpInvoiceCustomers); 3.1.1, orders to the head office: the API, the
 	// service, the status writer, the draft index (store); the reception and admin APIs, the service, the posting
@@ -72,7 +72,8 @@ class InstallationBeansProofTest {
 	// page's API and service (core) and the store's ticket search (COMMUNICATION_SENDS_HERE) (120 to 123); step 6, the
 	// head office shape: the push service and its link job (store, COMMUNICATION_PUSHED_UP), the receiver, its API, the
 	// members directory, the member finder and the store names (head office) (123 to 130); COMMUNICATION_SENDS_HERE now
-	// true on a head office with the module on (the processor, the sender, the seeding, the page's API and service there)
+	// true on a head office with the module on (the processor, the sender, the seeding, the page's API and service there);
+	// step 7, the campaigns: their service and their maker (COMMUNICATION_SENDS_HERE) (130 to 132)
 
 	/** True for an annotation whose condition is an installation question (a class of config, not an ERP one). */
 	static boolean isQuestion(Annotation annotation) {

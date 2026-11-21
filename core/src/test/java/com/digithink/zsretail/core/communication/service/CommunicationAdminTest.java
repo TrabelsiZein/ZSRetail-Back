@@ -347,7 +347,7 @@ class CommunicationAdminTest {
 		assertEquals("UNICODE", admin().preview("SMS", "Merci, à bientôt ça va").get("encoding"));
 		Map<String, Object> email = admin().preview("EMAIL", "Bonjour {firstName}");
 		assertNull(email.get("parts"));
-		assertEquals(10, admin().fields().size());
+		assertEquals(11, admin().fields().size()); // step 7: pointsBalance
 		assertEquals("48.900", admin().fields().get(4).get("sample"));
 	}
 

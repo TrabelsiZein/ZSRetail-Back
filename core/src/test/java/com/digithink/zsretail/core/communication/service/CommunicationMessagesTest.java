@@ -209,7 +209,8 @@ class CommunicationMessagesTest {
 		CommunicationMessage message = messageTable.get(1L);
 		assertEquals(CommunicationMessageStatus.PENDING, message.getStatus());
 		assertEquals("+21699000002", message.getAddress());
-		assertEquals("Merci Sana (65.000 TND) +65 pts, solde 130 ", message.getBody()); // storeName null: empty
+		// Step 7, the empty-field guard: storeName null takes the company's name, never a hole
+		assertEquals("Merci Sana (65.000 TND) +65 pts, solde 130 Happyness", message.getBody());
 		assertEquals("SMS", message.getChannel());
 		assertEquals("test", message.getProvider());
 		assertEquals("LYL-000001", message.getRecipientRef());

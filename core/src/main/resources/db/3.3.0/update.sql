@@ -1,5 +1,5 @@
 -- ============================================================
--- Version 3.3.0 (in progress) — communication module: comm_event, comm_message (step 1), comm_state (step 2), comm_template, comm_rule (step 3)
+-- Version 3.3.0 (in progress) — communication module: comm_event, comm_message (step 1), comm_state (step 2), comm_template, comm_rule (step 3), comm_campaign (step 7)
 -- ============================================================
 -- Deployment order (a database at 3.2.0; CHANGELOG.md, 3.3.0, "Before deployment"):
 --   1) Bring the database to 3.2.0 first (db/3.2.0/update.sql). This script stops, without changing anything, while
@@ -12,8 +12,8 @@
 -- Re-runnable: each statement is guarded and changes nothing the second time. The tables are created in the form
 -- Hibernate gives them (the constraints and indexes named as in the entities), so the start finds them whole; on a
 -- database without them Hibernate would create them at the first start too. They stay empty while
--- communication.enabled is not true (docs/modules/communication.md). Steps 2 and 3 added 1b, 3, 4 and 5: run the script
--- again on a database that ran an earlier version of it.
+-- communication.enabled is not true (docs/modules/communication.md). Steps 2, 3, 5 and 7 added 1b and 3 to 8: run the
+-- script again on a database that ran an earlier version of it.
 
 SET QUOTED_IDENTIFIER ON;
 SET ANSI_NULLS ON;
@@ -118,6 +118,34 @@ IF COL_LENGTH(N'loyalty_member', N'message_consent_at') IS NULL
 GO
 IF COL_LENGTH(N'loyalty_member', N'message_consent_by') IS NULL
 	ALTER TABLE loyalty_member ADD message_consent_by nvarchar(100) NULL;
+GO
+
+-- 7) Step 7: the campaigns (CommunicationCampaign), one template sent to every member who accepts messages: its
+-- name, its template (and a copy of its text when it was launched), its channel, RUNNING / DONE / CANCELLED, who
+-- launched or cancelled it and when, how many were targeted, made and left out, and the cursor of the background making
+-- (last_member_id). Every database (a store whose loyalty is the head office's keeps it empty).
+IF OBJECT_ID(N'comm_campaign', N'U') IS NULL
+BEGIN
+	CREATE TABLE comm_campaign (id bigint identity not null, active bit, created_at datetime2, created_by varchar(255),
+		updated_at datetime2, updated_by varchar(255), body nvarchar(max) not null, cancelled_by nvarchar(100),
+		channel nvarchar(20) not null, code nvarchar(30) not null, ended_at datetime2, language_code nvarchar(5),
+		last_member_id bigint not null, launched_at datetime2 not null, launched_by nvarchar(100), left_out int not null,
+		lifetime_hours int not null, made int not null, made_at datetime2, name nvarchar(100) not null,
+		status nvarchar(12) not null, subject nvarchar(255), targeted int not null, template_code nvarchar(50) not null,
+		primary key (id));
+	ALTER TABLE comm_campaign ADD CONSTRAINT uk_comm_campaign_code UNIQUE (code);
+	CREATE INDEX ix_comm_campaign_status ON comm_campaign (status);
+END
+GO
+
+-- 8) Step 7: the campaign of a message (none for an automatic one, an event's), and its index (a campaign's counters,
+-- its messages, its cancel). Every database.
+IF COL_LENGTH(N'comm_message', N'campaign_id') IS NULL
+	ALTER TABLE comm_message ADD campaign_id bigint NULL;
+GO
+IF OBJECT_ID(N'comm_message', N'U') IS NOT NULL
+	AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_comm_message_campaign' AND object_id = OBJECT_ID(N'comm_message'))
+	CREATE INDEX ix_comm_message_campaign ON comm_message (campaign_id, status);
 GO
 
 UPDATE APP_VERSION SET version = '3.3.0';

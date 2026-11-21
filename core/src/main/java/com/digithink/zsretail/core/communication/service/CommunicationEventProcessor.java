@@ -62,14 +62,23 @@ public class CommunicationEventProcessor implements CommunicationTask {
 	private final TransactionOperations transactions;
 	private final Supplier<LocalDateTime> clock;
 	private final CommunicationMembers directory;
+	/** Step 7: the licence holder's name, the last stand-in of the empty-field guard; none in the tests of before. */
+	private Supplier<String> licenceName = () -> null;
 
 	@Autowired
 	public CommunicationEventProcessor(CommunicationEventRepository events, CommunicationRuleRepository rules,
 			CommunicationTemplateRepository templates, CommunicationMessageRepository messages,
 			LoyaltyMemberRepository members, CommunicationSettings settings, PlatformTransactionManager transactionManager,
-			Optional<CommunicationMembers> directory) {
+			Optional<CommunicationMembers> directory, CommunicationNames names) {
 		this(events, rules, templates, messages, members, settings, timed(transactionManager), LocalDateTime::now,
 				directory.orElseGet(() -> CommunicationMembers.local(members)));
+		this.licenceName = names::licenceName;
+	}
+
+	/** Step 7: with the licence holder's name of the empty-field guard (tests). */
+	public CommunicationEventProcessor withLicenceName(Supplier<String> licenceName) {
+		this.licenceName = licenceName;
+		return this;
 	}
 
 	/** With given transactions and clock: used by the tests. */
@@ -240,6 +249,16 @@ public class CommunicationEventProcessor implements CommunicationTask {
 		if (!expires.isAfter(now)) {
 			return "too old: happened " + happened + ", lifetime " + rule.getLifetimeHours() + " h";
 		}
+		// Step 7, the empty-field guard: the member's fields where the payload lacks them, the company's and the store's
+		// names standing in for each other (then the licence holder's); a field still empty: no message, never a hole
+		Map<String, Object> filled = CommunicationTemplates.withFallbacks(CommunicationTemplates.withMember(values,
+				member.getCardNumber(), member.getFirstName(), member.getLastName(), member.getLoyaltyPoints()),
+				licenceName.get());
+		List<String> empty = CommunicationTemplates.emptyFields(filled, template.getSubject(), template.getBody());
+		if (!empty.isEmpty()) {
+			return noValue(empty);
+		}
+		values = filled;
 		CommunicationMessage message = new CommunicationMessage();
 		message.setEventId(event.getId());
 		message.setChannel(rule.getChannel());
@@ -247,7 +266,9 @@ public class CommunicationEventProcessor implements CommunicationTask {
 		message.setRecipientType(rule.getRecipientType());
 		message.setRecipientRef(member.getCardNumber());
 		message.setAddress(address);
-		message.setSubject(template.getSubject());
+		// Step 7: an email's subject filled like the text (it was copied with its {fields} before)
+		message.setSubject(template.getSubject() == null ? null
+				: CommunicationTemplates.render(template.getCode(), template.getSubject(), values));
 		message.setBody(CommunicationTemplates.render(template.getCode(), template.getBody(), values));
 		message.setTemplateCode(template.getCode());
 		message.setLanguageCode(template.getLanguageCode());
@@ -264,12 +285,22 @@ public class CommunicationEventProcessor implements CommunicationTask {
 
 	/** As {@link #address(String, LoyaltyMember)} with the country code given (step 4: a message sent again). */
 	static String address(String channel, LoyaltyMember member, String countryCode) {
+		return address(channel, member.getPhone(), member.getEmail(), countryCode);
+	}
+
+	/** Step 7: the address rule from a phone and an email (a campaign reads them without the member entity). */
+	public static String address(String channel, String phone, String email, String countryCode) {
 		if (CommunicationTypes.EMAIL.equals(channel)) {
-			String email = member.getEmail() == null ? "" : member.getEmail().trim();
-			return email.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+") ? email : null;
+			String mail = email == null ? "" : email.trim();
+			return mail.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+") ? mail : null;
 		}
-		String phone = member.getPhone() == null ? "" : member.getPhone().trim();
-		return phone.matches("\\d{8}") ? "+" + countryCode + phone : null;
+		String digits = phone == null ? "" : phone.trim();
+		return digits.matches("\\d{8}") ? "+" + countryCode + digits : null;
+	}
+
+	/** Step 7: the reason of the empty-field guard, e.g. "no value for {companyName}". */
+	public static String noValue(List<String> fields) {
+		return "no value for " + fields.stream().map(f -> "{" + f + "}").collect(java.util.stream.Collectors.joining(", "));
 	}
 
 	private static CommunicationEventStatus close(CommunicationEvent event, CommunicationEventStatus status, String why,

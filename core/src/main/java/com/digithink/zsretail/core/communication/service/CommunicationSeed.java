@@ -17,6 +17,7 @@ import lombok.extern.log4j.Log4j2;
 /**
  * 3.3.0, communication module, step 3: at the start, where this installation sends, the two French SMS templates and
  * their two rules, written only when their code is missing and INACTIVE: nothing is sent until someone turns them on.
+ * Step 7: a third template, a promotion for a campaign (PROMO_SMS_FR, no rule), inactive too.
  * A row that exists (changed, or turned on) is never touched. The texts use only the basic SMS alphabet and stay in one
  * SMS part (160 characters) with usual values (CommunicationSeedTextsTest).
  */
@@ -35,6 +36,11 @@ public class CommunicationSeed {
 	public static final String TICKET_TEXT = "Merci {firstName} pour votre achat chez {companyName} ({total} TND) :"
 			+ " +{pointsEarned} points, solde {balanceAfter} points (carte {cardNumber}).";
 
+	/** Step 7: an example of a campaign's text, a short promotion (only a campaign's fields). */
+	public static final String PROMO_TEMPLATE = "PROMO_SMS_FR";
+	public static final String PROMO_TEXT = "{firstName}, profitez de nos offres de la semaine chez {companyName} !"
+			+ " Votre solde : {pointsBalance} points.";
+
 	private final CommunicationTemplateRepository templates;
 	private final CommunicationRuleRepository rules;
 
@@ -47,6 +53,7 @@ public class CommunicationSeed {
 	public void seed() {
 		int written = template(MEMBER_TEMPLATE, "Carte de fidélité (SMS, français)", MEMBER_TEXT)
 				+ template(TICKET_TEMPLATE, "Merci pour l'achat (SMS, français)", TICKET_TEXT)
+				+ template(PROMO_TEMPLATE, "Promotion (SMS, français)", PROMO_TEXT) // step 7, no rule: a campaign's
 				+ rule(MEMBER_RULE, CommunicationTypes.MEMBER_CREATED, MEMBER_TEMPLATE)
 				+ rule(TICKET_RULE, CommunicationTypes.TICKET_VALIDATED, TICKET_TEMPLATE);
 		if (written > 0) {

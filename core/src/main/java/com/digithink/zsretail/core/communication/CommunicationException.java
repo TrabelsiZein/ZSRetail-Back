@@ -15,7 +15,11 @@ import com.digithink.zsretail.core.exception.CodedRefusal;
  * COMM_RESEND_NO_CONSENT (card), COMM_RULE_CODE_INVALID, COMM_RULE_CODE_TAKEN (code), COMM_RULE_EVENT_UNKNOWN (event),
  * COMM_RULE_DUPLICATE (rule),
  * COMM_TEMPLATE_LANGUAGE, COMM_TEMPLATE_SUBJECT_REQUIRED, COMM_TEMPLATE_BODY_REQUIRED, COMM_TEMPLATE_UNKNOWN_FIELD
- * (field), COMM_TEMPLATE_TOO_LONG (field, max), COMM_TEMPLATE_USED (rule), COMM_TEMPLATE_USED_CHANNEL (rule).
+ * (field), COMM_TEMPLATE_TOO_LONG (field, max), COMM_TEMPLATE_USED (rule), COMM_TEMPLATE_USED_CHANNEL (rule). Step 7,
+ * the campaigns: COMM_CAMPAIGN_NAME_REQUIRED, COMM_CAMPAIGN_LIFETIME (min, max), COMM_CAMPAIGN_TEMPLATE_CHANNEL
+ * (template, channel), COMM_CAMPAIGN_TEMPLATE_INACTIVE (template), COMM_CAMPAIGN_TEMPLATE_FIELDS (template, fields),
+ * COMM_CAMPAIGN_NO_RECIPIENT (noConsent, noAddress, noValue), COMM_CAMPAIGN_SAME_DAY (409: name, time, code),
+ * COMM_CAMPAIGN_NOT_RUNNING (status), COMM_CAMPAIGN_NOT_FOUND (404).
  */
 public class CommunicationException extends IllegalArgumentException implements CodedRefusal {
 
@@ -42,6 +46,11 @@ public class CommunicationException extends IllegalArgumentException implements 
 	/** A 404: the row is not there. */
 	public static CommunicationException notFound(String code, String message, Object... keysAndValues) {
 		return new CommunicationException(404, code, message, keysAndValues);
+	}
+
+	/** Step 7: a 409, the request needs a second confirmation (COMM_CAMPAIGN_SAME_DAY). */
+	public static CommunicationException conflict(String code, String message, Object... keysAndValues) {
+		return new CommunicationException(409, code, message, keysAndValues);
 	}
 
 	public int getStatus() {

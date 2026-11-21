@@ -21,6 +21,8 @@ import com.digithink.zsretail.core.communication.service.CommunicationAdmin;
 import com.digithink.zsretail.core.communication.service.CommunicationAdmin.Filters;
 import com.digithink.zsretail.core.communication.service.CommunicationAdmin.NewRuleForm;
 import com.digithink.zsretail.core.communication.service.CommunicationAdmin.TemplateForm;
+import com.digithink.zsretail.core.communication.service.CommunicationCampaigns;
+import com.digithink.zsretail.core.communication.service.CommunicationCampaigns.LaunchForm;
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
@@ -42,7 +44,12 @@ import lombok.extern.log4j.Log4j2;
  * channel, templateCode, lifetimeHours, active};</li>
  * <li>GET /communication/templates, GET /communication/templates/{id}, POST /communication/templates, PUT
  * /communication/templates/{id}, PUT /communication/templates/{id}/active {active}, POST
- * /communication/templates/preview {channel, body}, GET /communication/templates/fields.</li>
+ * /communication/templates/preview {channel, body}, GET /communication/templates/fields;</li>
+ * <li>step 7: GET /communication/campaigns?page=&amp;size=, GET /communication/campaigns/names, GET
+ * /communication/campaigns/templates, POST /communication/campaigns/audience {templateCode, channel} (read), GET
+ * /communication/campaigns/{id}, POST /communication/campaigns {name, templateCode, channel, lifetimeHours,
+ * confirmSameDay} and POST /communication/campaigns/{id}/cancel (write); the messages and the counters take
+ * campaign=&lt;id&gt;.</li>
  * </ul>
  * No delete: a rule or a template is switched off.
  */
@@ -59,6 +66,9 @@ public class CommunicationAPI {
 	private CommunicationAdmin admin;
 
 	@Autowired
+	private CommunicationCampaigns campaigns;
+
+	@Autowired
 	private CurrentUserProvider currentUserProvider;
 
 	// ─── Messages and events ─────────────────────────────────────────
@@ -68,8 +78,8 @@ public class CommunicationAPI {
 			@RequestParam(required = false) String channel, @RequestParam(required = false) String dateFrom,
 			@RequestParam(required = false) String dateTo, @RequestParam(required = false) String q,
 			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size,
-			@RequestParam(required = false) String store) {
-		return read(() -> admin.messages(Filters.of(status, channel, dateFrom, dateTo, q, store), page, size));
+			@RequestParam(required = false) String store, @RequestParam(required = false) Long campaign) {
+		return read(() -> admin.messages(Filters.of(status, channel, dateFrom, dateTo, q, store, campaign), page, size));
 	}
 
 	@GetMapping("/messages/{id}")
@@ -91,8 +101,51 @@ public class CommunicationAPI {
 	}
 
 	@GetMapping("/counters")
-	public ResponseEntity<?> counters(@RequestParam(required = false) String store) {
-		return read(() -> admin.counters(store));
+	public ResponseEntity<?> counters(@RequestParam(required = false) String store,
+			@RequestParam(required = false) Long campaign) {
+		return read(() -> admin.counters(store, campaign));
+	}
+
+	// ─── Campaigns (step 7) ──────────────────────────────────────────
+
+	@GetMapping("/campaigns")
+	public ResponseEntity<?> campaigns(@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "20") int size) {
+		return read(() -> campaigns.list(page, size));
+	}
+
+	/** The latest campaigns {id, code, name}, for the Messages tab's filter. */
+	@GetMapping("/campaigns/names")
+	public ResponseEntity<?> campaignNames() {
+		return read(campaigns::names);
+	}
+
+	/** Every template with what a campaign may do with it (usable, its sale's fields, its channel on). */
+	@GetMapping("/campaigns/templates")
+	public ResponseEntity<?> campaignTemplates() {
+		return read(campaigns::templates);
+	}
+
+	/** {templateCode, channel}: who would receive it, who is left out and why, the preview with a real member. */
+	@PostMapping("/campaigns/audience")
+	public ResponseEntity<?> audience(@RequestBody Map<String, String> form) {
+		return read(() -> campaigns.audience(form.get("templateCode"), form.get("channel")));
+	}
+
+	@GetMapping("/campaigns/{id}")
+	public ResponseEntity<?> campaign(@PathVariable long id) {
+		return read(() -> campaigns.campaign(id));
+	}
+
+	/** {name, templateCode, channel, lifetimeHours, confirmSameDay}: launched (its messages made in the background). */
+	@PostMapping("/campaigns")
+	public ResponseEntity<?> launch(@RequestBody LaunchForm form) {
+		return write(() -> campaigns.launch(form, currentUserProvider.getCurrentUserName()));
+	}
+
+	@PostMapping("/campaigns/{id}/cancel")
+	public ResponseEntity<?> cancel(@PathVariable long id) {
+		return write(() -> campaigns.cancel(id, currentUserProvider.getCurrentUserName()));
 	}
 
 	/** Step 6: the stores of a head office for the store filter, [{code, name}]; [] on a store. */

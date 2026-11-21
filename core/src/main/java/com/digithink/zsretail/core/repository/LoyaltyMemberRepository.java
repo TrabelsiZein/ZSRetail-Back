@@ -77,4 +77,23 @@ public interface LoyaltyMemberRepository extends _BaseRepository<LoyaltyMember, 
 			+ " NOT LIKE '%[^0-9]%' THEN CAST(SUBSTRING(card_number, 5, LEN(card_number) - 4) AS INT) END), 0)"
 			+ " FROM loyalty_member WHERE card_number LIKE 'LYL-%'", nativeQuery = true)
 	Integer findMaxCardSequence();
+
+	/**
+	 * 3.3.0, communication step 7: the members a campaign may reach, after {@code afterId}, by id: active, with the
+	 * consent to receive messages, not a copy of a head office's register (origin {@code notOrigin}: HEAD_OFFICE; a store
+	 * that went back to its own loyalty keeps such cards, never messaged by it). [id, cardNumber, firstName, lastName,
+	 * phone, email, loyaltyPoints, createdBy] (no entity: no customer, no function loaded). The campaign's count and its
+	 * messages both read this one query (CampaignAudience), the address rule and the one-per-address rule applied the
+	 * same way after it.
+	 */
+	@Query("select m.id, m.cardNumber, m.firstName, m.lastName, m.phone, m.email, m.loyaltyPoints, m.createdBy"
+			+ " from LoyaltyMember m where m.active = true and m.messageConsent = true"
+			+ " and (m.origin is null or m.origin <> :notOrigin) and m.id > :afterId order by m.id")
+	List<Object[]> findCampaignCandidates(@Param("notOrigin") RecordOrigin notOrigin, @Param("afterId") long afterId,
+			Pageable page);
+
+	/** Step 7: the active members without the consent (the window's "left out: no consent"), same members as above. */
+	@Query("select count(m) from LoyaltyMember m where m.active = true and (m.messageConsent = false"
+			+ " or m.messageConsent is null) and (m.origin is null or m.origin <> :notOrigin)")
+	long countActiveWithoutConsent(@Param("notOrigin") RecordOrigin notOrigin);
 }

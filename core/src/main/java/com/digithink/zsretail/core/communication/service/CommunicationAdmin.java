@@ -32,10 +32,12 @@ import com.digithink.zsretail.core.communication.CommunicationException;
 import com.digithink.zsretail.core.communication.CommunicationTypes;
 import com.digithink.zsretail.core.communication.enumeration.CommunicationEventStatus;
 import com.digithink.zsretail.core.communication.enumeration.CommunicationMessageStatus;
+import com.digithink.zsretail.core.communication.model.CommunicationCampaign;
 import com.digithink.zsretail.core.communication.model.CommunicationEvent;
 import com.digithink.zsretail.core.communication.model.CommunicationMessage;
 import com.digithink.zsretail.core.communication.model.CommunicationRule;
 import com.digithink.zsretail.core.communication.model.CommunicationTemplate;
+import com.digithink.zsretail.core.communication.repository.CommunicationCampaignRepository;
 import com.digithink.zsretail.core.communication.repository.CommunicationEventRepository;
 import com.digithink.zsretail.core.communication.repository.CommunicationMessageRepository;
 import com.digithink.zsretail.core.communication.repository.CommunicationRuleRepository;
@@ -85,6 +87,7 @@ public class CommunicationAdmin {
 		sample.put("balanceAfter", 161);
 		sample.put("storeName", "Magasin Centre");
 		sample.put("companyName", "Ma boutique");
+		sample.put("pointsBalance", 161); // step 7
 		SAMPLE = Collections.unmodifiableMap(sample);
 	}
 
@@ -99,6 +102,8 @@ public class CommunicationAdmin {
 	private final Supplier<LocalDateTime> clock;
 	/** Step 6: the stores of a head office (the store column and filter); empty on a store. */
 	private final Optional<CommunicationStoreNames> storeNames;
+	/** Step 7: the campaigns (the campaign of a message, its filter); null in the tests of before. */
+	private CommunicationCampaignRepository campaigns;
 
 	/** Step 6: the store filter's value for the head office's own events (no origin store). */
 	public static final String HEAD_OFFICE_OWN = "__HO__";
@@ -107,11 +112,19 @@ public class CommunicationAdmin {
 	public CommunicationAdmin(CommunicationEventRepository events, CommunicationMessageRepository messages,
 			CommunicationRuleRepository rules, CommunicationTemplateRepository templates, LoyaltyMemberRepository members,
 			CommunicationSettings settings, Optional<CommunicationTicketSearch> tickets,
-			CompanyInformationService companyInformation, Optional<CommunicationStoreNames> storeNames) {
+			CompanyInformationService companyInformation, Optional<CommunicationStoreNames> storeNames,
+			CommunicationCampaignRepository campaigns) {
 		this(events, messages, rules, templates, members, settings, tickets, () -> {
 			CompanyInformationDTO company = companyInformation.get();
 			return company == null ? null : company.getCompanyName();
 		}, LocalDateTime::now, storeNames);
+		this.campaigns = campaigns;
+	}
+
+	/** Step 7: with the campaigns (tests). */
+	public CommunicationAdmin withCampaigns(CommunicationCampaignRepository campaigns) {
+		this.campaigns = campaigns;
+		return this;
 	}
 
 	/** With a given company name and clock: used by the tests. */
@@ -150,10 +163,20 @@ public class CommunicationAdmin {
 		String text;
 		/** Step 6: a store's code ({@link #HEAD_OFFICE_OWN}: the head office's own events). */
 		String store;
+		/** Step 7: a campaign's id (its messages only). */
+		Long campaign;
 
 		/** Dates as "2026-11-21" (the whole day) or "2026-11-21T10:00". */
 		public static Filters of(String status, String channel, String dateFrom, String dateTo, String text) {
 			return of(status, channel, dateFrom, dateTo, text, null);
+		}
+
+		/** Step 7: with the campaign filter of the messages. */
+		public static Filters of(String status, String channel, String dateFrom, String dateTo, String text,
+				String store, Long campaign) {
+			Filters filters = of(status, channel, dateFrom, dateTo, text, store);
+			filters.campaign = campaign;
+			return filters;
 		}
 
 		/** Step 6: with the store filter of a head office. */
@@ -176,13 +199,17 @@ public class CommunicationAdmin {
 		return HEAD_OFFICE_OWN.equals(store) ? cb.isNull(origin) : cb.equal(origin, store);
 	}
 
-	/** Step 6: the messages whose event is of the store filter (a subquery on comm_event). */
+	/**
+	 * Step 6: the messages whose event is of the store filter (a subquery on comm_event). Step 7: a campaign's message
+	 * (no event) is the head office's own.
+	 */
 	private static Predicate messageOfStore(javax.persistence.criteria.Root<CommunicationMessage> root,
 			javax.persistence.criteria.CriteriaQuery<?> query, javax.persistence.criteria.CriteriaBuilder cb, String store) {
 		Subquery<Long> ofStore = query.subquery(Long.class);
 		javax.persistence.criteria.Root<CommunicationEvent> e = ofStore.from(CommunicationEvent.class);
 		ofStore.select(e.get("id")).where(eventOfStore(e.get("originStoreCode"), cb, store));
-		return root.get("eventId").in(ofStore);
+		Predicate ofItsEvent = root.get("eventId").in(ofStore);
+		return HEAD_OFFICE_OWN.equals(store) ? cb.or(cb.isNull(root.get("eventId")), ofItsEvent) : ofItsEvent;
 	}
 
 	/** Step 6: the stores for the filter of a head office, [{code, name}]; empty on a store. */
@@ -242,6 +269,9 @@ public class CommunicationAdmin {
 			if (filters.store != null) {
 				where.add(messageOfStore(root, query, cb, filters.store));
 			}
+			if (filters.campaign != null) { // step 7
+				where.add(cb.equal(root.get("campaignId"), filters.campaign));
+			}
 			if (filters.from != null) {
 				where.add(cb.greaterThanOrEqualTo(root.get("createdAt"), filters.from));
 			}
@@ -267,7 +297,25 @@ public class CommunicationAdmin {
 		Page<CommunicationMessage> found = messages.findAll(spec, pageRequest(page, size));
 		Map<String, String> names = memberNames(found.getContent().stream().map(CommunicationMessage::getRecipientRef)
 				.collect(Collectors.toList()));
-		return withStores(page(found, m -> messageRow(m, names.get(m.getRecipientRef()))), true);
+		return withCampaigns(withStores(page(found, m -> messageRow(m, names.get(m.getRecipientRef()))), true));
+	}
+
+	/** Step 7: each message row's campaignCode and campaignName (null for an automatic message). */
+	@SuppressWarnings("unchecked")
+	private Map<String, Object> withCampaigns(Map<String, Object> page) {
+		List<Map<String, Object>> rows = (List<Map<String, Object>>) page.get("content");
+		List<Long> ids = rows.stream().map(r -> (Long) r.get("campaignId")).filter(id -> id != null).distinct()
+				.collect(Collectors.toList());
+		Map<Long, CommunicationCampaign> found = new LinkedHashMap<>();
+		if (campaigns != null && !ids.isEmpty()) {
+			campaigns.findAllById(ids).forEach(c -> found.put(c.getId(), c));
+		}
+		for (Map<String, Object> row : rows) {
+			CommunicationCampaign campaign = found.get(row.get("campaignId"));
+			row.put("campaignCode", campaign == null ? null : campaign.getCode());
+			row.put("campaignName", campaign == null ? null : campaign.getName());
+		}
+		return page;
 	}
 
 	/** One message, its event (with the event's values read from its payload) and the member's name now. */
@@ -294,6 +342,11 @@ public class CommunicationAdmin {
 			detail.put("storeCode", code);
 			detail.put("storeName", code == null ? null : storeNames.get().names().get(code));
 		}
+		// Step 7: the campaign that made it
+		CommunicationCampaign campaign = message.getCampaignId() == null || campaigns == null ? null
+				: campaigns.findById(message.getCampaignId()).orElse(null);
+		detail.put("campaignCode", campaign == null ? null : campaign.getCode());
+		detail.put("campaignName", campaign == null ? null : campaign.getName());
 		return detail;
 	}
 
@@ -394,20 +447,32 @@ public class CommunicationAdmin {
 	/** Step 6: the counters of one store (a head office's store filter; null: every store). */
 	@Transactional(readOnly = true)
 	public Map<String, Object> counters(String store) {
+		return counters(store, null);
+	}
+
+	/**
+	 * Step 7: the counters of the store filter and of one campaign (its messages; the events left out are of no campaign:
+	 * skippedToday null with a campaign).
+	 */
+	@Transactional(readOnly = true)
+	public Map<String, Object> counters(String store, Long campaign) {
 		String of = blankToNull(store);
 		LocalDateTime today = clock.get().toLocalDate().atStartOfDay();
 		Map<String, Object> counters = new LinkedHashMap<>();
 		counters.put("sentToday", messages.count((root, query, cb) -> cb.and(
 				cb.equal(root.get("status"), CommunicationMessageStatus.SENT),
 				cb.greaterThanOrEqualTo(root.get("createdAt"), today),
-				of == null ? cb.conjunction() : messageOfStore(root, query, cb, of))));
+				of == null ? cb.conjunction() : messageOfStore(root, query, cb, of),
+				campaign == null ? cb.conjunction() : cb.equal(root.get("campaignId"), campaign))));
 		counters.put("waiting", messages.count((root, query, cb) -> cb.and(
 				cb.equal(root.get("status"), CommunicationMessageStatus.PENDING),
-				of == null ? cb.conjunction() : messageOfStore(root, query, cb, of))));
+				of == null ? cb.conjunction() : messageOfStore(root, query, cb, of),
+				campaign == null ? cb.conjunction() : cb.equal(root.get("campaignId"), campaign))));
 		counters.put("failed", messages.count((root, query, cb) -> cb.and(
 				root.get("status").in(CommunicationMessageStatus.FAILED, CommunicationMessageStatus.EXPIRED),
-				of == null ? cb.conjunction() : messageOfStore(root, query, cb, of))));
-		counters.put("skippedToday", events.count((root, query, cb) -> cb.and(
+				of == null ? cb.conjunction() : messageOfStore(root, query, cb, of),
+				campaign == null ? cb.conjunction() : cb.equal(root.get("campaignId"), campaign))));
+		counters.put("skippedToday", campaign != null ? null : events.count((root, query, cb) -> cb.and(
 				cb.equal(root.get("status"), CommunicationEventStatus.SKIPPED),
 				cb.greaterThanOrEqualTo(root.get("createdAt"), today),
 				of == null ? cb.conjunction() : eventOfStore(root.get("originStoreCode"), cb, of))));
@@ -643,9 +708,14 @@ public class CommunicationAdmin {
 	 * unknownFields}. An unknown field stays as typed in the text.
 	 */
 	public Map<String, Object> preview(String channel, String body) {
-		String text = CommunicationTemplates.preview(body, sample());
+		Map<String, Object> values = sample();
+		String text = CommunicationTemplates.preview(body, values);
 		Map<String, Object> preview = new LinkedHashMap<>();
 		preview.put("text", text);
+		// Step 7, the empty-field guard: the fields shown as typed for want of a value, and whether the company's name
+		// is empty here (the store's name stands in for it in the messages)
+		preview.put("emptyFields", CommunicationTemplates.emptyFields(values, body));
+		preview.put("companyNameEmpty", blankToNull(companyName.get()) == null);
 		if (CommunicationTypes.SMS.equals(upper(channel))) {
 			SmsParts sms = SmsParts.of(text);
 			preview.put("length", sms.getLength());
@@ -671,13 +741,15 @@ public class CommunicationAdmin {
 		}).collect(Collectors.toList());
 	}
 
+	/**
+	 * The sample values with the installation's company name; step 7: empty, it is left out and the sample store's name
+	 * stands in, as in the messages (CommunicationTemplates.withFallbacks).
+	 */
 	private Map<String, Object> sample() {
 		Map<String, Object> sample = new LinkedHashMap<>(SAMPLE);
 		String company = companyName.get();
-		if (company != null && !company.trim().isEmpty()) {
-			sample.put("companyName", company.trim());
-		}
-		return sample;
+		sample.put("companyName", company == null || company.trim().isEmpty() ? null : company.trim());
+		return CommunicationTemplates.withFallbacks(sample, null);
 	}
 
 	private void fill(CommunicationTemplate template, TemplateForm form, String channel) {
@@ -794,6 +866,7 @@ public class CommunicationAdmin {
 		row.put("attempts", m.getAttempts());
 		row.put("sentAt", m.getSentAt());
 		row.put("eventId", m.getEventId());
+		row.put("campaignId", m.getCampaignId()); // step 7
 		return row;
 	}
 

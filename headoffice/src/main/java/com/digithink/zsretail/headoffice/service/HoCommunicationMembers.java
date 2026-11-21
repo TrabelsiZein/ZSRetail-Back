@@ -50,4 +50,10 @@ public class HoCommunicationMembers implements CommunicationMembers {
 	public boolean arriveLater() {
 		return true;
 	}
+
+	/** Step 7: the cards merged into another member, never a campaign's recipient (read once for a batch). */
+	@Override
+	public java.util.Set<String> aliasCards() {
+		return aliases.findAll().stream().map(HoLoyaltyAlias::getCardNumber).collect(java.util.stream.Collectors.toSet());
+	}
 }

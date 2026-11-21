@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.core.communication.CommunicationTypes;
+import com.digithink.zsretail.core.communication.service.CampaignStoreNames;
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.dto.CompanyInformationDTO;
@@ -27,7 +28,7 @@ import com.digithink.zsretail.core.service.GeneralSetupService;
  */
 @Component
 @ConditionalOnInstallation(Installation.COMMUNICATION)
-public class JpaStoreEventSource implements StoreEventSource {
+public class JpaStoreEventSource implements StoreEventSource, CampaignStoreNames {
 
 	static final String STORE_CODE_SETTING = "DEFAULT_LOCATION";
 
@@ -128,5 +129,12 @@ public class JpaStoreEventSource implements StoreEventSource {
 		String name = code == null ? null : locations.findByLocationCode(code).map(Location::getName).orElse(null);
 		CompanyInformationDTO company = companyInformation.get();
 		return new StoreLabel(code, name, company == null ? null : company.getCompanyName());
+	}
+
+	/** Step 7: a store's campaign shows its own name ({storeName}), read once for a batch. */
+	@Override
+	public java.util.function.BiFunction<String, String, String> resolver() {
+		String own = storeLabel().getName();
+		return (createdBy, card) -> own;
 	}
 }

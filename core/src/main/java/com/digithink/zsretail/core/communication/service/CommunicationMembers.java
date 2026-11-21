@@ -19,6 +19,14 @@ public interface CommunicationMembers {
 	/** True where a member may arrive after its event (a head office). */
 	boolean arriveLater();
 
+	/**
+	 * Step 7: the cards merged into another member (a head office's ho_loyalty_alias): never a campaign's recipient, even
+	 * if a member row holds one. None on a store.
+	 */
+	default java.util.Set<String> aliasCards() {
+		return java.util.Collections.emptySet();
+	}
+
 	/** A member found, and the card it was found through when that card was merged into it. */
 	final class Found {
 		private final LoyaltyMember member;

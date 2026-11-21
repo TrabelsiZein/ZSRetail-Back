@@ -46,10 +46,24 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   messaged) and makes and sends the messages: a member not arrived yet waits, an alias card's welcome is dropped and its
   tickets go to the surviving member, a member created at the head office gets the head office's welcome. Its
   Communication page (route `admin-headoffice-communication`) shows the store and filters by it.
+- Communication module, step 7, the campaigns (where the messages are made: a store alone, a store that owns its
+  loyalty, a head office): one template sent once to every active member with the consent and an address for the
+  channel, one message per address (`CampaignAudience`, the same query for the window's count and the messages; a head
+  office's merged cards never). Launched RUNNING (`POST /communication/campaigns`; refused: a sale's fields, a template
+  off, the channel off, nobody to receive it; the same template the same day only with `confirmSameDay`, 409 else),
+  the messages made in the background by batches (`CAMPAIGN_MESSAGES`, dedup key per campaign and address, a restart
+  goes on after the last batch), DONE when none waits, cancelled while running (its waiting messages SKIPPED). Its own
+  lifetime, 24 h by default, set at the launch. The new field `{pointsBalance}`; the example template `PROMO_SMS_FR`
+  written inactive at the start.
 
 ### Enhancements
 - Communication, step 4: a message sent again keeps its history in `last_error` ("resent ... by ...; before: ..."), and
   a message SENT keeps the `last_error` of its earlier attempts (step 3 cleared it).
+- Communication, step 7: the sender sends the automatic messages (welcome, thanks) first in each cycle, the campaigns'
+  in the time left; before sending it also leaves out a member made inactive or whose address changed since the message
+  was made (step 5 read the consent only). The empty-field guard of every message: the company's name empty takes the
+  store's, the store's empty takes the company's, both empty the licence holder's; a field still empty, no message (the
+  reason names it); the previews show such a field as typed. An email's subject is filled like its text.
 
 ### DB script
 - `db/3.3.0/update.sql`: the tables `comm_event` (what happened) and `comm_message` (what to send), every text column
@@ -57,7 +71,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   activation instant, the finders' cursors) and the index `ix_comm_event_source`; run the script again on a database
   that ran its step 1 version. Step 3: the tables `comm_template` and `comm_rule`. Step 5: `loyalty_member` gains
   `message_consent` (bit, not null, default 0: every existing member without consent), `message_consent_at`,
-  `message_consent_by`, on a store and on a head office alike.
+  `message_consent_by`, on a store and on a head office alike. Step 7: the table `comm_campaign` and
+  `comm_message.campaign_id` with the index `ix_comm_message_campaign`; run the script again on a database that ran an
+  earlier version of it.
 
 ### Config
 - `communication.enabled` (store and head office): `true` turns the module on; absent, empty or `false` (core's

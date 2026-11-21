@@ -4,7 +4,8 @@
 step 3 (rules and templates make the messages, a test provider "sends" them; channels in the properties), step 4 (the
 Communication page: messages, rules, templates), step 5 (the member's consent; rules created from the page), step 6
 (the head office shape: a store whose loyalty is the head office's pushes its events up, the head office makes and
-sends the messages). No campaign, no member language, no real provider yet.
+sends the messages), step 7 (the campaigns: one template to every member who accepts messages; the empty-field guard of
+every message). No member language, no member filter on a campaign, no real provider yet.
 
 Messages to loyalty members by WhatsApp, SMS and email: two automatic events in version 1 ("loyalty member created",
 "ticket validated for a member") and a simple campaign (one template to every member with consent). The till never
@@ -456,9 +457,93 @@ ERROR, 0 console error. Run the WARs exploded (`WarLauncher`, as `devenv/start.p
 reads each first class lookup through its nested jars, and the first requests can take 30 to 45 s (a push timed out
 once at 10 s; its duplicate was answered "already at the head office").
 
+## Step 7: the campaigns
+
+A campaign sends one template, once, to every member who accepts messages: a promotion, a piece of news. Only where
+the messages are made (`COMMUNICATION_SENDS_HERE`: a store alone, a store that owns its loyalty, a head office); a
+store whose loyalty is the head office's has no tab and no API (404). It needs the module on; it does not depend on
+the activation instant. Rights: the read and write rights of the page (`write:admin-communication` launches and
+cancels).
+
+**Tables** (`db/3.3.0/update.sql`, sections 7 and 8, safe to run twice): `comm_campaign` (`CommunicationCampaign`):
+`code` (CMP- and the launch instant, unique), `name`, `template_code`, `channel`, a copy of the template's
+`language_code`, `subject` and `body` when it was launched (a template changed or switched off later changes nothing),
+`status` RUNNING / DONE / CANCELLED (no draft: the window counts and previews before anything is written), `lifetime_hours`,
+`targeted` (the count at the launch), `made`, `left_out`, `last_member_id` (the cursor of the making), `launched_at`,
+`launched_by`, `made_at`, `ended_at`, `cancelled_by`. `comm_message.campaign_id` (null for an automatic message) and its
+index `ix_comm_message_campaign (campaign_id, status)`.
+
+**Who receives it** (`CampaignAudience`): one query, `LoyaltyMemberRepository.findCampaignCandidates` (active members
+with the consent, not a copy of a head office's register (origin HEAD_OFFICE), by id), then for each member in id
+order the same checks: a card merged into another member (a head office's `ho_loyalty_alias`) is never a recipient;
+no address for the channel (8 digits for SMS and WhatsApp, an email: the rule of every message) left out; an address
+met before (two members, one phone) left out, the first member by id keeps it; a field of the template without a
+value left out. The window's count and the maker's messages read the same query and the same checks
+(`CampaignAudienceQueryTest` runs the query on H2). The members without consent are counted by
+`countActiveWithoutConsent`. A head office reaches the members of every store (no store filter in version 1).
+
+**Fields** a campaign fills: `firstName`, `lastName`, `cardNumber`, `pointsBalance` (the member's balance now; a new
+field, also in the welcome's payload), `companyName` (Company information), `storeName` (a store: its own name; a head
+office: the store where the member enrolled, its author `STORE:<code>` or its card `LYL-<code>-...`, none for its own
+members). A template with a sale's field (`ticketNumber`, `total`, `pointsEarned`, `pointsSpent`, `balanceAfter`) is not
+offered and is refused (`COMM_CAMPAIGN_TEMPLATE_FIELDS`).
+
+**Launch** (`POST /communication/campaigns`): refused with a coded reason: no name, a lifetime outside 1 to 720 h, a
+template unknown, of another channel, switched off or with a sale's field, its channel off (`COMM_CHANNEL_OFF`),
+nobody to receive it (`COMM_CAMPAIGN_NO_RECIPIENT`); the same template already launched today: 409
+`COMM_CAMPAIGN_SAME_DAY` until the request says `confirmSameDay` (the window's tick). Launched: the row RUNNING with the
+count of now, nothing else in the request.
+
+**The making** (`CommunicationCampaignMaker`, task `CAMPAIGN_MESSAGES`, order 15: after the automatic messages are
+made, before the sender), at most 8 s of each cycle: batches of 200 members by id, each in its own transaction with the
+campaign's cursor, so a restart goes on after the last batch written. One message per campaign and address (dedup key
+`CAMPAIGN:<id>:<address>`, unique): a batch made twice writes no double. Each message: its campaign, no event, the
+address and the text with the member's values, `expires_at` = the launch plus the campaign's lifetime (24 h by
+default, set in the window, 1 to 720 h). Every member read: `made_at`; the campaign DONE once none of its messages waits.
+The speed of the making with a large member table is not measured yet (tested with up to 450 members in memory and 6 on
+a database).
+
+**The sender** (`CommunicationSender`): before step 7 it took the due messages by id, 50 at a time, until the cycle's
+deadline. Now two queues in each cycle: the automatic messages first (`findDue(..., AUTOMATIC)`, no campaign), then
+the campaigns' in the time left (`CAMPAIGN`): a campaign of thousands never delays a welcome or a thanks, which wait at
+most one cycle. A cancelled campaign's message is not sent (its status read at most every 2 s). Before sending any
+message to a member: the member gone, made inactive, without consent, or its address no longer the message's (a phone
+corrected since): SKIPPED with the reason (step 5 read the consent only).
+
+**Cancel** (`POST /communication/campaigns/{id}/cancel`, while RUNNING): CANCELLED, its waiting messages SKIPPED in one
+statement ("campaign cancelled by <user> at <time>"), the ones sent stay; nothing more made.
+
+**The empty-field guard** (every message, automatic and campaign; `CommunicationTemplates.withFallbacks`): the
+company's name empty takes the store's; the store's name empty takes the company's; both empty, the licence holder's
+name (the current licence). The member's fields missing in a payload are taken from the member. A field still empty:
+the message is not made (an automatic one: the rule's reason `no value for {field}`; a campaign: the member left out,
+counted). The previews show a field without a value as typed (`{companyName}`) and name it; the template window says
+when Company information is empty.
+
+**Page**: a fourth tab, Campagnes: the list (name, template, channel, date, who, targeted, sent, failed, skipped,
+status; refreshed every 10 s while one runs), "Nouvelle campagne" (a wide window: name, channel, template (the others
+listed with why they are not offered), lifetime; who receives it and who is left out and why; the preview with the
+first member who would receive it; the warning of the same day and its tick; a confirmation), one campaign (its
+counters, its text, its dates, Cancel while running, its messages: the Messages tab filtered on it). The Messages tab:
+a Campaign column, a campaign filter (the counters follow it; the events left out belong to no campaign). A campaign's
+message is the head office's own in the store filter. The seeded example: `PROMO_SMS_FR`, inactive, no rule.
+
+**API** (read: the read right; launch and cancel: the write right): `GET /communication/campaigns?page=&size=`, `GET
+/communication/campaigns/names`, `GET /communication/campaigns/templates`, `POST /communication/campaigns/audience`
+{templateCode, channel}, `GET /communication/campaigns/{id}`, `POST /communication/campaigns`, `POST
+/communication/campaigns/{id}/cancel`; `campaign=<id>` on `/messages` and `/counters`.
+
+Tests: `CommunicationCampaignsTest` (launch, making, sending, DONE; one phone; restart and a batch made twice; cancel;
+refusals; the same day; automatic first; read again before sending; the guard, automatic and campaign),
+`CampaignAudienceQueryTest` (the query on H2), `CommunicationPromoSeedTest`, with `CampaignTestBed`. The rules changed on
+purpose: `CommunicationMessagesTest.message` (an empty `{storeName}` now takes the company's name),
+`CommunicationAdminTest.preview` (11 fields with `pointsBalance`), `InstallationBeansProofTest` (132 beans).
+
+Screen test (2026-11-21): the Happyness store on `pos_franchise_customer` (`configs/local/test_happyness_store`) and the
+ZEN pair (`test_zen_store` + `test_zen_ho`), the WARs exploded; the 9 points passed, 0 back-end ERROR, 0 console error.
+
 ## Next steps (to be agreed one at a time)
 
-The member's language (it travels with the
-shared loyalty register; templates then need a key on code and language; a rule then needs a purpose, service or
-marketing), step 6 the head office side (the events of its stores whose loyalty it owns), the campaign (a
-`campaign_id` on the message), step 8 the real providers.
+The member's language (it travels with the shared loyalty register; templates then need a key on code and language; a
+rule then needs a purpose, service or marketing), member filters on a campaign (store, points, last purchase), a
+planned date, a promo code per member, step 8 the real providers.

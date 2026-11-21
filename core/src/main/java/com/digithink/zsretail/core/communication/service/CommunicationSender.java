@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,8 +17,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.core.communication.CommunicationTypes;
+import com.digithink.zsretail.core.communication.enumeration.CommunicationCampaignStatus;
 import com.digithink.zsretail.core.communication.enumeration.CommunicationMessageStatus;
+import com.digithink.zsretail.core.communication.model.CommunicationCampaign;
 import com.digithink.zsretail.core.communication.model.CommunicationMessage;
+import com.digithink.zsretail.core.communication.repository.CommunicationCampaignRepository;
 import com.digithink.zsretail.core.communication.provider.CommunicationProvider;
 import com.digithink.zsretail.core.communication.provider.CommunicationProvider.SendResult;
 import com.digithink.zsretail.core.communication.repository.CommunicationMessageRepository;
@@ -54,11 +58,34 @@ public class CommunicationSender implements CommunicationTask {
 	private final CommunicationSettings settings;
 	private final Map<String, CommunicationProvider> providers = new LinkedHashMap<>();
 	private final Supplier<LocalDateTime> clock;
+	/** Step 7: the campaigns, to leave a cancelled one's messages unsent; null in the tests of before (no campaign). */
+	private CommunicationCampaignRepository campaigns;
+	/** Step 7: a campaign's status read at most every {@link #CAMPAIGN_STATUS_AGE} (comm-1 thread only). */
+	private final Map<Long, CampaignStatusRead> campaignStatuses = new HashMap<>();
+	static final Duration CAMPAIGN_STATUS_AGE = Duration.ofSeconds(2);
+
+	private static final class CampaignStatusRead {
+		final CommunicationCampaignStatus status;
+		final Instant readAt;
+
+		CampaignStatusRead(CommunicationCampaignStatus status, Instant readAt) {
+			this.status = status;
+			this.readAt = readAt;
+		}
+	}
 
 	@Autowired
 	public CommunicationSender(CommunicationMessageRepository messages, LoyaltyMemberRepository members,
-			CommunicationSettings settings, List<CommunicationProvider> providers) {
+			CommunicationSettings settings, List<CommunicationProvider> providers,
+			CommunicationCampaignRepository campaigns) {
 		this(messages, members, settings, providers, LocalDateTime::now);
+		this.campaigns = campaigns;
+	}
+
+	/** Step 7: with the campaigns (tests). */
+	public CommunicationSender withCampaigns(CommunicationCampaignRepository campaigns) {
+		this.campaigns = campaigns;
+		return this;
 	}
 
 	/** With a given clock: used by the tests. */
@@ -76,14 +103,35 @@ public class CommunicationSender implements CommunicationTask {
 		return CODE;
 	}
 
+	/**
+	 * Step 7: the automatic messages (an event's) first, then the campaigns' in the time left: a campaign of thousands of
+	 * members never delays a welcome or a thanks (the next cycle starts again with the automatic ones).
+	 */
 	@Override
 	public String run(Instant deadline) {
 		Map<CommunicationMessageStatus, Integer> counts = new LinkedHashMap<>();
-		int retried = 0;
+		int[] retried = { 0 };
+		send(CommunicationMessageRepository.AUTOMATIC, deadline, counts, retried);
+		send(CommunicationMessageRepository.CAMPAIGN, deadline, counts, retried);
+		campaignStatuses.clear();
+		if (counts.isEmpty() && retried[0] == 0) {
+			return null;
+		}
+		StringBuilder done = new StringBuilder();
+		counts.forEach((status, n) -> done.append(done.length() == 0 ? "" : ", ").append(n).append(' ')
+				.append(status.name().toLowerCase(java.util.Locale.ROOT)));
+		if (retried[0] > 0) {
+			done.append(done.length() == 0 ? "" : ", ").append(retried[0]).append(" to try again");
+		}
+		return done.toString();
+	}
+
+	/** One queue, by id, until the deadline. */
+	private void send(int queue, Instant deadline, Map<CommunicationMessageStatus, Integer> counts, int[] retried) {
 		long afterId = 0;
 		while (Instant.now().isBefore(deadline)) {
 			List<CommunicationMessage> due = messages.findDue(CommunicationMessageStatus.PENDING, clock.get(), afterId,
-					PageRequest.of(0, PAGE_SIZE));
+					PageRequest.of(0, PAGE_SIZE), queue);
 			if (due.isEmpty()) {
 				break;
 			}
@@ -93,8 +141,11 @@ public class CommunicationSender implements CommunicationTask {
 					break;
 				}
 				CommunicationMessageStatus status = handle(message);
+				if (status == null) {
+					continue; // a cancelled campaign's: SKIPPED by the cancel itself
+				}
 				if (status == CommunicationMessageStatus.PENDING) {
-					retried++;
+					retried[0]++;
 				} else {
 					counts.merge(status, 1, Integer::sum);
 				}
@@ -103,20 +154,29 @@ public class CommunicationSender implements CommunicationTask {
 				break;
 			}
 		}
-		if (counts.isEmpty() && retried == 0) {
-			return null;
-		}
-		StringBuilder done = new StringBuilder();
-		counts.forEach((status, n) -> done.append(done.length() == 0 ? "" : ", ").append(n).append(' ')
-				.append(status.name().toLowerCase(java.util.Locale.ROOT)));
-		if (retried > 0) {
-			done.append(done.length() == 0 ? "" : ", ").append(retried).append(" to try again");
-		}
-		return done.toString();
 	}
 
-	/** One message: sent (or not) and saved. Returns its new status. */
+	/** Step 7: false when the message's campaign was cancelled (read at most every 2 s). */
+	private boolean campaignRunning(Long campaignId) {
+		if (campaignId == null || campaigns == null) {
+			return true;
+		}
+		Instant now = Instant.now();
+		CampaignStatusRead read = campaignStatuses.get(campaignId);
+		if (read == null || read.readAt.plus(CAMPAIGN_STATUS_AGE).isBefore(now)) {
+			CommunicationCampaignStatus status = campaigns.findById(campaignId).map(CommunicationCampaign::getStatus)
+					.orElse(CommunicationCampaignStatus.CANCELLED);
+			read = new CampaignStatusRead(status, now);
+			campaignStatuses.put(campaignId, read);
+		}
+		return read.status != CommunicationCampaignStatus.CANCELLED;
+	}
+
+	/** One message: sent (or not) and saved. Returns its new status; null when its campaign was cancelled (not touched). */
 	CommunicationMessageStatus handle(CommunicationMessage message) {
+		if (!campaignRunning(message.getCampaignId())) {
+			return null;
+		}
 		LocalDateTime now = clock.get();
 		if (message.getExpiresAt() != null && !now.isBefore(message.getExpiresAt())) {
 			return save(message, CommunicationMessageStatus.EXPIRED, "expired at " + message.getExpiresAt() + ", not sent");
@@ -165,7 +225,8 @@ public class CommunicationSender implements CommunicationTask {
 
 	/**
 	 * Step 5: why a message to a loyalty member may not leave now (its consent withdrawn, the member gone), null when it
-	 * may. A message to anyone else is not checked here.
+	 * may. A message to anyone else is not checked here. Step 7: the member made inactive, or its address no longer the
+	 * message's (a phone or an email changed on the card since the message was made), not sent either.
 	 */
 	String consentRefusal(CommunicationMessage message) {
 		if (!CommunicationTypes.LOYALTY_MEMBER.equals(message.getRecipientType()) || message.getRecipientRef() == null) {
@@ -175,7 +236,17 @@ public class CommunicationSender implements CommunicationTask {
 		if (!member.isPresent()) {
 			return "member " + message.getRecipientRef() + " not found when it was to be sent";
 		}
-		return MessageConsent.given(member.get()) ? null : "no consent when it was to be sent";
+		if (!Boolean.TRUE.equals(member.get().getActive())) {
+			return "member inactive when it was to be sent";
+		}
+		if (!MessageConsent.given(member.get())) {
+			return "no consent when it was to be sent";
+		}
+		String address = CommunicationEventProcessor.address(message.getChannel(), member.get(), settings.getCountryCode());
+		if (address == null || !address.equals(message.getAddress())) {
+			return "address changed since the message was made";
+		}
+		return null;
 	}
 
 	private CommunicationMessageStatus save(CommunicationMessage message, CommunicationMessageStatus status, String error) {

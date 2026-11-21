@@ -29,7 +29,8 @@ import lombok.NoArgsConstructor;
 @Table(name = "comm_message",
 		uniqueConstraints = @UniqueConstraint(name = "uk_comm_message_dedup", columnNames = "dedup_key"),
 		indexes = { @Index(name = "ix_comm_message_queue", columnList = "status, next_attempt_at"),
-				@Index(name = "ix_comm_message_event", columnList = "event_id") })
+				@Index(name = "ix_comm_message_event", columnList = "event_id"),
+				@Index(name = "ix_comm_message_campaign", columnList = "campaign_id, status") })
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
@@ -40,6 +41,10 @@ public class CommunicationMessage extends _BaseEntity {
 	/** comm_event id of the event that made it; null for a campaign message. */
 	@Column(name = "event_id")
 	private Long eventId;
+
+	/** Step 7: comm_campaign id of the campaign that made it; null for an automatic message (an event's). */
+	@Column(name = "campaign_id")
+	private Long campaignId;
 
 	/** WHATSAPP, SMS or EMAIL. */
 	@Nationalized
