@@ -11,8 +11,9 @@ SMTP connection per cycle; the sending time in the New campaign window; the cert
 step 8b (SMS through an HTTP gateway set entirely in the properties; an answer that never came is never sent again by
 itself; a faster cycle while messages wait), step 8c (WhatsApp through Meta's Cloud API, provider `meta`: template
 messages only, Meta's answers sorted by error code, a template refused stops its campaign; SMS retry-no-answer, the
-email's 60 s after the final ".", a provider's wait at most 60 min). No webhook (delivery is not followed), no member
-language, no member filter on a campaign.
+email's 60 s after the final ".", a provider's wait at most 60 min), step 8d (Meta's codes 131049, 131030, 132005
+per message, API v26.0, the module check and its open list, the setup guide `communication-setup.md`). No webhook
+(delivery is not followed), no member language, no member filter on a campaign.
 
 Messages to loyalty members by WhatsApp, SMS and email: two automatic events in version 1 ("loyalty member created",
 "ticket validated for a member") and a simple campaign (one template to every member with consent). The till never
@@ -873,7 +874,7 @@ connection per message.
 | Line | Default | Meaning |
 |---|---|---|
 | `communication.whatsapp.meta.url` | `https://graph.facebook.com` | Meta's address, or a reseller's offering the same API |
-| `communication.whatsapp.meta.api-version` | `v27.0` | Graph API version (latest on 2026-11-21) |
+| `communication.whatsapp.meta.api-version` | `v26.0` | Graph API version, the newest on Meta's versions page (step 8d; step 8c wrote v27.0, a version Meta has not published) |
 | `communication.whatsapp.meta.phone-number-id` | empty | the sender's phone number id at Meta (digits) |
 | `communication.whatsapp.meta.token` | empty | the access token; only in the outside file |
 | `communication.whatsapp.meta.token-header` | `Authorization` | a reseller's header name |
@@ -896,12 +897,13 @@ line's codes win over the built-in ones; an unknown code: 401 / 403 / 429 / 5xx 
   200-299, 100 (a parameter: the number id or the request's shape, every message would meet it); integrity 368, 131031;
   throughput 4, 80007, 130429, 131048, 131064; the account or the number 33, 131005, 131037, 131042 (payment), 131045,
   131057, 133010; Meta unavailable 1, 2, 131000, 131016, 133004. `Retry-After` honoured, at most 60 min;
-- this message tried again later (attempts used, waits 1, 5, 15, 60 min, then FAILED): 131049 (Meta held it to keep
-  engagement healthy), 131056 (too many messages to that recipient);
+- this message tried again later (attempts used, waits 1, 5, 15, 60 min, then FAILED): 131056 (too many messages to
+  that recipient); step 8c also had 131049 here, moved by step 8d;
 - this message FAILED at once with Meta's words: 130403, 130472, 130497, 131008, 131009, 131021, 131026 (the recipient
-  cannot receive: not on WhatsApp, an old app), 131047, 131050 (stopped marketing messages), 131051, 135000;
+  cannot receive: not on WhatsApp, an old app), 131047, 131050 (stopped marketing messages), 131051, 135000; step 8d
+  added 131049, 131030, 131066 and 132005 (below, "Step 8d");
 - the template's problem (`Outcome.TEMPLATE_PROBLEM`): 131063, 132000, 132001 (not approved or not in that language),
-  132005, 132007, 132012, 132015, 132016, 132068, 132069. That message FAILED; the template marked
+  132007, 132012, 132015, 132016, 132068, 132069 (132005 until step 8d). That message FAILED; the template marked
   (`comm_template.provider_problem`, `provider_problem_at`); a campaign of it STOPPED (new status) with `stop_reason`,
   its waiting messages SKIPPED "campaign stopped: <reason>" (`CommunicationTemplateProblems`, one transaction); the
   channel never paused, the other templates' messages leave. The mark shows on the Templates tab ("refusé par Meta") and
@@ -981,6 +983,84 @@ tab for WhatsApp in fr and ar, the test window with its template. SMS left from 
 through the catch gateway: 5 SMS a cycle, the next cycle 5 s after; the ZEN head office (ERP jobs all off, its local file
 backed up and restored): the SMS Canaux tab and a test SMS. 0 back-end ERROR over four starts (three of the store, one
 of the head office), 0 console error on the head office's tabs.
+
+## Step 8d: Meta corrections, the module check, the setup guide
+
+The last build step: corrections of the provider `meta`, a read-only check of steps 1 to 8c, and the installer's guide
+`communication-setup.md` (same folder).
+
+**Meta** (`MetaWhatsAppProvider`; Meta's pages read again on 2026-11-21):
+- The default API version is **v26.0** (29 July 2026), the newest on Meta's versions page; Meta's page for v27.0 does
+  not exist (404): step 8c's v27.0 was wrong.
+- 131049 ("not delivered to maintain healthy ecosystem engagement": Meta limits marketing messages for this person) is
+  FAILED at once, `WhatsApp marketing limit at Meta (#131049), try again after 24 h: <Meta's words>`; the waits of 1 to
+  60 min only used the attempts. Meta's page says that from February 2027 code 131066 replaces it for template quality
+  or price: 131066 is FAILED at once too (an unknown code with HTTP 400 already was).
+- 131030 (a test sender number's recipient not in its allowed list; not on Meta's codes page, met in the real tests):
+  FAILED at once, `WhatsApp number not in the allowed list of Meta's test number (#131030), add it in Meta's app
+  dashboard (WhatsApp, API Setup): <Meta's words>`.
+- 132005 ("Translated text is too long") fails that message only: an approved template is within Meta's limit, only the
+  member's values change at sending. If an approved text is close to the limit, each member with long values fails
+  alone, one call each; the campaign goes on.
+- 131056 is still tried again later. The four code lines still move any code.
+
+**Labels fixed by the check** (no behaviour change): the reasons the screens showed in English are translated (fr, ar,
+en): `expired at <time>, not sent`, `channel <x> off when it was to be sent`, `member <card> not found when it was to be
+sent`, the history of a message sent again (`resent <time> by <user> (<status> after <n> attempt(s))` and the earlier
+reason after `before: `, translated in its turn), the SMS pause reasons of `retry-no-answer`, `provider <x> unknown`,
+`recipient type <x> not handled`, `sender name not encodable`, a bare `no answer from the provider`; the email's "no
+answer after the email was sent" pattern now comes before the generic `SMTP: ...` one (it was never reached); the raw
+event values' label `payload`. Comments of `application.properties` brought up to date (the providers, the keys that
+stop the start, `${...}` never in a value, an empty token prefix, the lines of a store whose loyalty is the head
+office's).
+
+**Open after the check** (behaviour changes, listed, not made; to be agreed):
+- Before the real tests:
+  - one message can block a channel: a channel problem leaves the message first in line, so after each pause the same
+    message pauses the channel again until its own expiry (24 h by default, up to 720 h; a campaign's messages share
+    one expiry), the channel's other messages waiting. Possible from one message's data: Meta #100 for a value holding
+    a tab, a newline or more than 4 spaces; an SMS gateway's 402, 403, 404 (a long GET query) or 5xx for one text, a
+    `channel-error-texts` word found in an answer when no `error-field` is set, a hang with `retry-no-answer`; email
+    hardly (a 421 or x.4.5 on a fresh connection). Smallest fix: put that message behind the next try (attempts
+    unused); the same message meeting it again after another message was accepted is FAILED at once without a pause,
+    the provider's words on its row; WhatsApp values cleaned (tab and newline to a space, runs of spaces to one);
+  - two back ends on one database send each message twice: the SENDING claim is a plain save, no lock or version.
+    Fix: `update ... set status = SENDING where id = ? and status = PENDING`, 0 rows: skip;
+  - a message of a STOPPED or CANCELLED campaign sent again by hand stays "En attente" for ever (the campaign is checked
+    before the expiry) and keeps the 5 s cycle running. Fix: refuse that resend, and check the expiry first;
+  - switching the module off and on again does not forget: the tickets and members of the off time within their
+    rule's lifetime get their messages at once. Fix to agree: skip the events of a gap, as the head office's "happened
+    before the communication module was on";
+  - a store whose loyalty is the head office's reads, checks and logs its own channel lines (a wrong provider or
+    country code stops its start; its test-recipient line is ignored while the head office sends for real). Fix: those
+    beans only where it sends, one WARN naming the lines ignored (the guide warns meanwhile);
+  - the provider `test` is the silent default: a channel switched on without its provider line records every message
+    as "Envoyé" (nothing leaves, never sent later). Fix: a WARN at the start and a warning on the Canaux tab and in the
+    New campaign window (stronger: no provider line, the channel off with the reason).
+- Can wait: a proxy's 502 / 504 / 524 in front of an SMS gateway or Meta may follow an acceptance (sent again after
+  the pause: a double; fix: uncertain); four keys still stop the start (`communication.enabled`, `cycle-seconds`, a
+  provider name, `phone-country-code`; the rule asked "never"); a campaign whose channel is switched off goes on making
+  messages, all SKIPPED, and ends DONE (fix: STOPPED "channel off"); a template refused on an automatic rule logs one
+  WARN per message (fix: when newly marked); a `Retry-After: 1` gives a WARN each cycle (fix: floor at the pause
+  steps); `GET /loyalty/members` counts the consenting members even with the module off; on a head office the ticket
+  search finds nothing and a store's payload wins over the member (a merged card's old number); a loyalty ownership
+  change while events wait (both may send, or the store's waiting messages never leave); no confirmation before sending
+  again a message "interrupted" or with "no answer"; reasons holding "; " split in two; the 403 answer without a code;
+  `phoneInvalid` drops the rule; dead code (`CommunicationTemplates.MEMBER_FIELDS`, the front's `CHANNELS` and
+  `CAMPAIGN_STATUSES`, `GET /communication/rules/{id}` and `/templates/{id}`); the script's header runs sqlcmd without
+  `-b`.
+- Security (listed only): the token, key and password in plain text in the outside file; an http address accepted for
+  Meta; `token-header` / `token-prefix` send the token wherever the file says; `mask()` hides the raw values only, not
+  their URL, form or JSON encodings nor `{basic}`; a provider's exception text kept unmasked; Meta's words (phone
+  numbers) and `provider_params` (members' values) kept without a retention rule; `campaigns/audience` open to the read
+  right (a member's name, card and address); the write right sends tests to any address, no cap; any store with a valid
+  key can push events for any card with any values; the members' search by consent and the consent change need only a
+  login; ADMIN gets its three rights back at every start; `configs/customers/store-prod.properties` and
+  `erp-prod.properties` log SQL with its values (TRACE), members' phones and emails included; a future webhook must
+  check Meta's signature.
+
+Tests: `MetaWhatsAppProviderTest.step8dCodes` (131049, 131030, 132005, 131066, 131056, a line moving 131049 back);
+`positional` and `lines` expect v26.0; `ConfigurationKeysProofTest` (its record: v26.0).
 
 ## Next steps (to be agreed one at a time)
 

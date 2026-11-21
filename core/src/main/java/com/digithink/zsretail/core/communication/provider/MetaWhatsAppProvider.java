@@ -55,14 +55,17 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * <li>the channel's problem (the pause): authorization (0, 3, 10, 190, 200-299, 100), integrity (368, 131031),
  * throughput (4, 80007, 130429, 131048, 131064), the account or number (33, 131005, 131037, 131042, 131045, 131057,
  * 133010), Meta unavailable (1, 2, 131000, 131016, 133004);</li>
- * <li>this message tried again later: 131049 (Meta held it to keep engagement healthy), 131056 (too many to that
- * recipient);</li>
+ * <li>this message tried again later: 131056 (too many messages to that recipient in a short time);</li>
  * <li>this message FAILED at once: 130403, 130472, 130497, 131008, 131009, 131021, 131026 (cannot receive), 131047,
- * 131050 (stopped marketing), 131051, 135000;</li>
- * <li>the template's problem: 131063, 132000, 132001, 132005, 132007, 132012, 132015, 132016, 132068, 132069.</li>
+ * 131050 (stopped marketing), 131051, 135000; step 8d: 131049 (Meta limits marketing messages to this person: wait
+ * at least 24 h, the waits of 1 to 60 min only used the attempts), 131030 (a test sender number's recipient not in its
+ * allowed list), 131066 (from February 2027, Meta's code for a marketing message not delivered to this person for the
+ * template's quality or price), 132005 (the text too long once filled with this member's values: an approved
+ * template is within Meta's limit, only the values change at sending);</li>
+ * <li>the template's problem: 131063, 132000, 132001, 132007, 132012, 132015, 132016, 132068, 132069.</li>
  * </ul>
- * An unknown code: by the HTTP status (401, 403, 429, 5xx: the channel's; another: this message's). See
- * docs/modules/communication.md, "Step 8c".
+ * 131049 and 131030 carry what to do in their reason. An unknown code: by the HTTP status (401, 403, 429, 5xx: the
+ * channel's; another: this message's). See docs/modules/communication.md, "Step 8c" and "Step 8d".
  */
 @Component
 @ConditionalOnInstallation(Installation.COMMUNICATION)
@@ -84,7 +87,8 @@ public class MetaWhatsAppProvider implements CommunicationProvider {
 	public static final String TEMPLATE_CODES_KEY = PREFIX + "template-codes";
 
 	static final String DEFAULT_URL = "https://graph.facebook.com";
-	static final String DEFAULT_API_VERSION = "v27.0";
+	/** Step 8d: the newest version on Meta's versions page (v26.0, 29 July 2026; there is no v27.0 yet). */
+	static final String DEFAULT_API_VERSION = "v26.0";
 
 	/** The families of Meta's error codes. */
 	enum Family {
@@ -93,10 +97,14 @@ public class MetaWhatsAppProvider implements CommunicationProvider {
 
 	static final String DEFAULT_CHANNEL_CODES = "0,1,2,3,4,10,33,100,190,200-299,368,80007,130429,131000,131005,131016,"
 			+ "131031,131037,131042,131045,131048,131057,131064,133004,133010";
-	static final String DEFAULT_RETRY_CODES = "131049,131056";
-	static final String DEFAULT_MESSAGE_CODES = "130403,130472,130497,131008,131009,131021,131026,131047,131050,131051,"
-			+ "135000";
-	static final String DEFAULT_TEMPLATE_CODES = "131063,132000,132001,132005,132007,132012,132015,132016,132068,132069";
+	static final String DEFAULT_RETRY_CODES = "131056";
+	static final String DEFAULT_MESSAGE_CODES = "130403,130472,130497,131008,131009,131021,131026,131030,131047,131049,"
+			+ "131050,131051,131066,132005,135000";
+	static final String DEFAULT_TEMPLATE_CODES = "131063,132000,132001,132007,132012,132015,132016,132068,132069";
+
+	/** Step 8d: a message refused by Meta for these codes is FAILED at once with what to do. */
+	static final long MARKETING_LIMIT = 131049;
+	static final long NOT_IN_ALLOWED_LIST = 131030;
 
 	private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -330,6 +338,14 @@ public class MetaWhatsAppProvider implements CommunicationProvider {
 				return SendResult.templateProblem("WhatsApp template " + templateName + " (" + language + ") refused by Meta ("
 						+ number + "): " + words);
 			default:
+				if (code != null && code == MARKETING_LIMIT) {
+					return SendResult.permanentFailure("WhatsApp marketing limit at Meta (" + number + "), try again after 24 h: "
+							+ words);
+				}
+				if (code != null && code == NOT_IN_ALLOWED_LIST) {
+					return SendResult.permanentFailure("WhatsApp number not in the allowed list of Meta's test number (" + number
+							+ "), add it in Meta's app dashboard (WhatsApp, API Setup): " + words);
+				}
 				return SendResult.permanentFailure("WhatsApp message refused by Meta (" + number + "): " + words);
 		}
 	}

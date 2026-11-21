@@ -105,7 +105,7 @@ class MetaWhatsAppProviderTest {
 		assertNull(result.getError());
 		CatchHttpProvider.Request request = meta.requests().get(0);
 		assertEquals("POST", request.getMethod());
-		assertEquals("/v27.0/106540352242922/messages", request.getPath());
+		assertEquals("/v26.0/106540352242922/messages", request.getPath());
 		assertEquals("Bearer " + TOKEN, request.header("Authorization"));
 		JsonNode body = JSON.readTree(request.getBody());
 		assertEquals("whatsapp", body.get("messaging_product").asText());
@@ -211,6 +211,40 @@ class MetaWhatsAppProviderTest {
 	}
 
 	@Test
+	@DisplayName("Step 8d: 131049 (Meta's marketing limit, wait 24 h) and 131030 (not in the test number's allowed list)"
+			+ " FAILED at once with what to do; 132005 (too long with this member's values) this message only, never the"
+			+ " template's; 131066 FAILED at once; 131056 still tried again later")
+	void step8dCodes() {
+		MetaWhatsAppProvider provider = new MetaWhatsAppProvider(env());
+		SendResult limit = provider.answer(400, metaError(131049, "(#131049) This message was not delivered to maintain"
+				+ " healthy ecosystem engagement."), null, "zs_promo", "fr");
+		assertEquals(Outcome.PERMANENT_FAILURE, limit.getOutcome());
+		assertEquals("WhatsApp marketing limit at Meta (#131049), try again after 24 h: (#131049) This message was not"
+				+ " delivered to maintain healthy ecosystem engagement.", limit.getError());
+		SendResult notAllowed = provider.answer(400, metaError(131030, "(#131030) Recipient phone number not in allowed"
+				+ " list"), null, "zs_promo", "fr");
+		assertEquals(Outcome.PERMANENT_FAILURE, notAllowed.getOutcome());
+		assertEquals("WhatsApp number not in the allowed list of Meta's test number (#131030), add it in Meta's app"
+				+ " dashboard (WhatsApp, API Setup): (#131030) Recipient phone number not in allowed list", notAllowed.getError());
+		SendResult tooLong = provider.answer(400, metaError(132005, "(#132005) Translated text is too long"), null,
+				"zs_promo", "fr");
+		assertEquals(Outcome.PERMANENT_FAILURE, tooLong.getOutcome(), "the member's values, not the template");
+		assertEquals("WhatsApp message refused by Meta (#132005): (#132005) Translated text is too long",
+				tooLong.getError());
+		assertEquals(MetaWhatsAppProvider.Family.MESSAGE, provider.family(131066));
+		assertEquals(Outcome.TEMPORARY_FAILURE, provider.answer(400, metaError(131056, "(#131056) Pair rate limit hit"),
+				null, "zs_promo", "fr").getOutcome());
+		assertEquals(MetaWhatsAppProvider.Family.TEMPLATE, provider.family(132001));
+		assertEquals(MetaWhatsAppProvider.Family.RETRY, new MetaWhatsAppProvider(env().withProperty(
+				MetaWhatsAppProvider.RETRY_CODES_KEY, "131049")).family(131049), "a line still moves it back");
+	}
+
+	private static String metaError(long code, String message) {
+		return "{\"error\":{\"message\":\"" + message + "\",\"type\":\"OAuthException\",\"code\":" + code
+				+ ",\"fbtrace_id\":\"ATEST\"}}";
+	}
+
+	@Test
 	@DisplayName("No answer once the request left: uncertain, sent once")
 	void noAnswer() throws InterruptedException {
 		meta.mode(Mode.NO_ANSWER);
@@ -241,7 +275,7 @@ class MetaWhatsAppProviderTest {
 		assertFalse(provider.serves(CommunicationTypes.SMS));
 		Map<String, Object> shown = provider.describe();
 		assertEquals("127.0.0.1", shown.get("host"));
-		assertEquals("v27.0", shown.get("apiVersion"));
+		assertEquals("v26.0", shown.get("apiVersion"));
 		assertEquals("106540352242922", shown.get("phoneNumberId"));
 		assertEquals("set", shown.get("token"));
 		assertFalse(shown.toString().contains(TOKEN));

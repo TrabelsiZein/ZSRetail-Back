@@ -126,6 +126,15 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   60 s (servers check the mail first), the connection's own timeout unchanged; a provider's asked wait (Retry-After)
   never pauses a channel longer than 60 min (24 h before). The message's detail gives a WhatsApp message's template at
   Meta and its values (`providerParams`).
+- Communication, step 8d, Meta's error codes: 131049 (Meta limits marketing messages for this person) is FAILED at once
+  with "try again after 24 h" (before: tried again after 1 to 60 min, which only used the attempts); 131030 (a number
+  not in the allowed list of Meta's test number) FAILED at once with what to do; 132005 (the text too long once filled
+  with this member's values) fails that message only, no longer stopping the campaign nor marking the template; 131066
+  (Meta's code from February 2027) FAILED at once. 131056 is still tried again later.
+
+### Fixes
+- Communication, step 8d: the default WhatsApp API version is v26.0, the newest on Meta's versions page; step 8c had
+  v27.0, a version Meta has not published.
 
 ### DB script
 - `db/3.3.0/update.sql`: the tables `comm_event` (what happened) and `comm_message` (what to send), every text column
@@ -164,7 +173,7 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `.channel-error-texts` (all empty); one line per field and per header (`communication.sms.http.field.<name>`,
   `.header.<Name>`, no default); `communication.sms.provider` accepts `http`. No customer file names them.
 - Step 8c, all optional with their default in core's `application.properties`: `communication.sms.http.retry-no-answer`
-  (false); `communication.whatsapp.meta.url` (https://graph.facebook.com), `.api-version` (v27.0), `.phone-number-id`
+  (false); `communication.whatsapp.meta.url` (https://graph.facebook.com), `.api-version` (v26.0), `.phone-number-id`
   (empty), `.token` (empty; only in the outside file), `.token-header` (Authorization), `.token-prefix` (Bearer),
   `.connect-timeout-seconds` (10), `.read-timeout-seconds` (30), `.channel-codes`, `.retry-codes`, `.message-codes`,
   `.template-codes` (empty: Meta error codes added to a family); `communication.whatsapp.provider` accepts `meta`. No

@@ -87,7 +87,7 @@ import com.digithink.zsretail.support.Installations;
  * lines per configuration, the same everywhere; every other line unchanged.
  * <p>
  * 3.3.0, communication module step 8c: the record gained communication.sms.http.retry-no-answer (false) and the
- * WhatsApp provider meta's twelve keys (communication.whatsapp.meta.url https://graph.facebook.com, api-version v27.0,
+ * WhatsApp provider meta's twelve keys (communication.whatsapp.meta.url https://graph.facebook.com, api-version v26.0,
  * phone-number-id, token, token-header Authorization, token-prefix Bearer, connect-timeout-seconds 10,
  * read-timeout-seconds 30, channel-codes, retry-codes, message-codes, template-codes), all from core's
  * application.properties; token, token-header and token-prefix are recorded "(set)" (a key naming a token, the record's
