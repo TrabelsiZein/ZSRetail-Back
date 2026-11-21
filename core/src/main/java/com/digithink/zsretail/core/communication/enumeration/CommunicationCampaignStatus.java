@@ -13,5 +13,10 @@ public enum CommunicationCampaignStatus {
 	DONE,
 
 	/** Cancelled while running: its waiting messages SKIPPED, the ones sent stay. */
-	CANCELLED
+	CANCELLED,
+	/**
+	 * Step 8c: stopped by the provider's refusal of its template (WhatsApp: not approved, paused, not in that language),
+	 * the same for every one of its messages: its waiting messages SKIPPED, the reason kept (stop_reason).
+	 */
+	STOPPED
 }

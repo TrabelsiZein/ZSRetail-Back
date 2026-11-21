@@ -36,9 +36,12 @@ import com.sun.net.httpserver.HttpServer;
  * set), server error (503), no answer (the request kept, never answered: the client's read timeout), 200 with an error
  * inside; a number refused (400) whatever the mode; any status asked. Under a path holding "/text" it answers plain text
  * ("OK CATCH-0001", "ERR ..."), otherwise JSON ({"status":"OK","messageId":"CATCH-0001"}, {"status":"ERROR","error":
- * "..."}). Each request kept in {@link #requests()}. From the command line, one block per request on the console (the
- * key shown as ***), and the mode changed by GET /_catch/mode/&lt;MODE&gt;, /_catch/refuse/&lt;digits&gt;,
- * /_catch/retry-after/&lt;seconds&gt;, /_catch/accept-all:
+ * "..."}). Step 8c: under a path ending with /messages it answers as Meta's WhatsApp Cloud API (accepted with a wamid,
+ * the token refused #190, the throughput reached #130429, a template refused #132001, a recipient who cannot receive
+ * #131026, Meta unavailable #2, no answer); a delay before each answer (a slow gateway). Each request kept in
+ * {@link #requests()}. From the command line, one block per request on the console (the key shown as ***), and the mode
+ * changed by GET /_catch/mode/&lt;MODE&gt;, /_catch/refuse/&lt;digits&gt;, /_catch/refuse-template/&lt;name&gt;,
+ * /_catch/delay/&lt;ms&gt;, /_catch/retry-after/&lt;seconds&gt;, /_catch/accept-all:
  * {@code java -cp <test classes> com.digithink.zsretail.core.support.CatchHttpProvider <port> [key]}.
  */
 public final class CatchHttpProvider implements Closeable {
@@ -132,6 +135,8 @@ public final class CatchHttpProvider implements Closeable {
 	private final List<Request> requests = new CopyOnWriteArrayList<>();
 	private final AtomicInteger accepted = new AtomicInteger();
 	private final Set<String> refused = Collections.synchronizedSet(new HashSet<>());
+	private final Set<String> refusedTemplates = Collections.synchronizedSet(new HashSet<>());
+	private volatile long delayMillis;
 	private final CountDownLatch closing = new CountDownLatch(1);
 	private volatile String key;
 	private volatile Mode mode = Mode.ACCEPTED;
@@ -171,6 +176,18 @@ public final class CatchHttpProvider implements Closeable {
 	/** A number answered 400 "Invalid destination number" (its digits, without +). */
 	public CatchHttpProvider refuse(String digits) {
 		refused.add(digits);
+		return this;
+	}
+
+	/** Step 8c: a WhatsApp template name answered #132001 (does not exist in that language or not approved). */
+	public CatchHttpProvider refuseTemplate(String name) {
+		refusedTemplates.add(name);
+		return this;
+	}
+
+	/** Step 8c: a wait before each answer (a slow gateway), 0: none. */
+	public CatchHttpProvider delay(long millis) {
+		this.delayMillis = millis;
 		return this;
 	}
 
@@ -217,7 +234,18 @@ public final class CatchHttpProvider implements Closeable {
 			exchange.close();
 			return;
 		}
+		if (delayMillis > 0) {
+			try {
+				Thread.sleep(delayMillis);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			}
+		}
 		String refusedNumber = refused.stream().filter(all::contains).findFirst().orElse(null);
+		if (path.endsWith("/messages") && status == null) {
+			meta(exchange, path, query, headers, body, all, refusedNumber);
+			return;
+		}
 		if (status != null) {
 			code = status;
 			answer = text ? "ERR status " + code : "{\"status\":\"ERROR\",\"error\":\"status " + code + "\"}";
@@ -259,6 +287,56 @@ public final class CatchHttpProvider implements Closeable {
 			out.write(bytes);
 		}
 		note("    answered " + code + ": " + answer);
+	}
+
+	/** Step 8c: Meta's WhatsApp Cloud API answers. */
+	private void meta(HttpExchange exchange, String path, String query, Map<String, List<String>> headers, String body,
+			String all, String refusedNumber) throws IOException {
+		String template = refusedTemplates.stream().filter(name -> body.contains("\"name\":\"" + name + "\""))
+				.findFirst().orElse(null);
+		int code;
+		String answer;
+		if (mode == Mode.KEY_REFUSED || key != null && !all.contains(key)) {
+			code = 401;
+			answer = metaError(190, "Error validating access token: Session has expired on Friday, 21-Nov-26 10:00:00 PST.",
+					null);
+		} else if (mode == Mode.TOO_MANY) {
+			code = 400;
+			answer = metaError(130429, "(#130429) Rate limit hit", "Cloud API message throughput has been reached.");
+		} else if (mode == Mode.SERVER_ERROR) {
+			code = 503;
+			answer = metaError(2, "(#2) Service temporarily unavailable", null);
+		} else if (template != null || mode == Mode.ERROR_INSIDE) {
+			code = 400;
+			answer = metaError(132001, "(#132001) Template name does not exist in the translation", "template name ("
+					+ (template == null ? "?" : template) + ") does not exist in the language");
+		} else if (refusedNumber != null) {
+			code = 400;
+			answer = metaError(131026, "(#131026) Message undeliverable", "Unable to deliver message to " + refusedNumber
+					+ ": not a WhatsApp number or old version");
+		} else {
+			code = 200;
+			String id = String.format("wamid.CATCH-%04d", accepted.incrementAndGet());
+			java.util.regex.Matcher to = java.util.regex.Pattern.compile("\"to\":\"([^\"]*)\"").matcher(body);
+			String input = to.find() ? to.group(1) : "";
+			answer = "{\"messaging_product\":\"whatsapp\",\"contacts\":[{\"input\":\"" + input + "\",\"wa_id\":\""
+					+ input.replace("+", "") + "\"}],\"messages\":[{\"id\":\"" + id + "\"}]}";
+		}
+		keep(exchange, path, query, headers, body, code);
+		byte[] bytes = answer.getBytes(StandardCharsets.UTF_8);
+		exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+		exchange.sendResponseHeaders(code, bytes.length);
+		try (OutputStream out = exchange.getResponseBody()) {
+			out.write(bytes);
+		}
+		note("    answered " + code + ": " + answer);
+	}
+
+	private static String metaError(int code, String message, String details) {
+		return "{\"error\":{\"message\":\"" + message + "\",\"type\":\"OAuthException\",\"code\":" + code
+				+ (details == null ? "" : ",\"error_data\":{\"messaging_product\":\"whatsapp\",\"details\":\"" + details
+						+ "\"}")
+				+ ",\"fbtrace_id\":\"ACATCH" + code + "\"}}";
 	}
 
 	private void keep(HttpExchange exchange, String path, String query, Map<String, List<String>> headers, String body,
@@ -309,9 +387,17 @@ public final class CatchHttpProvider implements Closeable {
 			case "retry-after":
 				retryAfter = Integer.valueOf(parts[1]);
 				break;
+			case "refuse-template":
+				refusedTemplates.add(parts[1]);
+				break;
+			case "delay":
+				delayMillis = Long.parseLong(parts[1]);
+				break;
 			case "accept-all":
 				mode = Mode.ACCEPTED;
 				refused.clear();
+				refusedTemplates.clear();
+				delayMillis = 0;
 				retryAfter = null;
 				status = null;
 				break;
@@ -351,7 +437,8 @@ public final class CatchHttpProvider implements Closeable {
 		provider.verbose = true;
 		System.out.println("Catch HTTP provider on 127.0.0.1:" + provider.getPort() + (args.length > 1 ? ", a key asked"
 				: "") + "; control: /_catch/mode/<ACCEPTED|KEY_REFUSED|TOO_MANY|SERVER_ERROR|NO_ANSWER|ERROR_INSIDE>,"
-				+ " /_catch/refuse/<digits>, /_catch/retry-after/<s>, /_catch/accept-all");
+				+ " /_catch/refuse/<digits>, /_catch/refuse-template/<name>, /_catch/delay/<ms>, /_catch/retry-after/<s>,"
+				+ " /_catch/accept-all");
 		Thread.currentThread().join();
 	}
 }

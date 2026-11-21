@@ -20,6 +20,7 @@ import com.digithink.zsretail.core.communication.enumeration.CommunicationMessag
 import com.digithink.zsretail.core.communication.model.CommunicationChannelState;
 import com.digithink.zsretail.core.communication.model.CommunicationMessage;
 import com.digithink.zsretail.core.communication.provider.CommunicationProvider;
+import com.digithink.zsretail.core.communication.provider.TestCommunicationProvider;
 import com.digithink.zsretail.core.communication.repository.CommunicationMessageRepository;
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
@@ -50,13 +51,24 @@ public class CommunicationChannels {
 	private final Supplier<LocalDateTime> clock;
 	/** Step 8a part 2: each channel's pause and speed; null in the tests of before. */
 	private CommunicationChannelStates channelStates;
+	/** Step 8c: the templates (a WhatsApp test sends one); null in the tests of before. */
+	private com.digithink.zsretail.core.communication.repository.CommunicationTemplateRepository templates;
 
 	@Autowired
 	public CommunicationChannels(CommunicationSettings settings, List<CommunicationProvider> providers,
 			CommunicationMessageRepository messages, CommunicationSender sender, CommunicationNames names,
-			Optional<CampaignStoreNames> storeNames, CommunicationChannelStates channelStates) {
+			Optional<CampaignStoreNames> storeNames, CommunicationChannelStates channelStates,
+			com.digithink.zsretail.core.communication.repository.CommunicationTemplateRepository templates) {
 		this(settings, providers, messages, sender, names::companyName, names::licenceName, storeNames, LocalDateTime::now);
 		this.channelStates = channelStates;
+		this.templates = templates;
+	}
+
+	/** Step 8c: with the templates (tests). */
+	public CommunicationChannels withTemplates(
+			com.digithink.zsretail.core.communication.repository.CommunicationTemplateRepository templates) {
+		this.templates = templates;
+		return this;
 	}
 
 	/** Step 8a part 2: with the channels' pause and speed (tests). */
@@ -123,6 +135,7 @@ public class CommunicationChannels {
 		standIn.put("storeName", storeNames.map(s -> s.resolver().apply(null, null)).orElse(null));
 		standIn.put("licenceName", licenceName.get());
 		view.put("standIn", standIn);
+		view.put("whatsappTemplates", whatsappTemplates()); // step 8c, the WhatsApp test
 		return view;
 	}
 
@@ -132,7 +145,57 @@ public class CommunicationChannels {
 	 * Tried once: a temporary failure is FAILED at once (never tried again by the cycle; "Renvoyer" may send it again).
 	 * Returns the message's row with its result.
 	 */
+	/**
+	 * Step 8c: the WhatsApp templates a test can send (a name at Meta), each with the sample values of its {fields} in
+	 * their order: [{code, name, providerTemplateName, language, format, active, values: [{field, value}]}].
+	 */
+	List<Map<String, Object>> whatsappTemplates() {
+		List<Map<String, Object>> list = new ArrayList<>();
+		if (templates == null) {
+			return list;
+		}
+		Map<String, Object> sample = sample();
+		templates.findAll(org.springframework.data.domain.Sort.by("code")).stream()
+				.filter(t -> CommunicationTypes.WHATSAPP.equals(t.getChannel()) && CommunicationTemplates.providerTemplate(t) != null)
+				.forEach(t -> {
+					Map<String, Object> row = new LinkedHashMap<>();
+					row.put("code", t.getCode());
+					row.put("name", t.getName());
+					row.put("providerTemplateName", t.getProviderTemplateName());
+					row.put("language", t.providerLanguageOrOwn());
+					row.put("format", CommunicationTemplates.parameterFormat(t.getProviderParameterFormat()));
+					row.put("active", Boolean.TRUE.equals(t.getActive()));
+					List<Map<String, Object>> values = new ArrayList<>();
+					for (String field : CommunicationTemplates.usedFields(t.getBody())) {
+						Map<String, Object> value = new LinkedHashMap<>();
+						value.put("field", field);
+						value.put("value", CommunicationTemplates.preview("{" + field + "}", sample));
+						values.add(value);
+					}
+					row.put("values", values);
+					list.add(row);
+				});
+		return list;
+	}
+
+	/** The sample values of the template window, the installation's company name in them. */
+	private Map<String, Object> sample() {
+		Map<String, Object> sample = new LinkedHashMap<>(CommunicationAdmin.SAMPLE);
+		String company = companyName.get();
+		sample.put("companyName", company == null || company.trim().isEmpty() ? null : company.trim());
+		return CommunicationTemplates.withFallbacks(sample, licenceName.get());
+	}
+
+	/** As {@link #testSend(String, String, String, String)} without a template (SMS, email). */
 	public Map<String, Object> testSend(String channel, String address, String user) {
+		return testSend(channel, address, user, null);
+	}
+
+	/**
+	 * Step 8c: a WhatsApp test sends a template (its name at Meta) with the sample values: {@code templateCode} required
+	 * (COMM_TEST_TEMPLATE otherwise).
+	 */
+	public Map<String, Object> testSend(String channel, String address, String user, String templateCode) {
 		String wanted = channel == null ? "" : channel.trim().toUpperCase(Locale.ROOT);
 		if (!CommunicationTypes.CHANNELS.contains(wanted)) {
 			throw CommunicationException.refused("COMM_CHANNEL_UNKNOWN", "Unknown channel " + channel, "channel",
@@ -157,6 +220,23 @@ public class CommunicationChannels {
 		message.setSubject(CommunicationTypes.EMAIL.equals(wanted) ? "ZS Retail : message de test" : null);
 		message.setBody("ZS Retail : message de test du canal " + wanted + " envoyé le " + now.format(TEST_TIME)
 				+ ". Si vous le lisez, le canal fonctionne.");
+		if (CommunicationTypes.WHATSAPP.equals(wanted) && !TestCommunicationProvider.NAME.equals(message.getProvider())) {
+			// Step 8c: WhatsApp at Meta sends templates only: the one chosen, with the sample values
+			String code = templateCode == null ? "" : templateCode.trim();
+			com.digithink.zsretail.core.communication.model.CommunicationTemplate template = templates == null || code.isEmpty()
+					? null : templates.findByCode(code).orElse(null);
+			if (template == null || !CommunicationTypes.WHATSAPP.equals(template.getChannel())
+					|| CommunicationTemplates.providerTemplate(template) == null) {
+				throw CommunicationException.refused("COMM_TEST_TEMPLATE", "Choose a WhatsApp template with its name at Meta",
+						"template", code);
+			}
+			Map<String, Object> sample = sample();
+			message.setTemplateCode(template.getCode());
+			message.setLanguageCode(template.getLanguageCode());
+			message.setBody(CommunicationTemplates.render(template.getCode(), template.getBody(), sample));
+			message.setProviderParams(CommunicationTemplates.providerParams(CommunicationTemplates.providerTemplate(template),
+					template.getBody(), sample));
+		}
 		message.setDedupKey("TEST:" + UUID.randomUUID());
 		message.setStatus(CommunicationMessageStatus.SENDING); // never taken by the cycle meanwhile
 		message.setCreatedBy(user);

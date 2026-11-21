@@ -332,6 +332,7 @@ public class CommunicationAdmin {
 		detail.put("nextAttemptAt", message.getNextAttemptAt());
 		detail.put("expiresAt", message.getExpiresAt());
 		detail.put("providerMessageId", message.getProviderMessageId());
+		detail.put("providerParams", message.getProviderParams()); // step 8c: a WhatsApp message's template at Meta
 		detail.put("lastError", message.getLastError());
 		detail.put("updatedAt", message.getUpdatedAt());
 		detail.put("updatedBy", message.getUpdatedBy());
@@ -485,7 +486,12 @@ public class CommunicationAdmin {
 
 	@Transactional(readOnly = true)
 	public List<CommunicationRule> rules() {
-		return rules.findAll(Sort.by("code"));
+		List<CommunicationRule> all = rules.findAll(Sort.by("code"));
+		// Step 8c: the warning of a rule whose template the provider refused
+		Map<String, String> problems = templates.findByProviderProblemIsNotNull().stream()
+				.collect(Collectors.toMap(CommunicationTemplate::getCode, CommunicationTemplate::getProviderProblem, (a, b) -> a));
+		all.forEach(rule -> rule.setTemplateProblem(problems.get(rule.getTemplateCode())));
+		return all;
 	}
 
 	@Transactional(readOnly = true)
@@ -615,6 +621,12 @@ public class CommunicationAdmin {
 			throw CommunicationException.refused("COMM_RULE_TEMPLATE_INACTIVE", "Template " + template.getCode()
 					+ " is off: switch it on first", "template", template.getCode());
 		}
+		// Step 8c: WhatsApp sends a template by its name at Meta: none, no rule can use it
+		if (CommunicationTypes.WHATSAPP.equals(channel) && CommunicationTemplates.providerTemplate(template) == null) {
+			throw CommunicationException.refused("COMM_TEMPLATE_PROVIDER_NAME", "Template " + template.getCode()
+					+ " has no provider template name: a WhatsApp message is sent by the name of its template at Meta",
+					"template", template.getCode());
+		}
 		return template;
 	}
 
@@ -640,6 +652,10 @@ public class CommunicationAdmin {
 		public String subject;
 		public String body;
 		public String providerTemplateName;
+		/** Step 8c, WhatsApp: Meta's language code when ours is not enough (en_US...); empty: ours. */
+		public String providerLanguage;
+		/** Step 8c, WhatsApp: POSITIONAL or NAMED; empty: POSITIONAL. */
+		public String providerParameterFormat;
 	}
 
 	/** A new template, on: its code unique (A-Z, 0-9, _), on a channel switched on. */
@@ -682,6 +698,9 @@ public class CommunicationAdmin {
 			}
 		}
 		fill(template, form, channel);
+		// Step 8c: a save is the answer to the provider's refusal: its mark cleared (the next message will tell)
+		template.setProviderProblem(null);
+		template.setProviderProblemAt(null);
 		template.setUpdatedBy(user);
 		return templates.save(template);
 	}
@@ -778,14 +797,33 @@ public class CommunicationAdmin {
 		}
 		tooLong("body", body, MAX_BODY);
 		unknownField(body);
-		String providerTemplate = CommunicationTypes.WHATSAPP.equals(channel) ? blankToNull(form.providerTemplateName) : null;
+		boolean whatsapp = CommunicationTypes.WHATSAPP.equals(channel);
+		String providerTemplate = whatsapp ? blankToNull(form.providerTemplateName) : null;
 		tooLong("providerTemplateName", providerTemplate, MAX_PROVIDER_TEMPLATE);
+		// Step 8c, WhatsApp: Meta's rules for a template (lowercase letters, digits, _; a body of 1,024 characters at most)
+		if (providerTemplate != null && !providerTemplate.matches("[a-z0-9_]{1,100}")) {
+			throw CommunicationException.refused("COMM_TEMPLATE_PROVIDER_NAME_FORMAT", "The template name at Meta is"
+					+ " lowercase letters, digits and _ (e.g. zs_welcome)");
+		}
+		if (whatsapp && body.length() > CommunicationTemplates.WHATSAPP_BODY_MAX) {
+			throw CommunicationException.refused("COMM_TEMPLATE_WHATSAPP_TOO_LONG", "A WhatsApp template's text is "
+					+ CommunicationTemplates.WHATSAPP_BODY_MAX + " characters at most at Meta", "max",
+					CommunicationTemplates.WHATSAPP_BODY_MAX);
+		}
+		String providerLanguage = whatsapp ? blankToNull(form.providerLanguage) : null;
+		if (providerLanguage != null && !providerLanguage.matches("[a-z]{2,3}(_[A-Z]{2})?")) {
+			throw CommunicationException.refused("COMM_TEMPLATE_PROVIDER_LANGUAGE", "Meta's language code is like fr, ar,"
+					+ " en or en_US");
+		}
+		String parameterFormat = whatsapp ? CommunicationTemplates.parameterFormat(form.providerParameterFormat) : null;
 		template.setName(name);
 		template.setChannel(channel);
 		template.setLanguageCode(language);
 		template.setSubject(subject);
 		template.setBody(body);
 		template.setProviderTemplateName(providerTemplate);
+		template.setProviderLanguage(providerLanguage);
+		template.setProviderParameterFormat(parameterFormat);
 	}
 
 	private static void unknownField(String text) {

@@ -231,6 +231,11 @@ public class CommunicationCampaignMaker implements CommunicationTask {
 		message.setSubject(campaign.getSubject() == null ? null
 				: CommunicationTemplates.render(campaign.getTemplateCode(), campaign.getSubject(), receiver.getValues()));
 		message.setBody(CommunicationTemplates.render(campaign.getTemplateCode(), campaign.getBody(), receiver.getValues()));
+		if (CommunicationTypes.WHATSAPP.equals(campaign.getChannel())) {
+			// Step 8c: the template at Meta kept at the launch, the values of its {fields} in order
+			message.setProviderParams(CommunicationTemplates.providerParams(campaign.getProviderTemplate(),
+					campaign.getBody(), receiver.getValues()));
+		}
 		message.setTemplateCode(campaign.getTemplateCode());
 		message.setLanguageCode(campaign.getLanguageCode());
 		message.setExpiresAt(campaign.getLaunchedAt().plusHours(campaign.getLifetimeHours()));

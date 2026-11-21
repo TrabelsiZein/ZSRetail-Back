@@ -239,6 +239,10 @@ public class CommunicationEventProcessor implements CommunicationTask {
 			return "template " + template.getCode() + " is for " + template.getChannel() + ", the rule for "
 					+ rule.getChannel();
 		}
+		// Step 8c: a WhatsApp template is sent by its name at Meta; without one, no message (never one that cannot leave)
+		if (CommunicationTypes.WHATSAPP.equals(rule.getChannel()) && CommunicationTemplates.providerTemplate(template) == null) {
+			return "template " + template.getCode() + " has no provider template name";
+		}
 		String address = address(rule.getChannel(), member);
 		if (address == null) {
 			if (CommunicationTypes.EMAIL.equals(rule.getChannel())) {
@@ -274,6 +278,11 @@ public class CommunicationEventProcessor implements CommunicationTask {
 		message.setSubject(template.getSubject() == null ? null
 				: CommunicationTemplates.render(template.getCode(), template.getSubject(), values));
 		message.setBody(CommunicationTemplates.render(template.getCode(), template.getBody(), values));
+		if (CommunicationTypes.WHATSAPP.equals(rule.getChannel())) {
+			// Step 8c: the template at Meta and the values of its {fields} in order, beside the text
+			message.setProviderParams(CommunicationTemplates.providerParams(CommunicationTemplates.providerTemplate(template),
+					template.getBody(), values));
+		}
 		message.setTemplateCode(template.getCode());
 		message.setLanguageCode(template.getLanguageCode());
 		message.setExpiresAt(expires);

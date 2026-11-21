@@ -119,7 +119,12 @@ public class CommunicationCampaigns {
 			row.put("active", Boolean.TRUE.equals(t.getActive()));
 			row.put("channelOn", channelOn);
 			row.put("saleFields", sale);
-			row.put("usable", Boolean.TRUE.equals(t.getActive()) && channelOn && sale.isEmpty());
+			// Step 8c: a WhatsApp template is sent by its name at Meta: without one, not offered
+			boolean noProviderName = CommunicationTypes.WHATSAPP.equals(t.getChannel())
+					&& CommunicationTemplates.providerTemplate(t) == null;
+			row.put("noProviderName", noProviderName);
+			row.put("providerProblem", t.getProviderProblem());
+			row.put("usable", Boolean.TRUE.equals(t.getActive()) && channelOn && sale.isEmpty() && !noProviderName);
 			return row;
 		}).collect(Collectors.toList());
 	}
@@ -231,6 +236,9 @@ public class CommunicationCampaigns {
 		campaign.setTemplateCode(template.getCode());
 		campaign.setChannel(template.getChannel());
 		campaign.setLanguageCode(template.getLanguageCode());
+		// Step 8c: the template at Meta, kept as the text is (a change after the launch does not touch the campaign)
+		campaign.setProviderTemplate(CommunicationTypes.WHATSAPP.equals(template.getChannel())
+				? CommunicationTemplates.providerTemplate(template) : null);
 		campaign.setSubject(template.getSubject());
 		campaign.setBody(template.getBody());
 		campaign.setLifetimeHours(lifetime);
@@ -339,6 +347,12 @@ public class CommunicationCampaigns {
 			throw CommunicationException.refused("COMM_CAMPAIGN_TEMPLATE_FIELDS", "Template " + template.getCode()
 					+ " uses " + fields + ": a sale's values, which a campaign does not have", "template", template.getCode(),
 					"fields", fields);
+		}
+		// Step 8c: WhatsApp sends a template by its name at Meta
+		if (CommunicationTypes.WHATSAPP.equals(template.getChannel()) && CommunicationTemplates.providerTemplate(template) == null) {
+			throw CommunicationException.refused("COMM_TEMPLATE_PROVIDER_NAME", "Template " + template.getCode()
+					+ " has no provider template name: a WhatsApp message is sent by the name of its template at Meta",
+					"template", template.getCode());
 		}
 		return template;
 	}
@@ -451,6 +465,7 @@ public class CommunicationCampaigns {
 		row.put("madeAt", c.getMadeAt());
 		row.put("endedAt", c.getEndedAt());
 		row.put("cancelledBy", c.getCancelledBy());
+		row.put("stopReason", c.getStopReason()); // step 8c
 		row.put("waiting", counts.getOrDefault(CommunicationMessageStatus.PENDING.name(), 0L));
 		row.put("sent", counts.getOrDefault(CommunicationMessageStatus.SENT.name(), 0L));
 		row.put("failed", counts.getOrDefault(CommunicationMessageStatus.FAILED.name(), 0L)

@@ -112,4 +112,17 @@ public class CommunicationCampaign extends _BaseEntity {
 	@Nationalized
 	@Column(name = "cancelled_by", length = 100)
 	private String cancelledBy;
+
+	/**
+	 * Step 8c, WhatsApp: the template at Meta when the campaign was launched, JSON {name, language, format} (as the
+	 * text above, a snapshot); null for another channel.
+	 */
+	@Nationalized
+	@Column(name = "provider_template", length = 400)
+	private String providerTemplate;
+
+	/** Step 8c: why the campaign was stopped (STOPPED: the provider refused its template). */
+	@Nationalized
+	@Column(name = "stop_reason", length = 1000)
+	private String stopReason;
 }

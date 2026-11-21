@@ -92,7 +92,14 @@ public interface CommunicationProvider {
 		 * annoys): FAILED "no answer from the provider, check before sending it again", sent again by hand only; the
 		 * channel pauses as for a channel problem.
 		 */
-		UNCERTAIN
+		UNCERTAIN,
+		/**
+		 * Step 8c: the provider refuses the message's template (WhatsApp: not approved, paused, not in that language, a
+		 * wrong number of values): the same for every message of that template, not the channel's (another template may
+		 * be fine). The message is FAILED with the reason; its campaign is stopped (its waiting messages SKIPPED); the
+		 * template is marked (the Templates and Rules tabs show it) until a message of it is accepted or it is saved.
+		 */
+		TEMPLATE_PROBLEM
 	}
 
 	@Value
@@ -101,7 +108,7 @@ public interface CommunicationProvider {
 		Outcome outcome;
 		/** The provider's id of the message, when accepted. */
 		String providerMessageId;
-		/** Why it failed, when it did. */
+		/** Why it failed, when it did; step 8c: a note on an acceptance (e.g. held for a quality check). */
 		String error;
 		/** Step 8b: the wait the provider asked for (HTTP 429 Retry-After), null when it gave none. */
 		java.time.Duration retryAfter;
@@ -131,6 +138,16 @@ public interface CommunicationProvider {
 		/** Step 8b: sent, no answer: the provider may have taken it. */
 		public static SendResult uncertain(String error) {
 			return new SendResult(Outcome.UNCERTAIN, null, error, null);
+		}
+
+		/** Step 8c: accepted with a note kept on the message (e.g. Meta holds it for a quality check). */
+		public static SendResult accepted(String providerMessageId, String note) {
+			return new SendResult(Outcome.ACCEPTED, providerMessageId, note, null);
+		}
+
+		/** Step 8c: the provider refuses the template, the same for each of its messages. */
+		public static SendResult templateProblem(String error) {
+			return new SendResult(Outcome.TEMPLATE_PROBLEM, null, error, null);
 		}
 	}
 }

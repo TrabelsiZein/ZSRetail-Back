@@ -121,6 +121,8 @@ public class HttpSmsProvider implements CommunicationProvider {
 	public static final String ID_REGEX_KEY = PREFIX + "id-regex";
 	public static final String ERROR_FIELD_KEY = PREFIX + "error-field";
 	public static final String CHANNEL_ERRORS_KEY = PREFIX + "channel-error-texts";
+	/** Step 8c: true for a gateway that refuses doubles on {messageId}: a "no answer" is tried again, not FAILED. */
+	public static final String RETRY_NO_ANSWER_KEY = PREFIX + "retry-no-answer";
 	/** One line per field: communication.sms.http.field.&lt;name&gt;=&lt;value&gt;. */
 	public static final String FIELD_PREFIX = PREFIX + "field.";
 	/** One line per header: communication.sms.http.header.&lt;Name&gt;=&lt;value&gt;. */
@@ -133,7 +135,8 @@ public class HttpSmsProvider implements CommunicationProvider {
 	private static final Pattern PLACEHOLDER = Pattern.compile("\\{([A-Za-z]+)\\}");
 	static final int MAX_ANSWER = 64 * 1024;
 	static final int MAX_WORDS = 300;
-	static final Duration MAX_WAIT = Duration.ofHours(24);
+	/** Step 8c: a gateway's asked wait (Retry-After) never pauses the channel longer than an hour. */
+	static final Duration MAX_WAIT = Duration.ofMinutes(60);
 
 	private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -158,6 +161,8 @@ public class HttpSmsProvider implements CommunicationProvider {
 	private final Pattern idPattern;
 	private final String errorField;
 	private final List<String> channelErrors;
+	private final boolean retryNoAnswer;
+	private final String badRetryNoAnswer;
 	private final Map<String, String> fields;
 	private final Map<String, String> headers;
 	private final String countryCode;
@@ -193,6 +198,10 @@ public class HttpSmsProvider implements CommunicationProvider {
 		errorField = text(env, ERROR_FIELD_KEY);
 		channelErrors = list(text(env, CHANNEL_ERRORS_KEY)).stream().map(v -> v.toLowerCase(Locale.ROOT))
 				.collect(Collectors.toList());
+		String retry = text(env, RETRY_NO_ANSWER_KEY);
+		retryNoAnswer = "true".equalsIgnoreCase(retry);
+		badRetryNoAnswer = retry == null || "true".equalsIgnoreCase(retry) || "false".equalsIgnoreCase(retry) ? null
+				: RETRY_NO_ANSWER_KEY + " is not true or false";
 		fields = withPrefix(env, FIELD_PREFIX);
 		headers = withPrefix(env, HEADER_PREFIX);
 		String code;
@@ -284,6 +293,12 @@ public class HttpSmsProvider implements CommunicationProvider {
 			return "no field carries " + (used.contains("phone") ? "{text}" : "{phone}") + " (" + FIELD_PREFIX + "<name>, "
 					+ URL_KEY + " or " + JSON_KEY + ")";
 		}
+		if (badRetryNoAnswer != null) {
+			return badRetryNoAnswer;
+		}
+		if (retryNoAnswer && !used.contains("messageId")) {
+			return RETRY_NO_ANSWER_KEY + " is true, but no field carries {messageId}: the gateway could not refuse a double";
+		}
 		if (used.contains("key") && key == null) {
 			return "{key} is used, but " + KEY_KEY + " is empty";
 		}
@@ -334,6 +349,7 @@ public class HttpSmsProvider implements CommunicationProvider {
 		view.put("password", password == null ? "not set" : "set");
 		view.put("connectTimeoutSeconds", connectSeconds);
 		view.put("readTimeoutSeconds", readSeconds);
+		view.put("retryNoAnswer", retryNoAnswer);
 		return view;
 	}
 
@@ -580,7 +596,7 @@ public class HttpSmsProvider implements CommunicationProvider {
 		return channelErrors.stream().anyMatch(lower::contains);
 	}
 
-	/** Retry-After: seconds or a date; null when absent or not readable; at most a day, at least a second. */
+	/** Retry-After: seconds or a date; null when absent or not readable; at most an hour (step 8c), at least a second. */
 	static Duration retryAfter(CloseableHttpResponse response) {
 		Header header = response == null ? null : response.getFirstHeader("Retry-After");
 		if (header == null || header.getValue() == null) {
@@ -600,12 +616,16 @@ public class HttpSmsProvider implements CommunicationProvider {
 		return wait.compareTo(Duration.ofSeconds(1)) < 0 ? Duration.ofSeconds(1) : wait.compareTo(MAX_WAIT) > 0 ? MAX_WAIT : wait;
 	}
 
-	/** The request left, no answer: uncertain. */
+	/**
+	 * The request left, no answer: uncertain. Step 8c, retry-no-answer (a gateway refusing doubles on {messageId}): the
+	 * channel's problem instead, the SMS waits with its attempts and is tried again after the pause, with the same
+	 * {messageId}.
+	 */
 	private SendResult noAnswer(IOException e) {
-		if (e instanceof SocketTimeoutException) {
-			return SendResult.uncertain("SMS: no answer within " + readSeconds + " s");
-		}
-		return SendResult.uncertain("SMS: the connection was lost before the answer (" + mask(e.getMessage()) + ")");
+		String why = e instanceof SocketTimeoutException ? "SMS: no answer within " + readSeconds + " s"
+				: "SMS: the connection was lost before the answer (" + mask(e.getMessage()) + ")";
+		return retryNoAnswer ? SendResult.channelProblem(why + ", tried again (the gateway refuses doubles)")
+				: SendResult.uncertain(why);
 	}
 
 	/** The request did not leave: the channel's problem. */

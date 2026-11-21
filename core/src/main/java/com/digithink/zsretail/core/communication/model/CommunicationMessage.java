@@ -86,6 +86,15 @@ public class CommunicationMessage extends _BaseEntity {
 	@Column(name = "send_ref", length = 40)
 	private String sendRef;
 
+	/**
+	 * Step 8c, WhatsApp: what the provider needs beside the text, JSON {name, language, format, values: [{field, value}]}
+	 * (the template at Meta and the values of our {fields} in the order of their first appearance), written with the
+	 * message; null for another channel.
+	 */
+	@Nationalized
+	@Column(name = "provider_params", columnDefinition = "nvarchar(max)")
+	private String providerParams;
+
 	/** Email only. */
 	@Nationalized
 	@Column(name = "subject", length = 255)
@@ -159,6 +168,7 @@ public class CommunicationMessage extends _BaseEntity {
 		copy.setLanguageCode(languageCode);
 		copy.setDedupKey(dedupKey);
 		copy.setSendRef(sendRef);
+		copy.setProviderParams(providerParams);
 		return copy;
 	}
 }

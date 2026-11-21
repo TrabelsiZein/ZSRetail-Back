@@ -12,4 +12,7 @@ import com.digithink.zsretail.core.repository._BaseRepository;
 public interface CommunicationTemplateRepository extends _BaseRepository<CommunicationTemplate, Long> {
 
 	Optional<CommunicationTemplate> findByCode(String code);
+
+	/** Step 8c: the templates a provider refused, still marked. */
+	java.util.List<CommunicationTemplate> findByProviderProblemIsNotNull();
 }

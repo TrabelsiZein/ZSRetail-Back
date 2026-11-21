@@ -196,4 +196,65 @@ public final class CommunicationTemplates {
 		}
 		return value.toString();
 	}
+
+	// ─── Step 8c, WhatsApp at Meta ───────────────────────────────────
+
+	/** A template's values at Meta numbered {{1}}, {{2}}... in the order of first appearance of our {fields}. */
+	public static final String POSITIONAL = "POSITIONAL";
+	/** A template's values at Meta named {{first_name}} for our {firstName} (lowercase letters and underscores). */
+	public static final String NAMED = "NAMED";
+	/** Meta's maximum length of a template's body. */
+	public static final int WHATSAPP_BODY_MAX = 1024;
+
+	private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
+
+	/** Meta's name of one of our fields: firstName -> first_name. */
+	public static String namedParameter(String field) {
+		return field.replaceAll("([a-z0-9])([A-Z])", "$1_$2").toLowerCase(Locale.ROOT);
+	}
+
+	/** POSITIONAL or NAMED; anything else (null, empty) POSITIONAL. */
+	public static String parameterFormat(String raw) {
+		return raw != null && NAMED.equalsIgnoreCase(raw.trim()) ? NAMED : POSITIONAL;
+	}
+
+	/**
+	 * The template at Meta as JSON {name, language, format}: what a campaign keeps at its launch and what each WhatsApp
+	 * message carries with its values. Null without a provider name.
+	 */
+	public static String providerTemplate(com.digithink.zsretail.core.communication.model.CommunicationTemplate template) {
+		if (template.getProviderTemplateName() == null || template.getProviderTemplateName().trim().isEmpty()) {
+			return null;
+		}
+		com.fasterxml.jackson.databind.node.ObjectNode node = JSON.createObjectNode();
+		node.put("name", template.getProviderTemplateName().trim());
+		node.put("language", template.providerLanguageOrOwn());
+		node.put("format", parameterFormat(template.getProviderParameterFormat()));
+		return node.toString();
+	}
+
+	/**
+	 * A WhatsApp message's provider params: the template at Meta (providerTemplate) and the values of the body's
+	 * {fields}, each once, in the order of their first appearance, filled as the text is ({@link #render}): JSON {name,
+	 * language, format, values: [{field, name, value}]} (name: Meta's named parameter). Null without a template at Meta.
+	 */
+	public static String providerParams(String providerTemplate, String body, Map<String, Object> values) {
+		if (providerTemplate == null) {
+			return null;
+		}
+		try {
+			com.fasterxml.jackson.databind.node.ObjectNode node = (com.fasterxml.jackson.databind.node.ObjectNode) JSON
+					.readTree(providerTemplate);
+			com.fasterxml.jackson.databind.node.ArrayNode list = node.putArray("values");
+			for (String field : usedFields(body)) {
+				com.fasterxml.jackson.databind.node.ObjectNode value = list.addObject();
+				value.put("field", field);
+				value.put("name", namedParameter(field));
+				value.put("value", text(field, values == null ? null : values.get(field)));
+			}
+			return node.toString();
+		} catch (java.io.IOException | ClassCastException e) {
+			return null;
+		}
+	}
 }

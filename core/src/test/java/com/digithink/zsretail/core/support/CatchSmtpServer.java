@@ -116,6 +116,7 @@ public final class CatchSmtpServer implements Closeable {
 	private volatile boolean quota;
 	private volatile boolean hangUp;
 	private volatile boolean hangUpAtRecipient;
+	private volatile long answerAfterDataMillis;
 	private volatile boolean verbose;
 
 	/** On 127.0.0.1, port 0 for any free port; folder null: kept in memory only. */
@@ -172,6 +173,12 @@ public final class CatchSmtpServer implements Closeable {
 	/** Step 8a part 2: the connection closed at the end of a mail's data, before any answer (the mail not accepted). */
 	public CatchSmtpServer hangUp(boolean hangUp) {
 		this.hangUp = hangUp;
+		return this;
+	}
+
+	/** Step 8c: a wait before the answer to a mail's final "." (a server that checks the mail first). */
+	public CatchSmtpServer slowAnswerAfterData(long millis) {
+		this.answerAfterDataMillis = millis;
 		return this;
 	}
 
@@ -281,6 +288,17 @@ public final class CatchSmtpServer implements Closeable {
 					} else if (closeAfter > 0 && mailsHere >= closeAfter) {
 						say(out, "421 4.7.0 Too many messages on this connection, closing");
 						note("connection " + connection + " closed by the server after " + mailsHere + " mail(s)");
+						// Step 8c: closed as a server does, the answer first: a close with bytes still unread makes
+						// Windows reset the connection, and the client may lose the 421 before reading it
+						s.shutdownOutput();
+						s.setSoTimeout(2000);
+						try {
+							while (in.readLine() != null) {
+								// what the client still sends (QUIT) until it leaves
+							}
+						} catch (IOException ignored) {
+							// the client left
+						}
 						return;
 					} else {
 						from = address(line.substring(10));
@@ -311,6 +329,9 @@ public final class CatchSmtpServer implements Closeable {
 					if (quota) {
 						say(out, "550 5.4.5 Daily user sending quota exceeded");
 						continue;
+					}
+					if (answerAfterDataMillis > 0) {
+						Thread.sleep(answerAfterDataMillis);
 					}
 					if (hangUp) {
 						note("connection " + connection + " lost: hung up before answering the data");

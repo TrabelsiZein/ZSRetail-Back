@@ -161,7 +161,12 @@ final class CampaignTestBed {
 	/** Step 8a part 2: with the channels' pause and speed, as in the application. */
 	CommunicationSender sender(CommunicationProvider... providers) {
 		return new CommunicationSender(messages(), members, settings(), java.util.Arrays.asList(providers), () -> now)
-				.withCampaigns(campaignRepository()).withChannelStates(channelStates());
+				.withCampaigns(campaignRepository()).withChannelStates(channelStates()).withTemplateProblems(templateProblems());
+	}
+
+	/** Step 8c: a template refused by its provider (marked, its campaign stopped), on the bed's clock. */
+	CommunicationTemplateProblems templateProblems() {
+		return new CommunicationTemplateProblems(templates(), campaignRepository(), messages(), () -> now);
 	}
 
 	/** Step 8a part 2: each channel's pause and speed, on the bed's clock, a cycle every 60 s. */
@@ -335,6 +340,13 @@ final class CampaignTestBed {
 					return Optional.ofNullable(templateTable.get(args[0]));
 				case "findAll":
 					return new ArrayList<>(templateTable.values());
+				case "findByProviderProblemIsNotNull":
+					return templateTable.values().stream().filter(t -> t.getProviderProblem() != null)
+							.collect(Collectors.toList());
+				case "save":
+					CommunicationTemplate saved = (CommunicationTemplate) args[0];
+					templateTable.put(saved.getCode(), saved);
+					return saved;
 				default:
 					return UNHANDLED;
 			}
@@ -357,10 +369,35 @@ final class CampaignTestBed {
 	}
 
 	CommunicationRuleRepository rules() {
-		return stub(CommunicationRuleRepository.class, (method, args) ->
-				"findByEventTypeAndActiveTrueOrderByCode".equals(method) ? ruleTable.stream()
-						.filter(r -> r.getEventType().equals(args[0]) && Boolean.TRUE.equals(r.getActive()))
-						.collect(Collectors.toList()) : UNHANDLED);
+		return stub(CommunicationRuleRepository.class, (method, args) -> {
+			switch (method) {
+				case "findByEventTypeAndActiveTrueOrderByCode":
+					return ruleTable.stream().filter(r -> r.getEventType().equals(args[0]) && Boolean.TRUE.equals(r.getActive()))
+							.collect(Collectors.toList());
+				// step 8c: the Rules tab's calls
+				case "findByCode":
+					return ruleTable.stream().filter(r -> r.getCode().equals(args[0])).findFirst();
+				case "findById":
+					return ruleTable.stream().filter(r -> args[0].equals(r.getId())).findFirst();
+				case "findAll":
+					return new ArrayList<>(ruleTable);
+				case "save":
+					CommunicationRule rule = (CommunicationRule) args[0];
+					if (rule.getId() == null) {
+						rule.setId((long) ruleTable.size() + 1);
+						ruleTable.add(rule);
+					}
+					return rule;
+				default:
+					return UNHANDLED;
+			}
+		});
+	}
+
+	/** Step 8c: the Communication page's service on the bed's tables (rules, templates). */
+	CommunicationAdmin admin() {
+		return new CommunicationAdmin(events(), messages(), rules(), templates(), members, settings(), Optional.empty(),
+				() -> companyName, () -> now);
 	}
 
 	/** The members, as findCampaignCandidates and countActiveWithoutConsent read them; findByCardNumber. */

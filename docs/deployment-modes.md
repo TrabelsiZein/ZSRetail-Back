@@ -103,7 +103,11 @@ password or a server down pauses the channel (shown on the Canaux tab), the mess
 2"). Step 8b, SMS through an HTTP gateway: `communication.sms.provider=http` and the lines
 `communication.sms.http.*` (the address, GET or POST, the fields, the headers, the key only in the outside file, the
 phone format, how to read the answer), two worked examples in core's `application.properties`; no address is one WARN
-and the channel off. Details: `docs/modules/communication.md`, "Step 8b".
+and the channel off. Details: `docs/modules/communication.md`, "Step 8b". Step 8c, WhatsApp through Meta's Cloud API:
+`communication.whatsapp.provider=meta` and the lines `communication.whatsapp.meta.*` (the address, the API version, the
+sender's phone number id, the token only in the outside file, the token's header and prefix for a reseller, the
+timeouts, Meta error codes added to a family); no number id or no token is one WARN and the channel off. Also
+`communication.sms.http.retry-no-answer` (false). Details: `docs/modules/communication.md`, "Step 8c".
 
 **The old enabled lines are refused** (code cleanup step 8, decision of 2026-10-11): `erp.dynamicsnav.enabled` and
 `erp.navpospages.enabled`, found in any property source (the outside file, a configuration file, a `-D`, an environment
@@ -473,8 +477,8 @@ own questions stay `@ConditionalOnErpAbility` and `@ConditionalOnErpConnector` (
 | `LOYALTY_FROM_HEAD_OFFICE` | A linked store whose loyalty program and members are the head office's. | 8 |
 | `SUPPLY_FROM_HEAD_OFFICE` | A linked store whose goods come from the head office by BL (`ownership.supply=HEAD_OFFICE` written in its file). | 11 (3.1.1: the orders to the head office, 4) |
 | `RFID` | A store that reads RFID tags: `rfid.enabled=true` (`docs/modules/rfid.md`). | 7 (and its 2 repositories) |
-| `COMMUNICATION` | 3.3.0: an installation whose communication module is on, `communication.enabled=true` (`docs/modules/communication.md`). Store and head office. | 9 (step 2: the scheduler and its states in core; the store's source and its two finders; step 3: the settings and the test provider; step 8a: the provider smtp; step 8b: the provider http) |
-| `COMMUNICATION_SENDS_HERE` | 3.3.0, step 3: the module on, on a store whose loyalty is not the head office's; it makes and sends its own messages; step 4: the Communication page exists (ApplicationModeService.isCommunicationSentHere, GET /config `communication.sendsHere`). | 10 (step 3: the processor, the sender, the seeding; step 4: the page's API and service, the store's ticket search; step 7: the campaigns' service and maker; step 8a: the Canaux tab's service; step 8a part 2: the channels' pause and speed) |
+| `COMMUNICATION` | 3.3.0: an installation whose communication module is on, `communication.enabled=true` (`docs/modules/communication.md`). Store and head office. | 10 (step 2: the scheduler and its states in core; the store's source and its two finders; step 3: the settings and the test provider; step 8a: the provider smtp; step 8b: the provider http; step 8c: the provider meta) |
+| `COMMUNICATION_SENDS_HERE` | 3.3.0, step 3: the module on, on a store whose loyalty is not the head office's; it makes and sends its own messages; step 4: the Communication page exists (ApplicationModeService.isCommunicationSentHere, GET /config `communication.sendsHere`). | 11 (step 3: the processor, the sender, the seeding; step 4: the page's API and service, the store's ticket search; step 7: the campaigns' service and maker; step 8a: the Canaux tab's service; step 8a part 2: the channels' pause and speed; step 8c: the templates refused by their provider) |
 | | Step 6: also a head office with the module on (it owns the loyalty): it makes and sends the messages of its stores' events and of its own members. | |
 | `COMMUNICATION_PUSHED_UP` | 3.3.0, step 6: the module on, on a store whose loyalty is the head office's: it pushes its events up and sends nothing. | 2 (the push service and its link job) |
 

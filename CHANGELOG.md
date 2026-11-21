@@ -79,6 +79,17 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   the key or login, the phone's format, the timeouts, how to read the answer; placeholders {phone} {text} {sender}
   {messageId} {unicode} {key} {username} {password} {basic}; two worked examples in core's application.properties. The
   Canaux tab shows its host only, the key "set" / "not set"; "Envoyer un test" sends a test SMS.
+- Communication, step 8c: WhatsApp through Meta's WhatsApp Cloud API (`communication.whatsapp.provider=meta`), always a
+  template message: the template's name at Meta, its language, our {fields} in the order of their first appearance as
+  Meta's values (numbered, or named first_name for {firstName}); the phone with + and the country code. A template gains
+  its language and value format at Meta; a WhatsApp template without its name at Meta is refused by a rule and by the
+  campaign window. Meta's answers sorted by its error code: the token, the account, the sender, payment, throughput or
+  Meta unavailable pause the channel; a recipient who cannot receive fails that message only (two codes tried again
+  later); a template refused stops its campaign (new status STOPPED, its waiting messages SKIPPED with the reason) and
+  marks the template and its rules, never pausing the channel; no answer follows the uncertain rule. SENT means accepted
+  by Meta (Meta's message id kept); no webhook. The Canaux tab shows the provider's settings; "Envoyer un test" for
+  WhatsApp sends a chosen template with sample values. The welcome and thanks WhatsApp examples, with their rules,
+  written inactive at the start.
 
 ### Enhancements
 - Communication, step 4: a message sent again keeps its history in `last_error` ("resent ... by ...; before: ..."), and
@@ -110,6 +121,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Communication, step 8b: while messages are due on a channel not paused, or a campaign is still being made, the next
   cycle starts after 5 s instead of communication.cycle-seconds; the New campaign window's estimate follows (about 3
   times the rate of before).
+- Communication, step 8c: an SMS gateway that refuses doubles on {messageId} can have a "no answer" tried again
+  (`communication.sms.http.retry-no-answer`) instead of FAILED; the email's answer after its final "." is waited about
+  60 s (servers check the mail first), the connection's own timeout unchanged; a provider's asked wait (Retry-After)
+  never pauses a channel longer than 60 min (24 h before). The message's detail gives a WhatsApp message's template at
+  Meta and its values (`providerParams`).
 
 ### DB script
 - `db/3.3.0/update.sql`: the tables `comm_event` (what happened) and `comm_message` (what to send), every text column
@@ -121,7 +137,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `comm_message.campaign_id` with the index `ix_comm_message_campaign`; run the script again on a database that ran an
   earlier version of it. Step 8a: `comm_message.redirected_to` (nvarchar(255), the test-recipient mode). Step 8a part
   2: the table `comm_channel_state` (a channel's pause and measured speed, one row per channel). Step 8b:
-  `comm_message.send_ref` (varchar(40), our reference given to the provider as {messageId}).
+  `comm_message.send_ref` (varchar(40), our reference given to the provider as {messageId}). Step 8c:
+  `comm_template.provider_language`, `provider_parameter_format`, `provider_problem`, `provider_problem_at`;
+  `comm_campaign.provider_template`, `stop_reason`; `comm_message.provider_params` (nvarchar(max)), all nullable.
 
 ### Config
 - `communication.enabled` (store and head office): `true` turns the module on; absent, empty or `false` (core's
@@ -145,6 +163,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   (200-299), `.accepted-field`, `.accepted-value`, `.accepted-text`, `.id-field`, `.id-regex`, `.error-field`,
   `.channel-error-texts` (all empty); one line per field and per header (`communication.sms.http.field.<name>`,
   `.header.<Name>`, no default); `communication.sms.provider` accepts `http`. No customer file names them.
+- Step 8c, all optional with their default in core's `application.properties`: `communication.sms.http.retry-no-answer`
+  (false); `communication.whatsapp.meta.url` (https://graph.facebook.com), `.api-version` (v27.0), `.phone-number-id`
+  (empty), `.token` (empty; only in the outside file), `.token-header` (Authorization), `.token-prefix` (Bearer),
+  `.connect-timeout-seconds` (10), `.read-timeout-seconds` (30), `.channel-codes`, `.retry-codes`, `.message-codes`,
+  `.template-codes` (empty: Meta error codes added to a family); `communication.whatsapp.provider` accepts `meta`. No
+  customer file names them.
 
 ## 3.2.0 — in progress (branch `release/3.2.0`)
 

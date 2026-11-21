@@ -1,5 +1,5 @@
 -- ============================================================
--- Version 3.3.0 (in progress) — communication module: comm_event, comm_message (step 1), comm_state (step 2), comm_template, comm_rule (step 3), comm_campaign (step 7), comm_channel_state (step 8a part 2), comm_message.send_ref (step 8b)
+-- Version 3.3.0 (in progress) — communication module: comm_event, comm_message (step 1), comm_state (step 2), comm_template, comm_rule (step 3), comm_campaign (step 7), comm_channel_state (step 8a part 2), comm_message.send_ref (step 8b), WhatsApp columns (step 8c)
 -- ============================================================
 -- Deployment order (a database at 3.2.0; CHANGELOG.md, 3.3.0, "Before deployment"):
 --   1) Bring the database to 3.2.0 first (db/3.2.0/update.sql). This script stops, without changing anything, while
@@ -12,7 +12,7 @@
 -- Re-runnable: each statement is guarded and changes nothing the second time. The tables are created in the form
 -- Hibernate gives them (the constraints and indexes named as in the entities), so the start finds them whole; on a
 -- database without them Hibernate would create them at the first start too. They stay empty while
--- communication.enabled is not true (docs/modules/communication.md). Steps 2, 3, 5, 7, 8a, 8a part 2 and 8b added 1b and 3 to 11: run
+-- communication.enabled is not true (docs/modules/communication.md). Steps 2, 3, 5, 7, 8a, 8a part 2, 8b and 8c added 1b and 3 to 12: run
 -- the script again on a database that ran an earlier version of it.
 
 SET QUOTED_IDENTIFIER ON;
@@ -174,6 +174,26 @@ GO
 -- Every database.
 IF COL_LENGTH(N'comm_message', N'send_ref') IS NULL
 	ALTER TABLE comm_message ADD send_ref varchar(40) NULL;
+GO
+
+-- 12) Step 8c, WhatsApp through Meta: a template's language code as Meta knows it and the way its values are named
+-- (POSITIONAL / NAMED), and the provider's last refusal of it (the Templates and Rules tabs' mark); a campaign's template
+-- at Meta kept at its launch and why it was stopped (status STOPPED); a message's template at Meta and its values. Every
+-- database.
+IF COL_LENGTH(N'comm_template', N'provider_language') IS NULL
+	ALTER TABLE comm_template ADD provider_language nvarchar(10) NULL;
+IF COL_LENGTH(N'comm_template', N'provider_parameter_format') IS NULL
+	ALTER TABLE comm_template ADD provider_parameter_format nvarchar(10) NULL;
+IF COL_LENGTH(N'comm_template', N'provider_problem') IS NULL
+	ALTER TABLE comm_template ADD provider_problem nvarchar(1000) NULL;
+IF COL_LENGTH(N'comm_template', N'provider_problem_at') IS NULL
+	ALTER TABLE comm_template ADD provider_problem_at datetime2 NULL;
+IF COL_LENGTH(N'comm_campaign', N'provider_template') IS NULL
+	ALTER TABLE comm_campaign ADD provider_template nvarchar(400) NULL;
+IF COL_LENGTH(N'comm_campaign', N'stop_reason') IS NULL
+	ALTER TABLE comm_campaign ADD stop_reason nvarchar(1000) NULL;
+IF COL_LENGTH(N'comm_message', N'provider_params') IS NULL
+	ALTER TABLE comm_message ADD provider_params nvarchar(max) NULL;
 GO
 
 UPDATE APP_VERSION SET version = '3.3.0';

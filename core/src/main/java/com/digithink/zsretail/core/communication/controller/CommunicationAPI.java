@@ -169,7 +169,8 @@ public class CommunicationAPI {
 	/** {address}: a fixed short text sent now through the channel's provider (write right). */
 	@PostMapping("/channels/{channel}/test")
 	public ResponseEntity<?> testSend(@PathVariable String channel, @RequestBody Map<String, String> form) {
-		return write(() -> channels.testSend(channel, form.get("address"), currentUserProvider.getCurrentUserName()));
+		return write(() -> channels.testSend(channel, form.get("address"), currentUserProvider.getCurrentUserName(),
+				form.get("templateCode")));
 	}
 
 	/** Step 6: the stores of a head office for the store filter, [{code, name}]; [] on a store. */

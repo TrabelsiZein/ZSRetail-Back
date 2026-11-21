@@ -9,8 +9,10 @@ every message), step 8a (the email channel for real through SMTP, the test-recip
 tab, the right to launch a campaign), step 8a part 2 (a channel's problem pauses the channel, not its messages; one
 SMTP connection per cycle; the sending time in the New campaign window; the certificate's name checked, the EHLO name),
 step 8b (SMS through an HTTP gateway set entirely in the properties; an answer that never came is never sent again by
-itself; a faster cycle while messages wait). WhatsApp still on the test provider; no member language, no member filter
-on a campaign.
+itself; a faster cycle while messages wait), step 8c (WhatsApp through Meta's Cloud API, provider `meta`: template
+messages only, Meta's answers sorted by error code, a template refused stops its campaign; SMS retry-no-answer, the
+email's 60 s after the final ".", a provider's wait at most 60 min). No webhook (delivery is not followed), no member
+language, no member filter on a campaign.
 
 Messages to loyalty members by WhatsApp, SMS and email: two automatic events in version 1 ("loyalty member created",
 "ticket validated for a member") and a simple campaign (one template to every member with consent). The till never
@@ -789,7 +791,8 @@ The answers (`HttpSmsProvider.answer`):
 - the channel's problem (part 2's pause; the SMS waits with its attempts): no connection (unreachable, a connect timeout,
   TLS), 401 / 403 / 407 (key or login refused), 402, 404 / 405 / 415 (the address or the method: never one number's
   fault, a wrong path would otherwise fail every SMS of a campaign), a 3xx (no redirect followed), 5xx, 429 (the pause
-  waits what `Retry-After` says, 1 s to 24 h, when given; 503 too), a refusal holding one of `channel-error-texts`;
+  waits what `Retry-After` says, 1 s to 60 min since step 8c (24 h before), when given; 503 too), a refusal holding one
+  of `channel-error-texts`;
 - the SMS's refusal, `FAILED` at once with the gateway's words: another 4xx (`SMS refused (HTTP 400): Invalid
   destination number ...`), an accepted status whose answer fails the accepted rule (`SMS not accepted (HTTP 200): ...`,
   a 200 with an error inside);
@@ -840,9 +843,148 @@ the 4 others left. The test-recipient phone: 6 SMS to +21699000999, the banner. 
 template window's count for the Arabic template (94 characters, 2 SMS, Unicode). 0 back-end ERROR over four starts, 0
 console error, the key in no log. Fixed on the way: the Arabic phone-format example shown left to right.
 
+## Step 8c: WhatsApp through Meta's Cloud API, and three fixes of the SMS and email providers
+
+No WhatsApp account existed at this step: built and tested against Meta's documentation (read 2026-11-21: sending a
+template message, template parameters, the error codes) and the tests' catch provider answering like Meta. Not built:
+webhooks (delivery, read, replies), creating or reading templates at Meta, media, header values, buttons.
+
+**Part A, SMS and email**
+- `communication.sms.http.retry-no-answer` (default `false`): `true` for a gateway that refuses doubles on
+  `{messageId}`; an SMS whose request left without an answer is then the channel's problem (part 2's pause, the SMS
+  waits with its attempts unused and is sent again after the pause with the same `{messageId}`) instead of FAILED
+  "no answer". Refused at the start (one WARN, the SMS channel off) when no field carries `{messageId}`. The Canaux tab
+  shows it ("Sans réponse : réessayé" or "laissé à vérifier à la main").
+- Email: the wait for the server's answer after a mail's final "." is at least 60 s (`timeout-seconds` when longer;
+  servers check a mail before accepting it); the connection, the greeting and the other commands keep
+  `communication.email.smtp.timeout-seconds` (15). No new line: `SmtpCommunicationProvider.MarkedTransport.finishData`
+  raises the socket's read timeout around the final "." only. The Canaux tab shows it (`answerAfterDataSeconds`).
+- A provider's asked wait (`Retry-After`, every channel) never pauses a channel longer than 60 min (1 s to 60 min).
+
+**The provider `meta`** (`MetaWhatsAppProvider`, `communication.whatsapp.provider=meta`, WhatsApp only): always a
+template message, never free text. `POST <url>/<api-version>/<phone-number-id>/messages`, the token in the header
+`<token-header>: <token-prefix> <token>`, the body `{messaging_product: whatsapp, recipient_type: individual, to:
++21620123456, type: template, template: {name, language: {code}, components: [{type: body, parameters: [{type: text,
+text}...]}]}}` (`parameter_name` added when the template's values are named; no component when the text has no field).
+The phone with + and the country code (Meta recommends the +: without it Meta adds the business number's country code).
+The same HTTP client rules as the SMS gateway: connect and read timeouts, no automatic retry, no redirect, a new
+connection per message.
+
+| Line | Default | Meaning |
+|---|---|---|
+| `communication.whatsapp.meta.url` | `https://graph.facebook.com` | Meta's address, or a reseller's offering the same API |
+| `communication.whatsapp.meta.api-version` | `v27.0` | Graph API version (latest on 2026-11-21) |
+| `communication.whatsapp.meta.phone-number-id` | empty | the sender's phone number id at Meta (digits) |
+| `communication.whatsapp.meta.token` | empty | the access token; only in the outside file |
+| `communication.whatsapp.meta.token-header` | `Authorization` | a reseller's header name |
+| `communication.whatsapp.meta.token-prefix` | `Bearer` | a reseller's prefix (empty: the token alone) |
+| `communication.whatsapp.meta.connect-timeout-seconds` | `10` | 1 to 300 |
+| `communication.whatsapp.meta.read-timeout-seconds` | `30` | 1 to 300: past it, the uncertain rule |
+| `communication.whatsapp.meta.channel-codes` | empty | Meta error codes added to the channel family (lists and ranges, e.g. `131060,132100-132199`) |
+| `communication.whatsapp.meta.retry-codes` | empty | ...to "this message later" |
+| `communication.whatsapp.meta.message-codes` | empty | ...to "this message FAILED at once" |
+| `communication.whatsapp.meta.template-codes` | empty | ...to "the template's problem" |
+
+`meta` with no phone number id or no token (or a line not readable): one WARN naming the line, the WhatsApp channel off,
+never a refused start. The Canaux tab shows the host only, the API version, the sender's number id, the token header,
+the token "set" / "not set", the timeouts, the test-recipient phone and the pause. The token never reaches a log or a
+message's reason (masked).
+
+**Meta's answers** (`MetaWhatsAppProvider.answer`), by Meta's `error.code` (Meta documents no HTTP status per code); a
+line's codes win over the built-in ones; an unknown code: 401 / 403 / 429 / 5xx the channel's, another the message's:
+- the channel's problem (the pause, the messages wait with their attempts): authorization 0, 3, 10, 190 (token expired),
+  200-299, 100 (a parameter: the number id or the request's shape, every message would meet it); integrity 368, 131031;
+  throughput 4, 80007, 130429, 131048, 131064; the account or the number 33, 131005, 131037, 131042 (payment), 131045,
+  131057, 133010; Meta unavailable 1, 2, 131000, 131016, 133004. `Retry-After` honoured, at most 60 min;
+- this message tried again later (attempts used, waits 1, 5, 15, 60 min, then FAILED): 131049 (Meta held it to keep
+  engagement healthy), 131056 (too many messages to that recipient);
+- this message FAILED at once with Meta's words: 130403, 130472, 130497, 131008, 131009, 131021, 131026 (the recipient
+  cannot receive: not on WhatsApp, an old app), 131047, 131050 (stopped marketing messages), 131051, 135000;
+- the template's problem (`Outcome.TEMPLATE_PROBLEM`): 131063, 132000, 132001 (not approved or not in that language),
+  132005, 132007, 132012, 132015, 132016, 132068, 132069. That message FAILED; the template marked
+  (`comm_template.provider_problem`, `provider_problem_at`); a campaign of it STOPPED (new status) with `stop_reason`,
+  its waiting messages SKIPPED "campaign stopped: <reason>" (`CommunicationTemplateProblems`, one transaction); the
+  channel never paused, the other templates' messages leave. The mark shows on the Templates tab ("refusé par Meta") and
+  on each rule using the template ("modèle refusé par Meta", the reason in its window; `CommunicationRule.templateProblem`,
+  not a column); it is cleared by a save of the template or the next message of it accepted;
+- no answer once the request left: the uncertain rule (FAILED "no answer from the provider, check before sending it
+  again", never sent again by itself, the channel paused); a request that never left: the channel's problem.
+
+A 200 is accepted, not delivered: SENT with Meta's message id (`wamid...`); a `message_status` other than accepted
+(`held_for_quality_assessment`, `paused`) is SENT with a note in the message's history. No webhook in version 1: no
+screen says delivered for any channel ("Envoyé = accepté par le fournisseur ; la suite chez le destinataire n'est pas
+suivie" in the message's window).
+
+**Templates for WhatsApp** (`comm_template`): `provider_template_name` (the name at Meta, lowercase letters, digits and
+_, at most 100), `provider_language` (Meta's code, `fr`, `ar`, `en`, `en_US`; empty: the template's language),
+`provider_parameter_format` (`POSITIONAL` {{1}}, {{2}}... or `NAMED` {{first_name}} for {firstName}). Our {fields} in the
+order of their first appearance are Meta's values 1, 2, 3...; each value filled as the text is (48.900, the
+empty-field guard). Each WhatsApp message keeps its template at Meta and its values (`comm_message.provider_params`,
+JSON); a campaign keeps its template at Meta at the launch (`comm_campaign.provider_template`). Our text stays what the
+preview, the campaign window and the messages list show; the member receives Meta's approved text (the template window
+and the message's window say so). The text is 1,024 characters at most (Meta's limit for a template's body). A WhatsApp
+template without its name at Meta is refused by a rule (`COMM_TEMPLATE_PROVIDER_NAME`, at save and at switch-on) and by
+the campaign window (not offered, the reason listed; the launch refused); an event's rule on such a template makes no
+message ("template X has no provider template name"). The seed (inactive): `MEMBER_CARD_WHATSAPP_FR`
+(`zs_carte_fidelite`) and `TICKET_THANKS_WHATSAPP_FR` (`zs_merci_achat`) with their rules `MEMBER_CARD_WHATSAPP` and
+`TICKET_THANKS_WHATSAPP`: their names at Meta must be the approved templates' names before they are switched on.
+
+**Screens**: the template window for WhatsApp (no SMS parts; the section "WhatsApp chez Meta": the name, the language,
+the values' format, the note on Meta's text; the length against 1,024; the values Meta receives, in order, with the
+sample values; the refusal's mark and reason); the Rules tab's mark; the Campaigns tab's STOPPED status and reason, the
+last refusal under the template select; the message's window (the template at Meta and its values, the SENT note);
+the Canaux tab for WhatsApp; "Envoyer un test" for WhatsApp asks which template (its name at Meta) and lists the sample
+values sent (`POST /communication/channels/WHATSAPP/test {address, templateCode}`, `COMM_TEST_TEMPLATE` without one; the
+test provider still sends a fixed text). fr, ar, en.
+
+**Database** (`db/3.3.0/update.sql`, section 12, safe to run twice): `comm_template.provider_language` nvarchar(10),
+`provider_parameter_format` nvarchar(10), `provider_problem` nvarchar(1000), `provider_problem_at` datetime2;
+`comm_campaign.provider_template` nvarchar(400), `stop_reason` nvarchar(1000); `comm_message.provider_params`
+nvarchar(max).
+
+**Where this differs from the request, after Meta's documentation**: the phone sent with + (Meta's recommendation);
+errors sorted by Meta's `error.code`, the HTTP status only for an unknown code; 100 a channel problem; 131049 and 131056
+tried again later rather than failed; no idempotency key at Meta in the pages read (`biz_opaque_callback_data` is not
+there), so no answer stays FAILED "check before sending it again", never retried by itself; a template refused marks the
+template (shown on its rules) rather than the rule, and the campaign takes a new status STOPPED; the code 131030 named in
+some guides is not in Meta's list: it falls back on the HTTP status.
+
+Tests: `MetaWhatsAppProviderTest` (against `CatchHttpProvider`, which now answers like Meta under a path ending in
+`/messages`: accepted, token expired #190, throughput #130429, Meta unavailable #2, template refused #132001, recipient
+cannot receive #131026, no answer, a delay; the positional and the named body, a reseller's header and prefix, the
+families and the added lines, the lines checked), `CommunicationWhatsAppTest` (the values in order, an event's and a
+campaign's message, no name at Meta refused by a rule and by the campaign window, a template refused during a campaign:
+STOPPED, SKIPPED, another template's message SENT, the channel not paused, the mark set then cleared; the WhatsApp test
+with a template; the provider's wait capped), `HttpSmsProviderTest.retryNoAnswer`,
+`SmtpCommunicationProviderTest.slowAnswerAfterData`. Changed: `CampaignTestBed` (the templates' problems, the Rules
+tab's calls, `admin()`), `CatchSmtpServer` (a slow answer after the final "."; its 421 now closes like a server, the
+answer first: the `batch` test failed once in six runs on Windows, the client's read reset before the 421),
+`InstallationBeansProofTest` (138 beans: the provider meta, `CommunicationTemplateProblems`), `ConfigurationKeysProofTest`
+(keys 120).
+
+Screen test (2026-11-21): the Happyness store on `pos_franchise_customer` (`update.sql` run twice; the local file given
+the WhatsApp lines, then the SMS lines, then a test recipient, and restored byte for byte after; LOYALTY_ENABLED on for
+the sale, put back), the WAR exploded, the tests' `CatchHttpProvider` alone on 127.0.0.1:8099 with a token (no message
+left the PC; the test members' numbers only). The seeded WhatsApp templates and rules switched on: a welcome (new member
+LYL-000008) `zs_carte_fidelite` fr, values Nour, Happyness, LYL-000008; a thanks (ticket FKAIROUAN261121007)
+`zs_merci_achat` fr, six values in order; the message's window with the template at Meta, `wamid.CATCH-0004` and the
+SENT note. An Arabic template `PROMO_WHATSAPP_AR` (`zs_promo_ar`, ar; preview 102 / 1,024, values {{1}} to {{4}}) and its
+campaign of 7, one number refused #131026: that message FAILED with Meta's words, the 6 others SENT, the channel not
+paused. `zs_promo_ar` refused #132001 during a second campaign: STOPPED with the reason, 7 SKIPPED with attempts unused,
+1 FAILED, a welcome of another template sent in the same cycle, the channel not paused, the template marked; the
+welcome's template refused: that welcome FAILED, the rule marked (its window gives the reason), cleared by the next
+welcome accepted. A template without its name at Meta: the rule's save refused with the message, the campaign window
+lists it as not offered. A wrong token (#190): one call at 15:31:34, one at 15:32:34, then a pause to 15:37:34, the
+campaign's 10 messages waiting with 0 attempts; the pause kept by a restart with the right token; "Envoyer un test"
+lifted it and the 10 left, to the test-recipient phone (+21699000999, the banner shown, `redirected_to` kept). The Canaux
+tab for WhatsApp in fr and ar, the test window with its template. SMS left from 8b: a campaign of 10 at 4 s an SMS
+through the catch gateway: 5 SMS a cycle, the next cycle 5 s after; the ZEN head office (ERP jobs all off, its local file
+backed up and restored): the SMS Canaux tab and a test SMS. 0 back-end ERROR over four starts (three of the store, one
+of the head office), 0 console error on the head office's tabs.
+
 ## Next steps (to be agreed one at a time)
 
 The member's language (it travels with the shared loyalty register; templates then need a key on code and language; a
 rule then needs a purpose, service or marketing), member filters on a campaign (store, points, last purchase), a
-planned date, a promo code per member, WhatsApp (its provider, through `CHANNEL_PROBLEM` and `UNCERTAIN`), the SMS
-gateways' delivery reports, a sender name per store.
+planned date, a promo code per member, WhatsApp's webhook (delivered, read, a member's reply, Meta's template status),
+the SMS gateways' delivery reports, a sender name per store.

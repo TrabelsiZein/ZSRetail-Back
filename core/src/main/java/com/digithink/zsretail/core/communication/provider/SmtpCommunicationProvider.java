@@ -75,6 +75,12 @@ public class SmtpCommunicationProvider implements CommunicationProvider {
 	static final int DEFAULT_PORT = 587;
 	static final String DEFAULT_SECURITY = "starttls";
 	static final int DEFAULT_TIMEOUT_SECONDS = 15;
+	/**
+	 * Step 8c: the wait for the server's answer after an email's final "." (servers check the email before answering),
+	 * at least this, communication.email.smtp.timeout-seconds when longer. The connection and every other answer keep
+	 * timeout-seconds.
+	 */
+	static final int ANSWER_AFTER_DATA_SECONDS = 60;
 
 	private final String host;
 	private final int port;
@@ -189,6 +195,7 @@ public class SmtpCommunicationProvider implements CommunicationProvider {
 		view.put("username", username);
 		view.put("password", password == null ? "not set" : "set");
 		view.put("timeoutSeconds", timeoutSeconds);
+		view.put("answerAfterDataSeconds", Math.max(ANSWER_AFTER_DATA_SECONDS, timeoutSeconds));
 		view.put("fromAddress", fromAddress);
 		view.put("fromName", fromName);
 		return view;
@@ -282,6 +289,7 @@ public class SmtpCommunicationProvider implements CommunicationProvider {
 			MarkedTransport opening = null;
 			try {
 				opening = new MarkedTransport(session, new javax.mail.URLName("smtp", host, port, null, username, null));
+				opening.answerAfterDataMillis = Math.max(ANSWER_AFTER_DATA_SECONDS, timeoutSeconds) * 1000;
 				connections++;
 				opening.connect(host, port, username, password);
 				transport = opening;
@@ -341,10 +349,45 @@ public class SmtpCommunicationProvider implements CommunicationProvider {
 			super(session, url);
 		}
 
+		/** Step 8c: the wait for the answer after the final "." (0: unchanged). */
+		int answerAfterDataMillis;
+
 		@Override
 		protected void finishData() throws IOException, MessagingException {
 			dataEnded = true;
-			super.finishData();
+			java.net.Socket socket = answerAfterDataMillis > 0 ? socket(this) : null;
+			int before = -1;
+			if (socket != null) {
+				try {
+					before = socket.getSoTimeout();
+					socket.setSoTimeout(Math.max(before, answerAfterDataMillis));
+				} catch (java.net.SocketException e) {
+					before = -1;
+				}
+			}
+			try {
+				super.finishData();
+			} finally {
+				if (socket != null && before >= 0) {
+					try {
+						socket.setSoTimeout(before);
+					} catch (java.net.SocketException ignored) {
+						// the connection is closed already
+					}
+				}
+			}
+		}
+
+		/** The transport's socket (JavaMail keeps it private; after STARTTLS, the TLS one); null when not reachable. */
+		private static java.net.Socket socket(com.sun.mail.smtp.SMTPTransport transport) {
+			try {
+				java.lang.reflect.Field field = com.sun.mail.smtp.SMTPTransport.class.getDeclaredField("serverSocket");
+				field.setAccessible(true);
+				Object socket = field.get(transport);
+				return socket instanceof java.net.Socket ? (java.net.Socket) socket : null;
+			} catch (ReflectiveOperationException | RuntimeException e) {
+				return null; // another JavaMail: the answer keeps timeout-seconds
+			}
 		}
 	}
 

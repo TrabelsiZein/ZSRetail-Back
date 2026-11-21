@@ -43,6 +43,17 @@ public class CommunicationSeed {
 			+ " Votre solde : {pointsBalance} points.";
 
 	/** Step 8a: the email examples of the welcome and the thanks, with their rules (inactive). */
+	/**
+	 * Step 8c: the WhatsApp examples, the SMS texts, their names at Meta (to create there with exactly this text, {{1}},
+	 * {{2}}... for the {fields} in their order), French, positional.
+	 */
+	public static final String MEMBER_WHATSAPP_TEMPLATE = "MEMBER_CARD_WHATSAPP_FR";
+	public static final String TICKET_WHATSAPP_TEMPLATE = "TICKET_THANKS_WHATSAPP_FR";
+	public static final String MEMBER_WHATSAPP_RULE = "MEMBER_CARD_WHATSAPP";
+	public static final String TICKET_WHATSAPP_RULE = "TICKET_THANKS_WHATSAPP";
+	public static final String MEMBER_WHATSAPP_NAME = "zs_carte_fidelite";
+	public static final String TICKET_WHATSAPP_NAME = "zs_merci_achat";
+
 	public static final String MEMBER_EMAIL_TEMPLATE = "MEMBER_CARD_EMAIL_FR";
 	public static final String TICKET_EMAIL_TEMPLATE = "TICKET_THANKS_EMAIL_FR";
 	public static final String MEMBER_EMAIL_RULE = "MEMBER_CARD_EMAIL";
@@ -78,10 +89,37 @@ public class CommunicationSeed {
 						TICKET_EMAIL_SUBJECT, TICKET_EMAIL_TEXT)
 				+ rule(MEMBER_EMAIL_RULE, CommunicationTypes.MEMBER_CREATED, CommunicationTypes.EMAIL, MEMBER_EMAIL_TEMPLATE)
 				+ rule(TICKET_EMAIL_RULE, CommunicationTypes.TICKET_VALIDATED, CommunicationTypes.EMAIL,
-						TICKET_EMAIL_TEMPLATE);
+						TICKET_EMAIL_TEMPLATE)
+				// step 8c: the same for WhatsApp, by their names at Meta
+				+ whatsapp(MEMBER_WHATSAPP_TEMPLATE, "Carte de fidélité (WhatsApp, français)", MEMBER_TEXT,
+						MEMBER_WHATSAPP_NAME)
+				+ whatsapp(TICKET_WHATSAPP_TEMPLATE, "Merci pour l'achat (WhatsApp, français)", TICKET_TEXT,
+						TICKET_WHATSAPP_NAME)
+				+ rule(MEMBER_WHATSAPP_RULE, CommunicationTypes.MEMBER_CREATED, CommunicationTypes.WHATSAPP,
+						MEMBER_WHATSAPP_TEMPLATE)
+				+ rule(TICKET_WHATSAPP_RULE, CommunicationTypes.TICKET_VALIDATED, CommunicationTypes.WHATSAPP,
+						TICKET_WHATSAPP_TEMPLATE);
 		if (written > 0) {
 			log.info("Communication: {} template(s) and rule(s) written, inactive", written);
 		}
+	}
+
+	/** Step 8c: a WhatsApp template, inactive, with its name at Meta (positional values, its own language). */
+	private int whatsapp(String code, String name, String body, String providerName) {
+		if (templates.findByCode(code).isPresent()) {
+			return 0;
+		}
+		CommunicationTemplate template = new CommunicationTemplate();
+		template.setCode(code);
+		template.setName(name);
+		template.setChannel(CommunicationTypes.WHATSAPP);
+		template.setLanguageCode("fr");
+		template.setBody(body);
+		template.setProviderTemplateName(providerName);
+		template.setProviderParameterFormat(CommunicationTemplates.POSITIONAL);
+		template.setActive(false);
+		templates.save(template);
+		return 1;
 	}
 
 	private int template(String code, String name, String body) {

@@ -97,7 +97,7 @@ public class CommunicationChannelStates {
 
 	/**
 	 * Step 8b: a channel problem with the wait the provider asked for (HTTP 429 Retry-After): the next try after that
-	 * wait instead of the pause's own (1 s to 24 h); null: the pause's own.
+	 * wait instead of the pause's own (1 s to 60 min, step 8c); null: the pause's own.
 	 */
 	public synchronized CommunicationChannelState problem(String channel, String reason, boolean fromTest,
 			Duration providerWait) {
@@ -110,7 +110,7 @@ public class CommunicationChannelStates {
 		}
 		if (!(fromTest && running)) {
 			row.setProblems(row.getProblems() + 1);
-			row.setPausedUntil(now.plus(providerWait != null ? providerWait : pause(row.getProblems())));
+			row.setPausedUntil(now.plus(providerWait != null ? capped(providerWait) : pause(row.getProblems())));
 		}
 		row.setPauseReason(reason == null || reason.length() <= CommunicationChannelState.PAUSE_REASON_LENGTH ? reason
 				: reason.substring(0, CommunicationChannelState.PAUSE_REASON_LENGTH));
@@ -119,6 +119,13 @@ public class CommunicationChannelStates {
 		log.warn("Communication: channel {} paused until {} ({} problem(s) in a row since {}{}): {}", channel,
 				saved.getPausedUntil(), saved.getProblems(), saved.getPausedSince(), fromTest ? ", a test" : "", reason);
 		return saved;
+	}
+
+	/** Step 8c: a provider's asked wait, 1 s to 60 min (never longer than the longest pause of our own). */
+	static Duration capped(Duration providerWait) {
+		Duration longest = PAUSES.get(PAUSES.size() - 1);
+		return providerWait.compareTo(Duration.ofSeconds(1)) < 0 ? Duration.ofSeconds(1)
+				: providerWait.compareTo(longest) > 0 ? longest : providerWait;
 	}
 
 	/** The wait after the n-th problem in a row. */

@@ -95,6 +95,20 @@ class SmtpCommunicationProviderTest {
 	}
 
 	@Test
+	@DisplayName("Step 8c: the server's answer after the final '.' waited about 60 s (here 3 s with a 2 s timeout): the"
+			+ " mail accepted, not uncertain; the connection's own timeout stays short")
+	void slowAnswerAfterData() {
+		server.slowAnswerAfterData(3000);
+		SmtpCommunicationProvider provider = provider();
+		assertEquals(60, provider.describe().get("answerAfterDataSeconds"));
+		long started = System.currentTimeMillis();
+		SendResult result = provider.send(email("sana@example.tn", "Merci", "Texte"));
+		assertEquals(Outcome.ACCEPTED, result.getOutcome(), result.getError());
+		assertTrue(System.currentTimeMillis() - started >= 3000, "the answer was waited for");
+		assertEquals(1, server.mails().size());
+	}
+
+	@Test
 	@DisplayName("An address that is not an email: never sent, FAILED at once with the reason")
 	void invalidAddress() {
 		SendResult result = provider().send(email("sana@", "Bonjour", "Texte"));

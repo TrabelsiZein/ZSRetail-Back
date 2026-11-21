@@ -87,14 +87,24 @@ public class CommunicationSender implements CommunicationTask {
 
 	/** Step 8a part 2: each channel's pause and speed; null in the tests of before (a problem only stops the cycle). */
 	private CommunicationChannelStates channelStates;
+	/** Step 8c: a template refused by its provider (marked, its campaign stopped); null in the tests of before. */
+	private CommunicationTemplateProblems templateProblems;
 
 	@Autowired
 	public CommunicationSender(CommunicationMessageRepository messages, LoyaltyMemberRepository members,
 			CommunicationSettings settings, List<CommunicationProvider> providers,
-			CommunicationCampaignRepository campaigns, CommunicationChannelStates channelStates) {
+			CommunicationCampaignRepository campaigns, CommunicationChannelStates channelStates,
+			CommunicationTemplateProblems templateProblems) {
 		this(messages, members, settings, providers, LocalDateTime::now);
 		this.campaigns = campaigns;
 		this.channelStates = channelStates;
+		this.templateProblems = templateProblems;
+	}
+
+	/** Step 8c: with the templates' problems (tests). */
+	public CommunicationSender withTemplateProblems(CommunicationTemplateProblems templateProblems) {
+		this.templateProblems = templateProblems;
+		return this;
 	}
 
 	/** Step 8a part 2: with the channels' pause and speed (tests). */
@@ -135,6 +145,9 @@ public class CommunicationSender implements CommunicationTask {
 	public String run(Instant deadline) {
 		moreDue = false;
 		Cycle cycle = new Cycle();
+		if (templateProblems != null) {
+			cycle.markedTemplates.addAll(templateProblems.marked());
+		}
 		Map<CommunicationMessageStatus, Integer> counts = new LinkedHashMap<>();
 		int[] retried = { 0 };
 		if (channelStates != null) {
@@ -190,6 +203,8 @@ public class CommunicationSender implements CommunicationTask {
 		final Set<String> pausedNow = new java.util.LinkedHashSet<>();
 		/** "CHANNEL|provider" -> {messages, nanos}: the messages handed to the provider, the time spent on them. */
 		final Map<String, long[]> spent = new LinkedHashMap<>();
+		/** Step 8c: the templates marked by a provider's refusal: the first message of one accepted clears it. */
+		final Set<String> markedTemplates = new HashSet<>();
 		private final Map<String, CommunicationProvider.Batch> batches = new LinkedHashMap<>();
 
 		CommunicationProvider.Batch batch(CommunicationProvider provider) {
@@ -246,6 +261,16 @@ public class CommunicationSender implements CommunicationTask {
 					}
 					continue; // a channel problem: waiting again, its attempts unused
 				}
+				if (handled.outcome == Outcome.TEMPLATE_PROBLEM) {
+					templateRefused(message, handled.error);
+					cycle.markedTemplates.add(message.getTemplateCode());
+					counts.merge(handled.status, 1, Integer::sum); // FAILED; its campaign stopped, the others skipped
+					continue;
+				}
+				if (handled.outcome == Outcome.ACCEPTED && templateProblems != null && message.getTemplateCode() != null
+						&& cycle.markedTemplates.remove(message.getTemplateCode())) {
+					templateProblems.accepted(message.getTemplateCode());
+				}
 				if (handled.outcome != null) {
 					long[] tally = cycle.spent.computeIfAbsent(message.getChannel() + "|" + message.getProvider(),
 							key -> new long[2]);
@@ -281,7 +306,7 @@ public class CommunicationSender implements CommunicationTask {
 			read = new CampaignStatusRead(status, now);
 			campaignStatuses.put(campaignId, read);
 		}
-		return read.status != CommunicationCampaignStatus.CANCELLED;
+		return read.status != CommunicationCampaignStatus.CANCELLED && read.status != CommunicationCampaignStatus.STOPPED;
 	}
 
 	/**
@@ -321,7 +346,26 @@ public class CommunicationSender implements CommunicationTask {
 				&& (handled.outcome == Outcome.CHANNEL_PROBLEM || handled.outcome == Outcome.UNCERTAIN)) {
 			channelStates.problem(message.getChannel(), pauseReason(handled), true, handled.retryAfter);
 		}
+		if (handled.outcome == Outcome.TEMPLATE_PROBLEM) {
+			templateRefused(message, handled.error);
+		} else if (handled.outcome == Outcome.ACCEPTED && templateProblems != null && message.getTemplateCode() != null) {
+			templateProblems.accepted(message.getTemplateCode());
+		}
 		return handled;
+	}
+
+	/**
+	 * Step 8c: the provider refused the message's template: the template marked, its campaign stopped (seen at once by
+	 * this cycle: its messages still in hand are left as they are, SKIPPED by the stop).
+	 */
+	private void templateRefused(CommunicationMessage message, String reason) {
+		if (templateProblems != null) {
+			templateProblems.refused(message, reason);
+		}
+		if (message.getCampaignId() != null) {
+			campaignStatuses.put(message.getCampaignId(), new CampaignStatusRead(CommunicationCampaignStatus.STOPPED,
+					Instant.now()));
+		}
 	}
 
 	/** Step 8b: the pause's reason: the provider's words, "no answer from the provider: ..." for an uncertain one. */
@@ -432,8 +476,15 @@ public class CommunicationSender implements CommunicationTask {
 				message.setAttempts(message.getAttempts() + 1);
 				message.setSentAt(now);
 				message.setProviderMessageId(result.getProviderMessageId());
-				// Step 4: last_error kept, the row's history (a failed attempt before, a message sent again)
-				status = save(message, CommunicationMessageStatus.SENT, message.getLastError());
+				// Step 4: last_error kept, the row's history (a failed attempt before, a message sent again); step 8c: or
+				// the provider's note on its acceptance (Meta holding it for a quality check)
+				status = save(message, CommunicationMessageStatus.SENT,
+						result.getError() != null ? result.getError() : message.getLastError());
+				break;
+			case TEMPLATE_PROBLEM:
+				// Step 8c: the template's problem: this message FAILED, its campaign stopped by the caller
+				message.setAttempts(message.getAttempts() + 1);
+				status = save(message, CommunicationMessageStatus.FAILED, result.getError());
 				break;
 			case PERMANENT_FAILURE:
 				message.setAttempts(message.getAttempts() + 1);

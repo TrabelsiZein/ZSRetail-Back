@@ -51,6 +51,10 @@ public class CommunicationRule extends _BaseEntity {
 	@Column(name = "template_code", nullable = false, length = 50)
 	private String templateCode;
 
+	/** Step 8c: the provider's refusal of the rule's template, when it is marked (the Rules tab's warning); not stored. */
+	@javax.persistence.Transient
+	private String templateProblem;
+
 	/** A message is never sent more than this many hours after its event happened (comm_message.expires_at). */
 	@Column(name = "lifetime_hours", nullable = false)
 	private int lifetimeHours = DEFAULT_LIFETIME_HOURS;

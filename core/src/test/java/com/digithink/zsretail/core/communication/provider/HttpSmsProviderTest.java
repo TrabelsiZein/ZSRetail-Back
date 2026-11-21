@@ -227,6 +227,31 @@ class HttpSmsProviderTest {
 	}
 
 	@Test
+	@DisplayName("Step 8c, retry-no-answer for a gateway that refuses doubles on {messageId}: no answer is the channel's"
+			+ " problem (the message waits, tried again with the same reference); refused without a field carrying"
+			+ " {messageId}; anything but true or false refused")
+	void retryNoAnswer() {
+		gateway.mode(Mode.NO_ANSWER);
+		HttpSmsProvider retrying = new HttpSmsProvider(jsonExample().withProperty(HttpSmsProvider.RETRY_NO_ANSWER_KEY, "true"));
+		assertNull(retrying.unavailableReason());
+		assertEquals(true, retrying.describe().get("retryNoAnswer"));
+		SendResult result = retrying.send(sms("+21699000002", "Bonjour"));
+		assertEquals(Outcome.CHANNEL_PROBLEM, result.getOutcome());
+		assertEquals("SMS: no answer within 2 s, tried again (the gateway refuses doubles)", result.getError());
+		gateway.mode(Mode.ACCEPTED);
+		assertEquals(Outcome.ACCEPTED, retrying.send(sms("+21699000002", "Bonjour")).getOutcome());
+		assertEquals(gateway.requests().get(0).getBody(), gateway.requests().get(1).getBody(), "the same reference both times");
+
+		MockEnvironment noRef = jsonExample().withProperty(HttpSmsProvider.RETRY_NO_ANSWER_KEY, "true")
+				.withProperty(HttpSmsProvider.JSON_KEY, "{\"to\":\"{phone}\",\"text\":\"{text}\"}");
+		assertEquals("communication.sms.http.retry-no-answer is true, but no field carries {messageId}: the gateway could"
+				+ " not refuse a double", new HttpSmsProvider(noRef).unavailableReason());
+		assertEquals("communication.sms.http.retry-no-answer is not true or false", new HttpSmsProvider(jsonExample()
+				.withProperty(HttpSmsProvider.RETRY_NO_ANSWER_KEY, "oui")).unavailableReason());
+		assertEquals(false, new HttpSmsProvider(jsonExample()).describe().get("retryNoAnswer"), "false by default");
+	}
+
+	@Test
 	@DisplayName("The SMS's own refusals: a number refused (400) and a 200 with an error inside: FAILED with the gateway's"
 			+ " words; a refusal naming no credit (channel-error-texts): the channel's problem; a key echoed is masked")
 	void refusals() {
