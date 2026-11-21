@@ -64,13 +64,23 @@ public class CommunicationCampaigns {
 	private final Optional<CampaignStoreNames> storeNames;
 	private final Optional<CommunicationMembers> directory;
 	private final Supplier<LocalDateTime> clock;
+	/** Step 8a part 2: the channel's pause and rate (the window's sending time); null in the tests of before. */
+	private CommunicationChannelStates channelStates;
 
 	@Autowired
 	public CommunicationCampaigns(CommunicationCampaignRepository campaigns, CommunicationMessageRepository messages,
 			CommunicationTemplateRepository templates, LoyaltyMemberRepository members, CommunicationSettings settings,
-			CommunicationNames names, Optional<CampaignStoreNames> storeNames, Optional<CommunicationMembers> directory) {
+			CommunicationNames names, Optional<CampaignStoreNames> storeNames, Optional<CommunicationMembers> directory,
+			CommunicationChannelStates channelStates) {
 		this(campaigns, messages, templates, members, settings, names::companyName, names::licenceName, storeNames,
 				directory, LocalDateTime::now);
+		this.channelStates = channelStates;
+	}
+
+	/** Step 8a part 2: with the channels' pause and rate (tests). */
+	public CommunicationCampaigns withChannelStates(CommunicationChannelStates channelStates) {
+		this.channelStates = channelStates;
+		return this;
 	}
 
 	/** With given names and clock: used by the tests. */
@@ -118,7 +128,9 @@ public class CommunicationCampaigns {
 	 * The window's count and preview for a template: {channel, receive, noConsent, noAddress, sameAddress, noValue,
 	 * emptyFields (of the first member left out for a missing value), preview {text, length, encoding, parts, card,
 	 * memberName} with the first member who would receive it (null when nobody), sameDay {code, name, launchedAt} when
-	 * the template was launched today}. Refused as the launch is (except nobody to receive it, and the same day).
+	 * the template was launched today}. Refused as the launch is (except nobody to receive it, and the same day). Step 8a
+	 * part 2: sending {perHour, waiting, hours, proposedLifetimeHours, beyondMax} ({@link #sending}), pause {since, until,
+	 * problems, reason} of the channel when it is paused.
 	 */
 	@Transactional(readOnly = true)
 	public Map<String, Object> audience(String templateCode, String channel) {
@@ -135,7 +147,39 @@ public class CommunicationCampaigns {
 		answer.put("preview", preview(template, counts.getFirst()));
 		answer.put("emptyFields", counts.getNoValue() == 0 ? Collections.emptyList() : firstEmptyFields(audience));
 		answer.put("sameDay", sameDay(template.getCode()));
+		answer.put("sending", sending(template.getChannel(), counts.getReceive()));
+		answer.put("pause", channelStates == null ? null
+				: CommunicationChannelStates.pauseView(channelStates.of(template.getChannel())));
 		return answer;
+	}
+
+	/** Step 8a part 2: the margin of the proposed lifetime over the sending time (a fifth more). */
+	static final double LIFETIME_MARGIN = 1.2;
+
+	/**
+	 * Step 8a part 2: about how long the campaign takes to send, from the channel's recent rate (CommunicationChannelStates
+	 * .perHour): {perHour, waiting (the channel's messages waiting now, sent before), hours ((waiting + receive) / perHour),
+	 * proposedLifetimeHours (hours plus a fifth, rounded up, 1 to 720), beyondMax (more than 720 h needed)}. Null without
+	 * a recent rate (never sent, a measure older than 30 days, the provider test) or nobody to receive it: no line.
+	 */
+	Map<String, Object> sending(String channel, long receive) {
+		if (channelStates == null || receive <= 0) {
+			return null;
+		}
+		Integer perHour = channelStates.perHour(channel, settings.provider(channel));
+		if (perHour == null) {
+			return null;
+		}
+		long waiting = channelStates.waiting(channel);
+		double hours = (waiting + receive) / (double) perHour;
+		double wanted = Math.ceil(hours * LIFETIME_MARGIN);
+		Map<String, Object> sending = new LinkedHashMap<>();
+		sending.put("perHour", perHour);
+		sending.put("waiting", waiting);
+		sending.put("hours", Math.round(hours * 100) / 100d);
+		sending.put("proposedLifetimeHours", (int) Math.max(MIN_LIFETIME_HOURS, Math.min(MAX_LIFETIME_HOURS, wanted)));
+		sending.put("beyondMax", wanted > MAX_LIFETIME_HOURS);
+		return sending;
 	}
 
 	/** The new campaign: {name, templateCode, channel, lifetimeHours, confirmSameDay}. */

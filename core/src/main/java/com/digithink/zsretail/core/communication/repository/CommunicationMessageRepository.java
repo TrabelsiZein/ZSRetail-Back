@@ -38,6 +38,32 @@ public interface CommunicationMessageRepository extends _BaseRepository<Communic
 	List<CommunicationMessage> findDue(@Param("pending") CommunicationMessageStatus pending,
 			@Param("now") LocalDateTime now, @Param("afterId") long afterId, Pageable page, @Param("queue") int queue);
 
+	/**
+	 * Step 8a part 2: {@link #findDue} without the channels paused now (their messages wait, not read every cycle). Used
+	 * only while a channel is paused: {@code paused} is never empty.
+	 */
+	@Query("select m from CommunicationMessage m where m.status = :pending"
+			+ " and (m.nextAttemptAt is null or m.nextAttemptAt <= :now) and m.id > :afterId"
+			+ " and ((:queue = 0 and m.campaignId is null) or (:queue = 1 and m.campaignId is not null))"
+			+ " and m.channel not in :paused order by m.id")
+	List<CommunicationMessage> findDueOutside(@Param("pending") CommunicationMessageStatus pending,
+			@Param("now") LocalDateTime now, @Param("afterId") long afterId, Pageable page, @Param("queue") int queue,
+			@Param("paused") Collection<String> paused);
+
+	/**
+	 * Step 8a part 2: a paused channel's waiting messages past their expiry EXPIRED with the reason, in one statement.
+	 * Returns how many.
+	 */
+	@Modifying
+	@Query("update CommunicationMessage m set m.status = :expired, m.lastError = :reason, m.updatedAt = :now"
+			+ " where m.channel = :channel and m.status = :pending and m.expiresAt is not null and m.expiresAt <= :now")
+	int expireWaiting(@Param("channel") String channel, @Param("pending") CommunicationMessageStatus pending,
+			@Param("expired") CommunicationMessageStatus expired, @Param("reason") String reason,
+			@Param("now") LocalDateTime now);
+
+	/** Step 8a part 2: the messages of a channel in a status (the waiting ones go before a new campaign's). */
+	long countByChannelAndStatus(String channel, CommunicationMessageStatus status);
+
 	/** Step 7: the dedup keys of a batch that exist already (one query for a batch of a campaign). */
 	@Query("select m.dedupKey from CommunicationMessage m where m.dedupKey in :keys")
 	List<String> findExistingDedupKeys(@Param("keys") Collection<String> keys);

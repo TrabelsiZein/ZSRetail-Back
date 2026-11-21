@@ -24,12 +24,14 @@ import com.digithink.zsretail.core.communication.enumeration.CommunicationCampai
 import com.digithink.zsretail.core.communication.enumeration.CommunicationEventStatus;
 import com.digithink.zsretail.core.communication.enumeration.CommunicationMessageStatus;
 import com.digithink.zsretail.core.communication.model.CommunicationCampaign;
+import com.digithink.zsretail.core.communication.model.CommunicationChannelState;
 import com.digithink.zsretail.core.communication.model.CommunicationEvent;
 import com.digithink.zsretail.core.communication.model.CommunicationMessage;
 import com.digithink.zsretail.core.communication.model.CommunicationRule;
 import com.digithink.zsretail.core.communication.model.CommunicationTemplate;
 import com.digithink.zsretail.core.communication.provider.CommunicationProvider;
 import com.digithink.zsretail.core.communication.repository.CommunicationCampaignRepository;
+import com.digithink.zsretail.core.communication.repository.CommunicationChannelStateRepository;
 import com.digithink.zsretail.core.communication.repository.CommunicationEventRepository;
 import com.digithink.zsretail.core.communication.repository.CommunicationMessageRepository;
 import com.digithink.zsretail.core.communication.repository.CommunicationRuleRepository;
@@ -59,6 +61,8 @@ final class CampaignTestBed {
 	final Map<Long, LoyaltyMember> memberTable = new LinkedHashMap<>();
 	final Map<Long, CommunicationEvent> eventTable = new LinkedHashMap<>();
 	final List<CommunicationRule> ruleTable = new ArrayList<>();
+	/** Step 8a part 2: comm_channel_state by channel. */
+	final Map<String, CommunicationChannelState> channelStateTable = new LinkedHashMap<>();
 	/** The members' query, replaced by the H2 one in CampaignAudienceQueryTest. */
 	LoyaltyMemberRepository members = stub(LoyaltyMemberRepository.class, this::member);
 
@@ -145,7 +149,8 @@ final class CampaignTestBed {
 		};
 		CampaignStoreNames stores = () -> storeOf;
 		return new CommunicationCampaigns(campaignRepository(), messages(), templates(), members, settings(),
-				() -> companyName, () -> licenceName, Optional.of(stores), Optional.of(directory), () -> now);
+				() -> companyName, () -> licenceName, Optional.of(stores), Optional.of(directory), () -> now)
+				.withChannelStates(channelStates());
 	}
 
 	CommunicationCampaignMaker maker() {
@@ -153,9 +158,35 @@ final class CampaignTestBed {
 				TransactionOperations.withoutTransaction(), () -> now);
 	}
 
+	/** Step 8a part 2: with the channels' pause and speed, as in the application. */
 	CommunicationSender sender(CommunicationProvider... providers) {
 		return new CommunicationSender(messages(), members, settings(), java.util.Arrays.asList(providers), () -> now)
-				.withCampaigns(campaignRepository());
+				.withCampaigns(campaignRepository()).withChannelStates(channelStates());
+	}
+
+	/** Step 8a part 2: each channel's pause and speed, on the bed's clock, a cycle every 60 s. */
+	CommunicationChannelStates channelStates() {
+		return new CommunicationChannelStates(channelStateRepository(), messages(), () -> now, 60);
+	}
+
+	CommunicationChannelStateRepository channelStateRepository() {
+		return stub(CommunicationChannelStateRepository.class, (method, args) -> {
+			switch (method) {
+				case "findAll":
+					return new ArrayList<>(channelStateTable.values());
+				case "findByChannel":
+					return Optional.ofNullable(channelStateTable.get(args[0]));
+				case "save":
+					CommunicationChannelState state = (CommunicationChannelState) args[0];
+					if (state.getId() == null) {
+						state.setId((long) channelStateTable.size() + 1);
+					}
+					channelStateTable.put(state.getChannel(), state);
+					return state;
+				default:
+					return UNHANDLED;
+			}
+		});
 	}
 
 	CommunicationEventProcessor processor() {
@@ -227,6 +258,33 @@ final class CampaignTestBed {
 							.filter(m -> (queue == CommunicationMessageRepository.AUTOMATIC) == (m.getCampaignId() == null))
 							.filter(m -> m.getId() > afterId).limit(((Pageable) args[3]).getPageSize())
 							.collect(Collectors.toList());
+				case "findDueOutside": {
+					LocalDateTime when = (LocalDateTime) args[1];
+					long after = (Long) args[2];
+					int which = (Integer) args[4];
+					Collection<?> paused = (Collection<?>) args[5];
+					return messageTable.values().stream()
+							.filter(m -> m.getStatus() == args[0] && (m.getNextAttemptAt() == null || !m.getNextAttemptAt().isAfter(when)))
+							.filter(m -> (which == CommunicationMessageRepository.AUTOMATIC) == (m.getCampaignId() == null))
+							.filter(m -> !paused.contains(m.getChannel()))
+							.filter(m -> m.getId() > after).limit(((Pageable) args[3]).getPageSize())
+							.collect(Collectors.toList());
+				}
+				case "expireWaiting": {
+					int expired = 0;
+					for (CommunicationMessage m : messageTable.values()) {
+						if (m.getChannel().equals(args[0]) && m.getStatus() == args[1] && m.getExpiresAt() != null
+								&& !m.getExpiresAt().isAfter((LocalDateTime) args[4])) {
+							m.setStatus((CommunicationMessageStatus) args[2]);
+							m.setLastError((String) args[3]);
+							expired++;
+						}
+					}
+					return expired;
+				}
+				case "countByChannelAndStatus":
+					return messageTable.values().stream().filter(m -> m.getChannel().equals(args[0])
+							&& m.getStatus() == args[1]).count();
 				case "countByCampaignAndStatus":
 					Map<String, Object[]> groups = new LinkedHashMap<>();
 					for (CommunicationMessage m : messageTable.values()) {

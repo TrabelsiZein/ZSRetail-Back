@@ -69,6 +69,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   fixed short text sent now, kept as a message of type TEST, tried once; `COMM_TEST_ADDRESS`).
 - Communication, step 8a: the right `write:admin-communication-campaigns` launches and cancels a campaign (403 without
   it, even with the write right), given to ADMIN at each start where the page exists, store and head office.
+- Communication, step 8a part 2: the New campaign window gives the sending time from the channel's recent real rate
+  ("about N per hour, about X for this campaign", the messages already waiting first; none without a recent send or on
+  the provider test); longer than the lifetime, a warning and a proposed lifetime taken in one click, never a refusal.
+  The Canaux tab shows a channel's pause (since when, why, the next try) and its recent rate; the Messages tab a banner
+  per channel paused.
 
 ### Enhancements
 - Communication, step 4: a message sent again keeps its history in `last_error` ("resent ... by ...; before: ..."), and
@@ -82,6 +87,14 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   SENDING at the start (the application stopped meanwhile) becomes FAILED "interrupted while it was being sent", never
   sent again by itself ("Renvoyer" sends it). The message's detail gives its author (`createdBy`). A member's email
   that is not one: the event's reason says so (`email '<x>' is not valid`), no longer `no email address`.
+- Communication, step 8a part 2: a channel's problem pauses the channel, not its messages (the provider contract's
+  `CHANNEL_PROBLEM`; for smtp: no server, a connect timeout, TLS, the login refused, the sender refused, 421 on a new
+  connection, a quota x.4.5). One try per cycle, then waits of 1, 5, 15 and every 60 min; the messages keep their
+  attempts and wait until their own expiry; a message or a test accepted lifts the pause; a restart keeps it. Before, a
+  refused login was tried by every message (5 attempts each, then FAILED).
+- Communication, step 8a part 2: one SMTP connection per cycle (5,000 emails to the local test server in 1.2 s, 8.7 s
+  before); a connection lost before the server accepted stays a plain temporary failure. The server's name is checked
+  against its TLS certificate; the EHLO name is the sender's domain, no longer this computer's name.
 
 ### DB script
 - `db/3.3.0/update.sql`: the tables `comm_event` (what happened) and `comm_message` (what to send), every text column
@@ -91,7 +104,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `message_consent` (bit, not null, default 0: every existing member without consent), `message_consent_at`,
   `message_consent_by`, on a store and on a head office alike. Step 7: the table `comm_campaign` and
   `comm_message.campaign_id` with the index `ix_comm_message_campaign`; run the script again on a database that ran an
-  earlier version of it. Step 8a: `comm_message.redirected_to` (nvarchar(255), the test-recipient mode).
+  earlier version of it. Step 8a: `comm_message.redirected_to` (nvarchar(255), the test-recipient mode). Step 8a part
+  2: the table `comm_channel_state` (a channel's pause and measured speed, one row per channel).
 
 ### Config
 - `communication.enabled` (store and head office): `true` turns the module on; absent, empty or `false` (core's

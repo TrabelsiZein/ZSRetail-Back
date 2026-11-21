@@ -17,7 +17,8 @@ import com.digithink.zsretail.core.support.CatchSmtpServer;
 /**
  * 3.3.0, communication step 8a, a measure, not a check (run by hand: -Dcomm.smtp.measure=true): how many emails one
  * cycle of the sender (its 20 s) gives to the provider smtp, against the mail server of the tests on 127.0.0.1, the
- * messages' table in memory (the database's two writes per message not counted). Prints the numbers.
+ * messages' table in memory (the database's two writes per message not counted). Prints the numbers. Step 8a part 2:
+ * one connection for the cycle, and the rate per hour the New campaign window would show from this measure.
  */
 @EnabledIfSystemProperty(named = "comm.smtp.measure", matches = "true")
 class SmtpThroughputManualTest {
@@ -56,8 +57,10 @@ class SmtpThroughputManualTest {
 			double seconds = (System.nanoTime() - started) / 1e9;
 			long sent = bed.messageTable.values().stream().filter(m -> m.getStatus() == CommunicationMessageStatus.SENT)
 					.count();
-			System.out.printf("SMTP measure: %d of %d sent in %.1f s (%.1f per second); mails caught: %d%n", sent, waiting,
-					seconds, sent / seconds, server.mails().size());
+			System.out.printf("SMTP measure: %d of %d sent in %.1f s (%.1f per second); mails caught: %d on %d"
+					+ " connection(s); the New campaign window would say about %s per hour%n", sent, waiting, seconds,
+					sent / seconds, server.mails().size(), server.connections(),
+					bed.channelStates().perHour(CommunicationTypes.EMAIL, "smtp"));
 		}
 	}
 }

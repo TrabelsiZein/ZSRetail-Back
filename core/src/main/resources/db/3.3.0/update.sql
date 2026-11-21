@@ -1,5 +1,5 @@
 -- ============================================================
--- Version 3.3.0 (in progress) — communication module: comm_event, comm_message (step 1), comm_state (step 2), comm_template, comm_rule (step 3), comm_campaign (step 7)
+-- Version 3.3.0 (in progress) — communication module: comm_event, comm_message (step 1), comm_state (step 2), comm_template, comm_rule (step 3), comm_campaign (step 7), comm_channel_state (step 8a part 2)
 -- ============================================================
 -- Deployment order (a database at 3.2.0; CHANGELOG.md, 3.3.0, "Before deployment"):
 --   1) Bring the database to 3.2.0 first (db/3.2.0/update.sql). This script stops, without changing anything, while
@@ -12,7 +12,7 @@
 -- Re-runnable: each statement is guarded and changes nothing the second time. The tables are created in the form
 -- Hibernate gives them (the constraints and indexes named as in the entities), so the start finds them whole; on a
 -- database without them Hibernate would create them at the first start too. They stay empty while
--- communication.enabled is not true (docs/modules/communication.md). Steps 2, 3, 5, 7 and 8a added 1b and 3 to 9: run
+-- communication.enabled is not true (docs/modules/communication.md). Steps 2, 3, 5, 7, 8a and 8a part 2 added 1b and 3 to 10: run
 -- the script again on a database that ran an earlier version of it.
 
 SET QUOTED_IDENTIFIER ON;
@@ -152,6 +152,21 @@ GO
 -- (communication.test-recipient.*), the member's kept in address. Null otherwise. Every database.
 IF COL_LENGTH(N'comm_message', N'redirected_to') IS NULL
 	ALTER TABLE comm_message ADD redirected_to nvarchar(255) NULL;
+GO
+
+-- 10) Step 8a part 2, what the sender knows of each channel (CommunicationChannelState), one row per channel: its pause
+-- (a channel problem, e.g. a refused SMTP login, pauses the channel, not its messages: paused_since, paused_until,
+-- problems in a row, pause_reason) and its measured speed (speed_messages in speed_millis on speed_provider, measured at
+-- speed_at: the New campaign window's sending time). Written by the application where it sends. Every database.
+IF OBJECT_ID(N'comm_channel_state', N'U') IS NULL
+BEGIN
+	CREATE TABLE comm_channel_state (id bigint identity not null, active bit, created_at datetime2,
+		created_by varchar(255), updated_at datetime2, updated_by varchar(255), channel nvarchar(20) not null,
+		pause_reason nvarchar(1000), paused_since datetime2, paused_until datetime2, problems int not null,
+		speed_at datetime2, speed_messages bigint not null, speed_millis bigint not null, speed_provider nvarchar(20),
+		primary key (id));
+	ALTER TABLE comm_channel_state ADD CONSTRAINT uk_comm_channel_state_channel UNIQUE (channel);
+END
 GO
 
 UPDATE APP_VERSION SET version = '3.3.0';

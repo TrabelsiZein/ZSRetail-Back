@@ -7,7 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.stream.Collectors;
 
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
@@ -28,7 +30,9 @@ import com.digithink.zsretail.core.support.CatchSmtpServer;
 /**
  * 3.3.0, communication step 8a: the provider smtp against a mail server inside the test (CatchSmtpServer, 127.0.0.1, no
  * network): plain text in UTF-8 (Arabic readable), the subject, the sender; an invalid address never sent; 5xx FAILED at
- * once, 4xx / no server / a timeout / a refused login tried again; no host or no sender: cannot send, the channel off.
+ * once, 4xx tried again; no host or no sender: cannot send, the channel off. Step 8a part 2: the channel's problems (no
+ * server, a timeout, a refused login, the sender refused, 421 on a new connection, a quota); one connection per batch;
+ * the EHLO name and the certificate check.
  */
 class SmtpCommunicationProviderTest {
 
@@ -110,25 +114,38 @@ class SmtpCommunicationProviderTest {
 	}
 
 	@Test
-	@DisplayName("Temporary: the server busy (451), no server, a silent server (timeout), a refused login")
-	void temporary() throws IOException {
+	@DisplayName("The email's own temporary failures: a recipient busy (451), the connection lost before the server"
+			+ " accepted (a plain temporary failure, never 'interrupted')")
+	void temporary() {
 		server.busy(true);
 		SendResult busy = provider().send(email("sana@example.tn", "Bonjour", "Texte"));
 		assertEquals(Outcome.TEMPORARY_FAILURE, busy.getOutcome());
 		assertTrue(busy.getError().startsWith("SMTP 451: "), busy.getError());
 
+		server.busy(false).hangUp(true);
+		SendResult lost = provider().send(email("sana@example.tn", "Bonjour", "Texte"));
+		assertEquals(Outcome.TEMPORARY_FAILURE, lost.getOutcome());
+		assertTrue(lost.getError().startsWith("SMTP connection lost: "), lost.getError());
+		assertTrue(server.mails().isEmpty());
+	}
+
+	@Test
+	@DisplayName("Step 8a part 2, the channel's problems (every next email would meet them): no server, a silent server"
+			+ " (timeout), a refused login, the sender refused (553, or 530 without a login), 421 on a new connection, a"
+			+ " daily quota (550 5.4.5)")
+	void channelProblems() throws IOException {
 		int closed;
 		try (ServerSocket free = new ServerSocket(0)) {
 			closed = free.getLocalPort();
 		}
 		SendResult down = new SmtpCommunicationProvider(env(closed)).send(email("sana@example.tn", "Bonjour", "Texte"));
-		assertEquals(Outcome.TEMPORARY_FAILURE, down.getOutcome());
+		assertEquals(Outcome.CHANNEL_PROBLEM, down.getOutcome());
 		assertTrue(down.getError().startsWith("SMTP server unreachable"), down.getError());
 
-		server.busy(false).silent(true);
+		server.silent(true);
 		long started = System.currentTimeMillis();
 		SendResult silent = provider().send(email("sana@example.tn", "Bonjour", "Texte"));
-		assertEquals(Outcome.TEMPORARY_FAILURE, silent.getOutcome());
+		assertEquals(Outcome.CHANNEL_PROBLEM, silent.getOutcome());
 		assertTrue(silent.getError().startsWith("SMTP timeout"), silent.getError());
 		assertTrue(System.currentTimeMillis() - started < 10_000, "the read timeout (2 s) holds");
 
@@ -137,13 +154,79 @@ class SmtpCommunicationProviderTest {
 				.withProperty(SmtpCommunicationProvider.USERNAME_KEY, "magasin")
 				.withProperty(SmtpCommunicationProvider.PASSWORD_KEY, "mauvais"))
 				.send(email("sana@example.tn", "Bonjour", "Texte"));
-		assertEquals(Outcome.TEMPORARY_FAILURE, login.getOutcome());
+		assertEquals(Outcome.CHANNEL_PROBLEM, login.getOutcome());
 		assertTrue(login.getError().startsWith("SMTP login refused (127.0.0.1)"), login.getError());
+		assertEquals(1, server.refusedLogins());
+		SendResult noLogin = provider().send(email("sana@example.tn", "Bonjour", "Texte"));
+		assertEquals(Outcome.CHANNEL_PROBLEM, noLogin.getOutcome(), "530 at MAIL FROM: the sender's problem");
+		assertTrue(noLogin.getError().startsWith("SMTP sender refused (530)"), noLogin.getError());
 		SendResult good = new SmtpCommunicationProvider(env(server.getPort())
 				.withProperty(SmtpCommunicationProvider.USERNAME_KEY, "magasin")
 				.withProperty(SmtpCommunicationProvider.PASSWORD_KEY, "bon-mot-de-passe"))
 				.send(email("sana@example.tn", "Bonjour", "Texte"));
 		assertEquals(Outcome.ACCEPTED, good.getOutcome(), good.getError());
+		server.login(null, null);
+
+		server.refuseSender("553 5.7.1 <fidelite@magasin.tn>: Sender address rejected: not owned by user");
+		SendResult sender = provider().send(email("sana@example.tn", "Bonjour", "Texte"));
+		assertEquals(Outcome.CHANNEL_PROBLEM, sender.getOutcome());
+		assertTrue(sender.getError().startsWith("SMTP sender refused (553)"), sender.getError());
+		server.refuseSender("421 4.7.0 Try again later, closing connection");
+		SendResult busyServer = provider().send(email("sana@example.tn", "Bonjour", "Texte"));
+		assertEquals(Outcome.CHANNEL_PROBLEM, busyServer.getOutcome());
+		assertTrue(busyServer.getError().startsWith("SMTP 421: "), busyServer.getError());
+		server.refuseSender(null).quota(true);
+		SendResult quota = provider().send(email("sana@example.tn", "Bonjour", "Texte"));
+		assertEquals(Outcome.CHANNEL_PROBLEM, quota.getOutcome());
+		assertTrue(quota.getError().startsWith("SMTP 550: ") && quota.getError().contains("5.4.5"), quota.getError());
+		assertTrue(server.mails().size() == 1, "only the good one");
+	}
+
+	@Test
+	@DisplayName("Step 8a part 2: a batch sends on one connection; a refused address keeps it; closed by the server"
+			+ " (421 after emails accepted) the email waits and the next one opens a new connection")
+	void batch() {
+		SmtpCommunicationProvider smtp = provider();
+		server.refuse("nobody@example.tn");
+		try (SmtpCommunicationProvider.SmtpBatch batch = smtp.openBatch()) {
+			assertEquals(Outcome.ACCEPTED, batch.send(email("a@example.tn", "1", "Un")).getOutcome());
+			assertEquals(Outcome.PERMANENT_FAILURE, batch.send(email("nobody@example.tn", "2", "Deux")).getOutcome());
+			assertEquals(Outcome.PERMANENT_FAILURE, batch.send(email("pas-un-email", "3", "Trois")).getOutcome());
+			assertEquals(Outcome.ACCEPTED, batch.send(email("b@example.tn", "4", "Quatre")).getOutcome());
+			assertEquals(1, batch.connections());
+		}
+		assertEquals(1, server.connections());
+		assertEquals(Arrays.asList(1, 1), server.mails().stream().map(CatchSmtpServer.Mail::getConnection)
+				.collect(Collectors.toList()));
+
+		server.closeAfter(2);
+		try (SmtpCommunicationProvider.SmtpBatch batch = smtp.openBatch()) {
+			assertEquals(Outcome.ACCEPTED, batch.send(email("c@example.tn", "5", "Cinq")).getOutcome());
+			assertEquals(Outcome.ACCEPTED, batch.send(email("d@example.tn", "6", "Six")).getOutcome());
+			SendResult closed = batch.send(email("e@example.tn", "7", "Sept"));
+			assertEquals(Outcome.TEMPORARY_FAILURE, closed.getOutcome(), "421 after emails accepted: the email's");
+			assertTrue(closed.getError().startsWith("SMTP 421: "), closed.getError());
+			assertEquals(Outcome.ACCEPTED, batch.send(email("e@example.tn", "7", "Sept")).getOutcome());
+			assertEquals(2, batch.connections());
+		}
+		assertEquals(3, server.connections());
+	}
+
+	@Test
+	@DisplayName("Step 8a part 2: the EHLO name is the sender's domain; the server's name checked against its TLS"
+			+ " certificate; the connection checked with RSET after a refusal")
+	void mailSettings() {
+		assertEquals(Outcome.ACCEPTED, provider().send(email("sana@example.tn", "Bonjour", "Texte")).getOutcome());
+		assertEquals(Collections.singletonList("magasin.tn"), server.ehloNames());
+		java.util.Properties props = provider().sessionProperties();
+		assertEquals("magasin.tn", props.getProperty("mail.smtp.localhost"));
+		assertEquals("true", props.getProperty("mail.smtp.ssl.checkserveridentity"));
+		assertEquals("true", props.getProperty("mail.smtp.userset"));
+		assertNull(props.getProperty("mail.smtp.ssl.trust"), "the JDK's trusted authorities, nothing trusted blindly");
+		assertEquals("magasin.tn", SmtpCommunicationProvider.ehloName("fidelite@magasin.tn"));
+		assertTrue(SmtpCommunicationProvider.congestion("550 5.4.5 Daily user sending quota exceeded"));
+		assertTrue(SmtpCommunicationProvider.congestion("452-4.4.5 Insufficient disk space"));
+		assertFalse(SmtpCommunicationProvider.congestion("550 5.1.1 User unknown"));
 	}
 
 	@Test

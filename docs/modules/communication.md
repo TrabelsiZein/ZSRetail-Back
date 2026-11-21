@@ -6,8 +6,9 @@ Communication page: messages, rules, templates), step 5 (the member's consent; r
 (the head office shape: a store whose loyalty is the head office's pushes its events up, the head office makes and
 sends the messages), step 7 (the campaigns: one template to every member who accepts messages; the empty-field guard of
 every message), step 8a (the email channel for real through SMTP, the test-recipient mode, no double send, the Canaux
-tab, the right to launch a campaign). SMS and WhatsApp still on the test provider; no member language, no member filter
-on a campaign.
+tab, the right to launch a campaign), step 8a part 2 (a channel's problem pauses the channel, not its messages; one
+SMTP connection per cycle; the sending time in the New campaign window; the certificate's name checked, the EHLO name).
+SMS and WhatsApp still on the test provider; no member language, no member filter on a campaign.
 
 Messages to loyalty members by WhatsApp, SMS and email: two automatic events in version 1 ("loyalty member created",
 "ticket validated for a member") and a simple campaign (one template to every member with consent). The till never
@@ -553,7 +554,7 @@ SMS and WhatsApp stay on the provider `test`. Every new line is optional, with i
 **The provider `smtp`** (`SmtpCommunicationProvider`, `communication.email.provider=smtp`): javax.mail of the mail
 starter already in core's pom, its own `Session` per message (never a shared mail bean), with
 `mail.smtp.connectiontimeout`, `mail.smtp.timeout` and `mail.smtp.writetimeout` all at
-`communication.email.smtp.timeout-seconds`; one connection per message. Plain text, UTF-8 (subject, text, the sender's
+`communication.email.smtp.timeout-seconds`; one connection per message (part 2: one per cycle). Plain text, UTF-8 (subject, text, the sender's
 name), the subject from the template, the sender `communication.email.from-address` and `from-name`; the message's
 `provider_message_id` is the email's Message-ID, on the sender's domain (`<...@magasin.tn>`, the session's `mail.from`;
 without it javax.mail wrote this computer's name, `<...@DESKTOP-...>`, seen in the screen test).
@@ -576,12 +577,12 @@ What the server answers:
   message is made, the event's reason says it (`TICKET_THANKS_EMAIL: email 'sana@' is not valid`; none typed: `no
   email address`). An address that reaches the provider and is not an email: not sent, `FAILED` at once, `invalid email
   address '<a>': not sent`, no retry.
-- A temporary failure (no connection, a timeout, a 4xx answer, the connection lost): the waits of every message, 1, 5,
-  15 then 60 minutes, `FAILED` at the 5th attempt (`attempt n failed: SMTP 451: ...`, `SMTP server unreachable: ...`,
-  `SMTP timeout: ...`).
+- A temporary failure (a 4xx answer, a timeout or the connection lost while an email is sent): the waits of every
+  message, 1, 5, 15 then 60 minutes, `FAILED` at the 5th attempt (`attempt n failed: SMTP 451: ...`). Part 2: no
+  connection, a connect timeout and a refused login are the channel's problem (below), no longer the message's.
 - A permanent failure (a 5xx answer, the address refused): `FAILED` at once with the server's words (`SMTP 550: ...`).
-- A refused login (535) is **temporary**, not permanent: the wrong password is the installation's, not the member's;
-  the messages wait and leave once the password is fixed (`SMTP login refused (<host>): ...`).
+- A refused login (535) is not the member's fault: the messages wait and leave once the password is fixed (`SMTP login
+  refused (<host>): ...`). Part 2: a channel problem, the channel paused, the messages' attempts unused.
 - Email on, `smtp` and no host (or no sender, a port, a timeout or a security not valid): one WARN at the start
   (`Communication: email is on with the provider smtp, but communication.email.smtp.host is empty: the channel is off`)
   and the channel is off; never a refused start.
@@ -627,9 +628,8 @@ writes per message (`SENDING`, then the answer) and the maker's inserts, so a ca
 takes a few cycles (minutes). A hosted mail server is the limit: with TLS and a login per message, 0.3 to 1 s per email
 gives 20 to 60 emails per cycle (the sender has at most the cycle's 20 s every 60 s), 1,200 to 3,600 an hour: 5,000 in
 1.5 to 4 h; a daily cap below the campaign's size (common on hosted plans) leaves the rest `EXPIRED` after the 24 h
-lifetime. **A campaign can expire before it is fully sent.** Proposed rule (not built): the window shows the time the
-campaign needs at the channel's measured rate (the last sends) and refuses a launch whose time exceeds the lifetime
-(or proposes the lifetime it needs); with it, one SMTP connection kept for a batch of messages.
+lifetime. **A campaign can expire before it is fully sent.** Built in part 2: the window's sending time and the
+proposed lifetime (a warning, never a refusal), one SMTP connection per cycle.
 
 Tests: `SmtpCommunicationProviderTest` (against `CatchSmtpServer`, a mail server written for the tests in core's test
 sources, 127.0.0.1, no network: Arabic in UTF-8, the sender, an invalid address, 550, 451, no server, a silent server
@@ -647,9 +647,96 @@ email lines added for the test and taken out after), the WAR exploded, the tests
 the test-recipient mode, the Canaux tab and its test, a user without the right to launch, fr and ar; a message left
 SENDING found FAILED "interrupted" at the start. 0 back-end ERROR, 0 console error.
 
+## Step 8a, part 2: a channel's problem pauses the channel, one connection per cycle, the sending time
+
+SMS and WhatsApp still on the provider `test`. No new property.
+
+**The rule, in the provider contract** (`CommunicationProvider.Outcome.CHANNEL_PROBLEM`, `SendResult.channelProblem`):
+a provider answers a *channel problem* when the channel cannot send whatever the message (the same rule for SMS and
+WhatsApp later). The sender then:
+- leaves the message as it was: `PENDING`, its attempts, its next attempt and its reason unchanged (it never uses its
+  5 attempts on the channel's problem; it waits until its own `expires_at`);
+- stops the channel for the rest of the cycle (one problem per cycle, never one per message: a campaign of 5,000 with a
+  wrong password makes one refused login, not 5,000);
+- pauses the channel (`CommunicationChannelStates.problem`, one WARN line `Communication: channel EMAIL paused until
+  ...`): the next try after 1, 5, 15, then every 60 min (the `n`-th problem in a row). While the wait runs the
+  channel's messages are not read (`findDueOutside`); those past their expiry become `EXPIRED` in one statement
+  (`expired while its channel was paused, not sent`). The other channels go on in the same cycle.
+- The wait over, the next cycle tries the first message: a problem again, the next wait; accepted, the pause ends (one
+  INFO line `sends again`) and the other messages leave in the same cycle.
+- "Envoyer un test" on the Canaux tab is never stopped by the pause: accepted, it lifts the pause at once; meeting the
+  problem again, it is `FAILED` (tried once, its reason kept) and the pause keeps its wait (a click never makes it
+  longer); no pause yet, it starts one (the first wait).
+- A restart keeps the pause (the table below) and its wait.
+
+For `smtp` a channel problem is: the connection not opened (no server, a connect or greeting timeout, TLS refused or a
+certificate not matching, no STARTTLS when required, the login refused: `SMTP login refused (<host>): ...`), the
+sender refused at `MAIL FROM` (any code: `530` authentication required, `553` sender not owned...: `SMTP sender refused
+(<code>): ...`), a `421` on a connection that has sent nothing yet, an answer with the enhanced code `x.4.5` (RFC 3463,
+mail system congestion, e.g. Gmail's daily quota `550 5.4.5`). Still the email's own: an address refused (`550` FAILED,
+`451` tried again), a text refused (5xx at the end of the data), a `421` after emails accepted on the connection, a
+timeout or a connection lost while an email is sent (tried again with the waits of every message: a connection lost
+before the server accepted is a plain temporary failure, never "interrupted"; the no-double-send rule is unchanged).
+
+**One SMTP connection per cycle** (`CommunicationProvider.Batch`, `SmtpCommunicationProvider.SmtpBatch`): the sender
+opens one batch per provider for the cycle (lazily, at the first message of that provider), gives it the cycle's
+messages and closes it at the end, also after a failure. `smtp` opens its connection at the first email (an invalid
+address needs none); after a refused email it checks the connection (`RSET`, `mail.smtp.userset`): closed or lost, the
+next email opens a new one. The Canaux tab's test has its own connection. Measured again (same test, same machine):
+5,000 emails in 1.2 s on 1 connection (4,113 per second; 8.7 s and one connection each in step 8a).
+
+**Two mail settings**: the server's name is checked against its TLS certificate (`mail.smtp.ssl.checkserveridentity`,
+off by default in JavaMail 1.6), with the JDK's trusted authorities (nothing trusted blindly); the EHLO name is the
+sender's domain (`mail.smtp.localhost`, like the Message-ID), no longer this computer's name.
+
+**The sending time in the New campaign window** (`POST /communication/campaigns/audience` gives `sending`):
+- the speed: the sender measures, per channel and provider, the messages it hands to the provider in each cycle and the
+  time spent on them (its reads and writes included), over about the last 1,000 messages
+  (`CommunicationChannelStates.measured`; a new provider starts a new measure);
+- per hour = that speed times the sender's share of an hour while a queue waits: it sends for at most the cycle's
+  bound (20 s), then waits `communication.cycle-seconds` (60 s): 20 / 80 of the hour;
+- the line: "Environ N par heure : environ X pour cette campagne" (X = (the channel's messages already waiting +
+  the campaign's) / N; under an hour in minutes); none without a recent measure (never sent, older than 30 days, the
+  provider `test`, which sends nothing);
+- longer than the lifetime typed: a warning and a proposed lifetime (the time plus a fifth, rounded up, 1 to 720 h),
+  taken in one click; more than 720 h needed: the warning says even 720 h is not enough. Never a refusal;
+- the channel paused: a line says the campaign will wait.
+
+**The Canaux tab** shows per channel its pause (badge "En pause", since when, the reason, the next try, the problems in
+a row, that the messages wait without using their attempts) and its recent rate per hour; the test's result says when
+it lifted the pause or when the pause stays. **The Messages tab** shows a banner per channel paused.
+
+**Database** (`db/3.3.0/update.sql`, section 10, safe to run twice): `comm_channel_state` (`CommunicationChannelState`,
+one row per channel, written where the messages are sent): `paused_since` (null: not paused), `paused_until`,
+`problems`, `pause_reason`, `speed_messages`, `speed_millis`, `speed_provider`, `speed_at`.
+
+Tests: `CommunicationChannelPauseTest` (one problem per cycle, the attempts unused, the waits 1 / 5 / 15 / 60, the other
+channels going on, one batch per cycle, a test lifting the pause, a test keeping the wait, a test starting a pause, the
+expiry while paused, the pause kept by a new sender, the speed and its window, the sending time and the proposed
+lifetime), `SmtpCommunicationProviderTest` (the channel's problems against `CatchSmtpServer`: no server, a silent
+server, a refused login, `530` and `553` at MAIL FROM, `421` on a new connection, `550 5.4.5`; the email's own: `451`,
+the connection lost before the answer; a batch on one connection, a refused address keeping it, `421` after emails
+accepted opening a new one; the EHLO name and the certificate check). `CatchSmtpServer` counts the connections, the
+EHLO names and the refused logins, and can refuse the sender, close after n mails, answer a quota or hang up. Changed
+on purpose: `CampaignTestBed` (the channel states and the new queries), `SmtpCommunicationProviderTest.temporary` (no
+server, a timeout and a refused login are now channel problems), `InstallationBeansProofTest` (135 beans).
+
+Screen test (2026-11-21): the Happyness store on `pos_franchise_customer` and the ZEN head office on `zen_headoffice`
+(their local files given the email lines for the test, restored byte for byte after; `update.sql` run twice on both),
+the WARs exploded, the tests' `CatchSmtpServer` alone on 127.0.0.1:2525 with a login (nothing left the PC). A campaign
+of 3 emails with a wrong password: one refused login per try (12:51:45, 12:52:45, the next 5 min later; the cycle in
+between opened no connection), the 3 messages waiting with 0 attempts, the pause on the Canaux tab and the Messages
+banner; the store restarted with the right password kept the pause; "Envoyer un test" lifted it and the next cycle sent
+the 3 on one connection (the test on its own). The catch server stopped: the same pause, "server unreachable"; a test
+with the server down started one; a test lifted it again. The EHLO name was the sender's domain. The window: no line
+before any measured send, "about 15,517 per hour" after; with the speed set slow by SQL (2 an hour, put back after) and a
+lifetime of 1 h, the warning and "Use 2 h". The head office: the Canaux tab and a test email, the Roles page naming the
+new right, a user without it (the Campaigns tab read only, launch and cancel 403), the read-only line in Arabic. fr, ar,
+en. 0 back-end ERROR, 0 console error.
+
 ## Next steps (to be agreed one at a time)
 
 The member's language (it travels with the shared loyalty register; templates then need a key on code and language; a
 rule then needs a purpose, service or marketing), member filters on a campaign (store, points, last purchase), a
-planned date, a promo code per member, step 8b the real SMS and WhatsApp providers, the campaign's expiry rule ("Step
-8a", "Speed").
+planned date, a promo code per member, step 8b the real SMS and WhatsApp providers (their channel problems through
+`CHANNEL_PROBLEM`), a shorter wait between cycles while a queue waits (about 4 times the rate, "Step 8a, part 2").

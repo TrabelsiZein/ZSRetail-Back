@@ -44,7 +44,7 @@ public class CommunicationScheduler {
 	public static final String CYCLE_SECONDS_KEY = "communication.cycle-seconds";
 	static final long DEFAULT_CYCLE_SECONDS = 60;
 	static final Duration FIRST_DELAY = Duration.ofSeconds(30);
-	static final Duration CYCLE_BOUND = Duration.ofSeconds(20);
+	public static final Duration CYCLE_BOUND = Duration.ofSeconds(20);
 
 	private final List<CommunicationTask> tasks;
 	private final CommunicationStates states;
@@ -69,7 +69,7 @@ public class CommunicationScheduler {
 	}
 
 	/** communication.cycle-seconds: absent or empty, 60; otherwise a whole number, at least 1. */
-	static long cycleSeconds(String raw) {
+	public static long cycleSeconds(String raw) {
 		String value = raw == null ? "" : raw.trim();
 		if (value.isEmpty()) {
 			return DEFAULT_CYCLE_SECONDS;

@@ -8,15 +8,40 @@ import lombok.Value;
 
 /**
  * 3.3.0, communication module, step 3: who delivers a message. Named as in communication.&lt;channel&gt;.provider (only
- * "test" in step 3; the real providers come later). Called by the sender on its own thread, one message at a time. A
- * throw is read as a temporary failure.
+ * "test" in step 3; the real providers come later). Called by the sender on its own thread. A throw is read as a
+ * temporary failure. Step 8a part 2: the sender gives a cycle's messages to one {@link Batch} per provider (one SMTP
+ * connection for the cycle), and a provider answers {@link Outcome#CHANNEL_PROBLEM} when the channel itself cannot send
+ * (the same rule for every channel: the channel pauses, the messages wait without using their attempts).
  */
 public interface CommunicationProvider {
 
 	/** The name of the properties, lower case, e.g. test. */
 	String getName();
 
+	/** One message alone (its own connection, when the provider has one): the Canaux tab's test. */
 	SendResult send(CommunicationMessage message);
+
+	/**
+	 * Step 8a part 2: the sends of one cycle, sharing what the provider can share (smtp: one connection, opened at the
+	 * first message, closed by {@link Batch#close()}). Default: each message sent alone.
+	 */
+	default Batch openBatch() {
+		return this::send;
+	}
+
+	/**
+	 * Step 8a part 2: the sends of one cycle on one provider. Used by one thread; closed at the end of the cycle, also
+	 * when a send failed. A send after a channel problem may try to open the connection again.
+	 */
+	interface Batch extends AutoCloseable {
+
+		SendResult send(CommunicationMessage message);
+
+		@Override
+		default void close() {
+			// nothing to close by default
+		}
+	}
 
 	/**
 	 * Step 8a: why this provider cannot send now (e.g. smtp without a host), null when it can. A channel on with a
@@ -40,7 +65,14 @@ public interface CommunicationProvider {
 		/** Try again later (timeout, provider busy): PENDING with a wait, FAILED after the last attempt. */
 		TEMPORARY_FAILURE,
 		/** Never try again (address or text refused): FAILED at once. */
-		PERMANENT_FAILURE
+		PERMANENT_FAILURE,
+		/**
+		 * Step 8a part 2: the channel cannot send now, whatever the message (a refused login, a server unreachable, the
+		 * sender refused, the server congested): not the message's fault. The message keeps its attempts and waits (until
+		 * its own expiry); the sender stops the channel for the cycle and pauses it (1, 5, 15, then every 60 min); a
+		 * message accepted, or a test accepted on the Canaux tab, lifts the pause.
+		 */
+		CHANNEL_PROBLEM
 	}
 
 	@Value
@@ -62,6 +94,11 @@ public interface CommunicationProvider {
 
 		public static SendResult permanentFailure(String error) {
 			return new SendResult(Outcome.PERMANENT_FAILURE, null, error);
+		}
+
+		/** Step 8a part 2: the channel's problem, not the message's. */
+		public static SendResult channelProblem(String error) {
+			return new SendResult(Outcome.CHANNEL_PROBLEM, null, error);
 		}
 	}
 }
