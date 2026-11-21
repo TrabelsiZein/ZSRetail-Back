@@ -159,6 +159,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 ### Fixes
 - Communication, step 8d: the default WhatsApp API version is v26.0, the newest on Meta's versions page; step 8c had
   v27.0, a version Meta has not published.
+- A new 3.3.0 database got no `loyalty_member` table: `message_consent`'s definition said `bit default 0 not null` and
+  Hibernate adds `not null` to a column not nullable, so SQL Server refused the CREATE TABLE (`not null not null`, a WARN
+  only) and the links of `loyalty_member`, `loyalty_transaction` and `sales_header` to it. The definition is now `bit
+  default 0` (still not null). A database upgraded by `update.sql` was not touched. New guard
+  `ColumnDefinitionsGuardTest`: no column definition of an entity says `not null` where Hibernate adds it.
 
 ### DB script
 - `db/3.3.0/update.sql`: the tables `comm_event` (what happened) and `comm_message` (what to send), every text column

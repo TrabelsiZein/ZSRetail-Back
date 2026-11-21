@@ -85,7 +85,7 @@ public class LoyaltyMember extends _BaseEntity {
 	 * the phone, with the module on or off; no by default. Changed only through {@link MessageConsent#apply}, which
 	 * keeps the date and the user of the last change.
 	 */
-	@Column(name = "message_consent", nullable = false, columnDefinition = "bit default 0 not null")
+	@Column(name = "message_consent", nullable = false, columnDefinition = "bit default 0")
 	private Boolean messageConsent = Boolean.FALSE;
 
 	/** Step 5: when the consent last changed (null: never given nor withdrawn). */
