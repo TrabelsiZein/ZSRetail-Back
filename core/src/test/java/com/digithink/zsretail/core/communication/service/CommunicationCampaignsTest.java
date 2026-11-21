@@ -199,11 +199,16 @@ class CommunicationCampaignsTest {
 		assertEquals(1L, cancelled.get("sent"));
 		assertEquals(2L, cancelled.get("skipped"));
 
-		// A message of the campaign still waiting (read before the cancel): never given to the provider
+		// A message of the campaign still waiting (read before the cancel): never given to the provider; step 8e: SKIPPED
+		// with the cancel's reason, never left waiting (it kept the 5 s cycle running)
 		made.get(1).setStatus(CommunicationMessageStatus.PENDING);
 		Recording provider = new Recording();
-		assertNull(send(provider));
+		CommunicationSender sender = bed.sender(provider);
+		assertEquals("1 skipped", sender.run(java.time.Instant.now().plusSeconds(20)));
 		assertTrue(provider.cards.isEmpty());
+		assertEquals(CommunicationMessageStatus.SKIPPED, made.get(1).getStatus());
+		assertEquals("campaign cancelled by admin at 2026-11-21 10:00", made.get(1).getLastError());
+		assertFalse(sender.moreToDo(), "no message can leave: no fast cycle");
 		assertNull(make());
 		assertEquals("COMM_CAMPAIGN_NOT_RUNNING", refused(() -> bed.campaigns().cancel(1L, "admin")).getCode());
 	}

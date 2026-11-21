@@ -49,11 +49,13 @@ class CommunicationKeyTest {
 	}
 
 	@Test
-	@DisplayName("Another value stops the start, the message naming the key")
+	@DisplayName("Step 8e: another value is the module off with one WARN, never a refused start")
 	void refused() {
-		MockEnvironment env = store().withProperty(NodeOwnership.COMMUNICATION_KEY, "yes");
-		String message = assertThrows(IllegalStateException.class, () -> NodeOwnership.resolve(env)).getMessage();
-		assertEquals("Invalid value 'yes' for property communication.enabled: true (the communication module is on) or"
-				+ " false (off, also when the line is absent or empty)", message);
+		for (MockEnvironment env : new MockEnvironment[] { store().withProperty(NodeOwnership.COMMUNICATION_KEY, "yes"),
+				headOffice().withProperty(NodeOwnership.COMMUNICATION_KEY, "1") }) {
+			NodeOwnership.resolve(env);
+			assertFalse(NodeOwnership.isCommunicationSet(env));
+			assertFalse(Installation.COMMUNICATION.isTrue(env));
+		}
 	}
 }

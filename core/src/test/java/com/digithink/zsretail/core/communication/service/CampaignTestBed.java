@@ -121,8 +121,10 @@ final class CampaignTestBed {
 	final List<CommunicationProvider> extraProviders = new ArrayList<>();
 
 	CommunicationSettings settings() {
+		// Step 8e: no default provider any more: the test one written, unless a test sets its own
 		MockEnvironment env = new MockEnvironment().withProperty("communication.sms.enabled", smsEnabled)
-				.withProperty("communication.email.enabled", emailEnabled);
+				.withProperty("communication.email.enabled", emailEnabled).withProperty("communication.sms.provider", "test")
+				.withProperty("communication.email.provider", "test").withProperty("communication.whatsapp.provider", "test");
 		properties.forEach(env::setProperty);
 		List<CommunicationProvider> all = new ArrayList<>(extraProviders);
 		all.add(new com.digithink.zsretail.core.communication.provider.TestCommunicationProvider());
@@ -251,6 +253,16 @@ final class CampaignTestBed {
 					return message;
 				case "findByDedupKey":
 					return messageTable.values().stream().filter(m -> m.getDedupKey().equals(args[0])).findFirst();
+				case "findById": // step 8e: the resend's read
+					return Optional.ofNullable(messageTable.get(args[0]));
+				case "claim": { // step 8e: SENDING only if still PENDING
+					CommunicationMessage claimed = messageTable.get(args[0]);
+					if (claimed == null || claimed.getStatus() != args[1]) {
+						return 0;
+					}
+					claimed.setStatus((CommunicationMessageStatus) args[2]);
+					return 1;
+				}
 				case "findExistingDedupKeys":
 					return messageTable.values().stream().map(CommunicationMessage::getDedupKey)
 							.filter(((Collection<?>) args[0])::contains).collect(Collectors.toList());
@@ -361,6 +373,7 @@ final class CampaignTestBed {
 					return eventTable.values().stream().filter(e -> e.getStatus() == CommunicationEventStatus.PENDING)
 							.filter(e -> e.getId() > afterId).map(CommunicationEvent::getId).collect(Collectors.toList());
 				case "findById":
+				case "findForProcessing": // step 8e: the locked read
 					return Optional.ofNullable(eventTable.get(args[0]));
 				default:
 					return UNHANDLED;

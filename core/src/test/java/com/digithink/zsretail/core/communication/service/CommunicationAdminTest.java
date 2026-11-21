@@ -383,7 +383,8 @@ class CommunicationAdminTest {
 
 	private CommunicationAdmin admin() {
 		CommunicationSettings settings = new CommunicationSettings(new MockEnvironment()
-				.withProperty("communication.sms.enabled", smsEnabled), Collections.singletonList("test"));
+				.withProperty("communication.sms.enabled", smsEnabled).withProperty("communication.sms.provider", "test"),
+				Collections.singletonList("test"));
 		return new CommunicationAdmin(stub(CommunicationEventRepository.class,
 				(m, a) -> "findById".equals(m) ? Optional.empty() : UNHANDLED), messages, rules,
 				templates, members, settings, Optional.empty(), () -> "Happyness", () -> NOW);

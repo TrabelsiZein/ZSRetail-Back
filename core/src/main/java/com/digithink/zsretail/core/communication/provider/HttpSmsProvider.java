@@ -96,7 +96,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * docs/modules/communication.md, "Step 8b".
  */
 @Component
-@ConditionalOnInstallation(Installation.COMMUNICATION)
+@ConditionalOnInstallation(Installation.COMMUNICATION_SENDS_HERE)
 public class HttpSmsProvider implements CommunicationProvider {
 
 	public static final String NAME = "http";
@@ -538,6 +538,11 @@ public class HttpSmsProvider implements CommunicationProvider {
 		if (status == 408) {
 			return SendResult.temporaryFailure("SMS (HTTP 408): " + words);
 		}
+		// Step 8e: 502, 504, 524 with no error of the gateway inside: a proxy in front of it, which may have passed the
+		// request on: the "no answer" rule (never sent again by itself; with retry-no-answer, after the pause)
+		if (PROXY_STATUSES.contains(status) && (errorField == null || text(path(json, errorField)) == null)) {
+			return noAnswer("SMS: no answer from the gateway (HTTP " + status + ")");
+		}
 		if (status == 429 || status >= 500) {
 			Duration wait = retryAfter(response);
 			String what = status == 429 ? "SMS too many requests (HTTP 429)" : "SMS server error (HTTP " + status + ")";
@@ -622,8 +627,15 @@ public class HttpSmsProvider implements CommunicationProvider {
 	 * {messageId}.
 	 */
 	private SendResult noAnswer(IOException e) {
-		String why = e instanceof SocketTimeoutException ? "SMS: no answer within " + readSeconds + " s"
-				: "SMS: the connection was lost before the answer (" + mask(e.getMessage()) + ")";
+		return noAnswer(e instanceof SocketTimeoutException ? "SMS: no answer within " + readSeconds + " s"
+				: "SMS: the connection was lost before the answer (" + mask(e.getMessage()) + ")");
+	}
+
+	/** Step 8e: the statuses of a proxy in front of a provider (bad gateway, gateway timeout, Cloudflare's timeout). */
+	static final java.util.Set<Integer> PROXY_STATUSES = new java.util.HashSet<>(java.util.Arrays.asList(502, 504, 524));
+
+	/** The "no answer" rule: uncertain; with retry-no-answer, the channel's problem (sent again after the pause). */
+	private SendResult noAnswer(String why) {
 		return retryNoAnswer ? SendResult.channelProblem(why + ", tried again (the gateway refuses doubles)")
 				: SendResult.uncertain(why);
 	}

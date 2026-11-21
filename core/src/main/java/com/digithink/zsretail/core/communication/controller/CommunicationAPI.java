@@ -40,10 +40,10 @@ import lombok.extern.log4j.Log4j2;
  * /communication/messages/{id} (with its event), POST /communication/messages/{id}/resend;</li>
  * <li>GET /communication/events?status=SKIPPED|ERROR&amp;dateFrom=&amp;dateTo=&amp;q=&amp;page=&amp;size=;</li>
  * <li>GET /communication/counters;</li>
- * <li>GET /communication/rules, GET /communication/rules/{id}, PUT /communication/rules/{id} {channel, templateCode,
+ * <li>GET /communication/rules, PUT /communication/rules/{id} {channel, templateCode,
  * lifetimeHours}, PUT /communication/rules/{id}/active {active}; step 5: POST /communication/rules {code, eventType,
  * channel, templateCode, lifetimeHours, active};</li>
- * <li>GET /communication/templates, GET /communication/templates/{id}, POST /communication/templates, PUT
+ * <li>GET /communication/templates, POST /communication/templates, PUT
  * /communication/templates/{id}, PUT /communication/templates/{id}/active {active}, POST
  * /communication/templates/preview {channel, body}, GET /communication/templates/fields;</li>
  * <li>step 7: GET /communication/campaigns?page=&amp;size=, GET /communication/campaigns/names, GET
@@ -186,11 +186,6 @@ public class CommunicationAPI {
 		return read(admin::rules);
 	}
 
-	@GetMapping("/rules/{id}")
-	public ResponseEntity<?> rule(@PathVariable long id) {
-		return read(() -> admin.rule(id));
-	}
-
 	/** The rule's form: {channel, templateCode, lifetimeHours}. */
 	public static final class RuleForm {
 		public String channel;
@@ -232,11 +227,6 @@ public class CommunicationAPI {
 		return read(admin::fields);
 	}
 
-	@GetMapping("/templates/{id}")
-	public ResponseEntity<?> template(@PathVariable long id) {
-		return read(() -> admin.template(id));
-	}
-
 	@PostMapping("/templates")
 	public ResponseEntity<?> createTemplate(@RequestBody TemplateForm form) {
 		return write(() -> admin.createTemplate(form, currentUserProvider.getCurrentUserName()));
@@ -271,8 +261,10 @@ public class CommunicationAPI {
 
 	private ResponseEntity<?> answer(String permission, Supplier<Object> call) {
 		if (!currentUserProvider.currentUserHasPermission(permission)) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Collections.singletonMap("error",
-					"The Communication page needs the permission " + permission));
+			// Step 8e: with its code, so that the page says it in the screen's language
+			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new CommunicationException(HttpStatus.FORBIDDEN.value(),
+					"COMM_FORBIDDEN", "The Communication page needs the permission " + permission, "permission", permission)
+					.body());
 		}
 		try {
 			return ResponseEntity.ok(call.get());

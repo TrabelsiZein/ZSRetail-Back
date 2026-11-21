@@ -70,7 +70,8 @@ import com.digithink.zsretail.erp.api.ErpAbility;
  * true on a head office too ({@link #isRfidSet}).
  * <p>
  * Communication (3.3.0, step 1): {@code communication.enabled}, true or false; absent or blank is false (the module does
- * nothing, as 3.2.0); any other value stops the startup ({@link #isCommunicationSet}). A store and a head office alike.
+ * nothing, as 3.2.0); any other value is one WARN and the module off since step 8e ({@link #isCommunicationSet}). A store
+ * and a head office alike.
  */
 public final class NodeOwnership {
 
@@ -296,7 +297,8 @@ public final class NodeOwnership {
 
 	/**
 	 * 3.3.0, step 1: communication.enabled, trimmed and case-insensitive. Absent or blank: false (the module does
-	 * nothing). Any value other than true or false throws {@link IllegalStateException} naming the key, like the startup.
+	 * nothing). Step 8e: any value other than true or false is one WARN naming the key and the module off (it threw before:
+ * a messaging line never stops a back end).
 	 * Also used by {@link Installation#COMMUNICATION}.
 	 */
 	public static boolean isCommunicationSet(PropertyResolver env) {
@@ -308,9 +310,16 @@ public final class NodeOwnership {
 		if ("true".equalsIgnoreCase(value)) {
 			return true;
 		}
-		throw new IllegalStateException("Invalid value '" + raw + "' for property " + COMMUNICATION_KEY
-				+ ": true (the communication module is on) or false (off, also when the line is absent or empty)");
+		// Step 8e: a messaging line never stops a back end: another value is the module off, one WARN line
+		if (COMMUNICATION_WARNED.add(raw)) {
+			org.apache.logging.log4j.LogManager.getLogger(NodeOwnership.class).warn("Communication: {}='{}' is neither true"
+					+ " nor false: the communication module is off", COMMUNICATION_KEY, raw);
+		}
+		return false;
 	}
+
+	/** Step 8e: the wrong values of communication.enabled already warned about (read by every bean's condition). */
+	private static final Set<String> COMMUNICATION_WARNED = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
 	/**
 	 * 3.3.0, step 3: the module on, where the loyalty is owned: it makes and sends its own messages. Step 6: a store

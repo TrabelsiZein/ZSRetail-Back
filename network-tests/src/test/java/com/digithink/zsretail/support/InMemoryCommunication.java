@@ -99,6 +99,7 @@ public class InMemoryCommunication {
 				case "findByDedupKey":
 					return Optional.ofNullable(byKey((String) args[0]));
 				case "findById":
+				case "findForProcessing": // step 8e: the locked read
 					return Optional.ofNullable(events.get(args[0]));
 				case "findAllById":
 					return StreamSupport.stream(((Iterable<Long>) args[0]).spliterator(), false).map(events::get)
@@ -139,6 +140,14 @@ public class InMemoryCommunication {
 					return messages.values().stream().filter(m -> m.getDedupKey().equals(args[0])).findFirst();
 				case "findById":
 					return Optional.ofNullable(messages.get(args[0]));
+				case "claim": { // step 8e: SENDING only if still PENDING
+					CommunicationMessage claimed = messages.get(args[0]);
+					if (claimed == null || claimed.getStatus() != args[1]) {
+						return 0;
+					}
+					claimed.setStatus((com.digithink.zsretail.core.communication.enumeration.CommunicationMessageStatus) args[2]);
+					return 1;
+				}
 				case "findDue": {
 					LocalDateTime at = (LocalDateTime) args[1];
 					long afterId = (Long) args[2];

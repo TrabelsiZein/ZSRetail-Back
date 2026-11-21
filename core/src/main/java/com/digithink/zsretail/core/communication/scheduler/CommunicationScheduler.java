@@ -72,7 +72,10 @@ public class CommunicationScheduler {
 		this.clock = clock;
 	}
 
-	/** communication.cycle-seconds: absent or empty, 60; otherwise a whole number, at least 1. */
+	/**
+	 * communication.cycle-seconds: absent or empty, 60; otherwise a whole number, at least 1. Step 8e: another value is
+	 * one WARN and 60, never a refused start (a messaging line never stops a back end).
+	 */
 	public static long cycleSeconds(String raw) {
 		String value = raw == null ? "" : raw.trim();
 		if (value.isEmpty()) {
@@ -84,18 +87,24 @@ public class CommunicationScheduler {
 				return seconds;
 			}
 		} catch (NumberFormatException e) {
-			// refused below
+			// the default below
 		}
-		throw new IllegalStateException("Invalid value '" + raw + "' for property " + CYCLE_SECONDS_KEY
-				+ ": a whole number of seconds, at least 1 (absent or empty: " + DEFAULT_CYCLE_SECONDS + ")");
+		if (WARNED.add(CYCLE_SECONDS_KEY + "=" + raw)) {
+			log.warn("Communication: {}='{}' is not a whole number of seconds of at least 1: {} s", CYCLE_SECONDS_KEY, raw,
+					DEFAULT_CYCLE_SECONDS);
+		}
+		return DEFAULT_CYCLE_SECONDS;
 	}
+
+	/** Step 8e: the wrong lines already warned about (read by more than one bean). */
+	private static final java.util.Set<String> WARNED = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
 	@EventListener(ApplicationReadyEvent.class)
 	public synchronized void start() {
 		if (taskScheduler != null) {
 			return;
 		}
-		LocalDateTime activeSince = states.activeSince();
+		LocalDateTime activeSince = states.startedOn(); // step 8e: after an off start, from now on
 		ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
 		scheduler.setPoolSize(1);
 		scheduler.setThreadNamePrefix("comm-");

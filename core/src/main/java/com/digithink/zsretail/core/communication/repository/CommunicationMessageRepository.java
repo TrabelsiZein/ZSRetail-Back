@@ -87,6 +87,17 @@ public interface CommunicationMessageRepository extends _BaseRepository<Communic
 			@Param("failed") CommunicationMessageStatus failed, @Param("reason") String reason,
 			@Param("now") LocalDateTime now);
 
+	/**
+	 * Step 8e: a waiting message taken for sending: SENDING only if it is still PENDING, in one statement. 1: this back end
+	 * has it; 0: another back end on the same database took it (or a stop changed it): not sent here.
+	 */
+	@Modifying
+	@org.springframework.transaction.annotation.Transactional
+	@Query("update CommunicationMessage m set m.status = :sending, m.updatedAt = :now where m.id = :id"
+			+ " and m.status = :pending")
+	int claim(@Param("id") Long id, @Param("pending") CommunicationMessageStatus pending,
+			@Param("sending") CommunicationMessageStatus sending, @Param("now") LocalDateTime now);
+
 	/** Step 8a: the latest message of a channel given to its provider (the Canaux tab's last result). */
 	Optional<CommunicationMessage> findFirstByChannelAndAttemptsGreaterThanOrderByUpdatedAtDesc(String channel,
 			int attempts);

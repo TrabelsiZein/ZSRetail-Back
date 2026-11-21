@@ -19,6 +19,14 @@ public interface CommunicationEventRepository extends _BaseRepository<Communicat
 
 	Optional<CommunicationEvent> findByDedupKey(String dedupKey);
 
+	/**
+	 * Step 8e: an event read for processing, its row locked until the transaction ends: a second back end on the same
+	 * database waits, then finds it processed.
+	 */
+	@org.springframework.data.jpa.repository.Lock(javax.persistence.LockModeType.PESSIMISTIC_WRITE)
+	@Query("select e from CommunicationEvent e where e.id = :id")
+	Optional<CommunicationEvent> findForProcessing(@Param("id") Long id);
+
 	/** Step 2: which of these sources already have an event of this source type (index ix_comm_event_source). */
 	@Query("select e.sourceId from CommunicationEvent e where e.sourceType = :sourceType and e.sourceId in :sourceIds")
 	List<Long> findSourceIds(@Param("sourceType") String sourceType, @Param("sourceIds") Collection<Long> sourceIds);

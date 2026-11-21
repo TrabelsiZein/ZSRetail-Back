@@ -104,6 +104,7 @@ public class CommunicationChannelStates {
 		LocalDateTime now = clock.get();
 		CommunicationChannelState row = states.findByChannel(channel).orElseGet(() -> fresh(channel));
 		boolean running = row.isPaused();
+		String reasonBefore = running ? row.getPauseReason() : null;
 		if (!running) {
 			row.setPausedSince(now);
 			row.setProblems(0);
@@ -116,9 +117,23 @@ public class CommunicationChannelStates {
 				: reason.substring(0, CommunicationChannelState.PAUSE_REASON_LENGTH));
 		row.setUpdatedAt(now);
 		CommunicationChannelState saved = states.save(row);
-		log.warn("Communication: channel {} paused until {} ({} problem(s) in a row since {}{}): {}", channel,
-				saved.getPausedUntil(), saved.getProblems(), saved.getPausedSince(), fromTest ? ", a test" : "", reason);
+		// Step 8e: one WARN when the pause starts or its reason changes; a pause going on with a provider's short wait
+		// (Retry-After of a few seconds, a cycle each time) at INFO, not a WARN every cycle
+		boolean shortRepeat = running && providerWait != null && providerWait.compareTo(Duration.ofMinutes(1)) < 0
+				&& java.util.Objects.equals(reasonBefore, saved.getPauseReason());
+		if (shortRepeat) {
+			log.info("Communication: channel {} still paused, until {} ({} problem(s) in a row): {}", channel,
+					saved.getPausedUntil(), saved.getProblems(), reason);
+		} else {
+			log.warn("Communication: channel {} paused until {} ({} problem(s) in a row since {}{}): {}", channel,
+					saved.getPausedUntil(), saved.getProblems(), saved.getPausedSince(), fromTest ? ", a test" : "", reason);
+		}
 		return saved;
+	}
+
+	/** Step 8e: the seconds between two cycles (a message behind the next try waits two of them past the pause). */
+	public long cycleSeconds() {
+		return cycleSeconds;
 	}
 
 	/** Step 8c: a provider's asked wait, 1 s to 60 min (never longer than the longest pause of our own). */

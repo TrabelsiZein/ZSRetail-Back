@@ -18,8 +18,8 @@ key, password, token or phone number in a document, a ticket or a screenshot.
   - A store whose loyalty is its own (`ownership.loyalty=LOCAL`): the store sends. Set everything at the store.
   - A store whose loyalty is the head office's: the store only finds its events and passes them up; the head office
     sends. At the store write only `communication.enabled=true`; set the channels at the head office. Channel lines or a
-    test-recipient line written at such a store are not used (the store's start log still lists them): for the tests,
-    the test-recipient mode must be set **at the head office**.
+    test-recipient line written at such a store are never read nor checked; the start writes one WARN naming them. For
+    the tests, the test-recipient mode must be set **at the head office**.
   - A head office with the module on: sends for its stores' members and its own.
 - **Rights** (given to the ADMIN role at each start): `read:admin-communication` (see the page),
   `write:admin-communication` (change rules and templates, send again, send a test), `write:admin-communication-campaigns`
@@ -31,15 +31,15 @@ key, password, token or phone number in a document, a ticket or a screenshot.
 
 | Line | Default | What it does |
 |---|---|---|
-| `communication.enabled` | `false` | The module. Off: no Communication page, no menu entry, no job, nothing is sent; selling and loyalty work as before. On: the page appears (menu Clients on a store, Customers & loyalty on a head office) for users with the right, and the jobs run. Only `true` or `false`: another value stops the start. |
-| `communication.cycle-seconds` | `60` | Seconds between two rounds of work. While messages wait, the next round comes after 5 s. A whole number of at least 1, else the start stops. |
+| `communication.enabled` | `false` | The module. Off: no Communication page, no menu entry, no job, nothing is sent; selling and loyalty work as before. On: the page appears (menu Clients on a store, Customers & loyalty on a head office) for users with the right, and the jobs run. Only `true` or `false`: another value keeps the module off, with one WARN line. |
+| `communication.cycle-seconds` | `60` | Seconds between two rounds of work. While a message can leave now, the next round comes after 5 s. A whole number of at least 1, else 60 with a WARN line. |
 | `communication.email.enabled` | `false` | The email channel. |
 | `communication.sms.enabled` | `false` | The SMS channel. |
 | `communication.whatsapp.enabled` | `false` | The WhatsApp channel. |
-| `communication.email.provider` | `test` | `smtp` for real emails. |
-| `communication.sms.provider` | `test` | `http` for real SMS. |
-| `communication.whatsapp.provider` | `test` | `meta` for real WhatsApp messages. An unknown provider name stops the start. |
-| `communication.phone-country-code` | `216` | Put before a member's 8-digit phone. 1 to 3 digits, else the start stops. |
+| `communication.email.provider` | none | `smtp` for real emails, or `test`. |
+| `communication.sms.provider` | none | `http` for real SMS, or `test`. |
+| `communication.whatsapp.provider` | none | `meta` for real WhatsApp messages, or `test`. |
+| `communication.phone-country-code` | `216` | Put before a member's 8-digit phone. 1 to 3 digits, else 216 with a WARN line. |
 | `communication.test-recipient.phone` | empty | Test-recipient mode for SMS and WhatsApp: filled, every SMS and WhatsApp message goes to this phone instead of the member's. |
 | `communication.test-recipient.email` | empty | Test-recipient mode for email: same, for emails. |
 
@@ -52,12 +52,19 @@ What a channel switch changes:
   The application still starts.
 - **Off**: the card shows "Désactivé"; its templates and rules cannot be switched on; no campaign offers it; an event
   whose rule is on that channel makes no message (the event says "canal désactivé").
-- **Careful with the provider `test`**: it is the default. With it, nothing leaves, and the message is still recorded as
-  "Envoyé". The Canaux tab says "Fournisseur de test : rien ne part". Always write the provider line of a real channel.
+- **On, with no provider line or an unknown provider name**: off, like any missing setting; the Canaux tab says why
+  and the start writes one WARN line. There is no default provider.
+- **The provider `test`**: only when written. Nothing leaves, and the messages are still recorded as "Envoyé". The
+  start writes a WARN line, and the Canaux tab and the New campaign window show "Fournisseur de test : rien ne part".
 
-**Switching the module off does not forget**: when it is switched on again, the tickets and the new members of the
-time it was off still get their messages if they are within their rule's validity (24 hours by default). To stop for a
-while without a burst at the restart, switch the rules off (Règles) rather than the module.
+**No messaging line ever stops a back end**: a wrong value is one WARN line and a default (the module or the channel
+off, 60 s, 216).
+
+**Nothing of an off time is ever sent**: when the module starts on after a start with it off (or for the first time),
+it takes the tickets and the new members from that moment only. A back end simply stopped and started again with the
+module on both times catches up as usual. The same rule for the rest: while a rule is off, its events make no message,
+and switching it on again does not send them; while a channel is off, its rules make no message, its waiting messages
+are cancelled ("Annulé") when their turn comes, and a running campaign on it stops ("Arrêtée", "canal désactivé").
 
 The start writes one line with the state of the channels, for example
 `Communication: channels whatsapp on (meta), sms on (http), email off, phone country code 216`, and one more line when the
@@ -276,7 +283,14 @@ file.
 **Message statuses**: "En attente" (waiting for the next round), "En cours d'envoi", "Envoyé" (accepted by the
 provider; what happens next on the phone or in the mailbox is not followed), "Échec", "Expiré" (its validity ended
 before it could leave, e.g. while its channel was paused), "Annulé" (left out: no consent any more, the address changed,
-the campaign was cancelled or stopped). A failed or expired message can be sent again by hand ("Renvoyer").
+the campaign was cancelled or stopped). A failed or expired message can be sent again by hand ("Renvoyer"), except a
+message of a campaign stopped or cancelled: launch a new campaign. Before sending again a message with "no answer" or
+"interrupted", the page asks to confirm: it may already have been received.
+
+**One message refused twice while others passed**: when a message meets a problem that looks like the channel's, it
+waits behind the next try (its tries unused) and another message checks the channel. If that one passes and the first
+meets the problem again, the first is "Échec" with "refusé deux fois alors que d'autres passaient : vérifiez son texte et
+ses valeurs", and the channel does not pause. So one message's bad data never blocks the others.
 
 **The channel is paused** ("En pause" on the Canaux tab and a banner on Messages): the channel itself cannot send, for
 example a password, key or token refused, the server unreachable, the credit used up, Meta's limits for the account.
@@ -285,7 +299,8 @@ minutes; a restart keeps the pause. **What to do**: read the reason, fix the cau
 the credit, the token), then press "Envoyer un test": if it is accepted, the pause ends and the waiting messages leave.
 
 **"No answer from the provider: check before sending it again"**: the message left, but no answer came back (a timeout,
-a cut connection). The provider may have sent it. The message is "Échec" and is never sent again by itself, and the
+a cut connection, or a 502, 504 or 524 from a proxy in front of the provider with no error of the provider inside). The
+provider may have sent it. The message is "Échec" and is never sent again by itself, and the
 channel pauses. **What to do**: ask the member or check in the provider's portal; send it again by hand only if it did
 not arrive.
 
@@ -298,12 +313,17 @@ does not match. The message failed; the channel is not paused. **What to do**: c
 name, language code, values), correct the name, language or value format in Modèles, save (the mark goes away; it also
 goes away after the next message of that template accepted by Meta).
 
+**A campaign "Arrêtée" because its channel was switched off** ("canal désactivé"): its waiting messages were cancelled;
+switch the channel on and launch a new campaign.
+
 **A campaign "Arrêtée"**: its template was refused by Meta during the sending; its waiting messages were cancelled
 ("Annulé"), the reason is in the campaign's window. **What to do**: fix the template as above, then launch a new
 campaign (the window asks to confirm a second campaign the same day).
 
 **WhatsApp, one message failed** (the channel keeps working):
 - #131026: this number cannot receive WhatsApp messages (not on WhatsApp, an old app).
+- "la valeur de ... est vide": a value of the template is empty for this member (after removing tabs and line breaks,
+  which Meta refuses): the message is not sent to Meta.
 - #131050: the person stopped marketing messages from this business.
 - #131049: Meta limits marketing messages for this person: try again after 24 hours, not before.
 - #131030: Meta's test number may only send to its allowed recipients: add the number in the Meta app (WhatsApp, API

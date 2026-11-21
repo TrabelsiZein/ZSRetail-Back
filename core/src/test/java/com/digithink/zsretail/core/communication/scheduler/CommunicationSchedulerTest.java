@@ -41,16 +41,14 @@ class CommunicationSchedulerTest {
 	}
 
 	@Test
-	@DisplayName("communication.cycle-seconds: absent or empty 60, a whole number of at least 1, anything else refused")
+	@DisplayName("communication.cycle-seconds: absent or empty 60, a whole number of at least 1; step 8e: anything else 60"
+			+ " with a WARN, never a refused start")
 	void cycleSeconds() {
 		assertEquals(60, CommunicationScheduler.cycleSeconds(null));
 		assertEquals(60, CommunicationScheduler.cycleSeconds(" "));
 		assertEquals(15, CommunicationScheduler.cycleSeconds(" 15 "));
 		for (String bad : new String[] { "0", "-5", "1.5", "one" }) {
-			String message = assertThrows(IllegalStateException.class, () -> CommunicationScheduler.cycleSeconds(bad))
-					.getMessage();
-			assertEquals("Invalid value '" + bad + "' for property communication.cycle-seconds: a whole number of seconds,"
-					+ " at least 1 (absent or empty: 60)", message);
+			assertEquals(60, CommunicationScheduler.cycleSeconds(bad), bad);
 		}
 	}
 

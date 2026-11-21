@@ -16,7 +16,7 @@ import lombok.extern.log4j.Log4j2;
  * characters&gt;. No HTTP client.
  */
 @Component
-@ConditionalOnInstallation(Installation.COMMUNICATION)
+@ConditionalOnInstallation(Installation.COMMUNICATION_SENDS_HERE)
 @Log4j2
 public class TestCommunicationProvider implements CommunicationProvider {
 

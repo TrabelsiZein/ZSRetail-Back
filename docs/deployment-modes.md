@@ -82,16 +82,17 @@ happyness | parafendri | zen.`
 **Communication module** (3.3.0, `docs/modules/communication.md`): `communication.enabled`, a store and a head office
 alike. `false` in core's `application.properties`; an installation turns it on with `communication.enabled=true` in its
 outside file (trimmed, any case). Absent or empty is off too: the module does nothing and the application behaves as
-3.2.0 (its two tables stay empty). Any other value stops the startup: `Invalid value '<v>' for property
-communication.enabled: true (the communication module is on) or false (off, also when the line is absent or empty)`.
+3.2.0 (its two tables stay empty). Any other value: off with one WARN line (step 8e; it stopped the startup before:
+no messaging line ever stops a back end).
 On, the startup summary adds `communication on`. No customer file names it. With it on, `communication.cycle-seconds`
 (step 2): the seconds between two cycles of the module, absent or empty `60`, otherwise a whole number of at least 1
-(anything else stops the startup: `Invalid value '<v>' for property communication.cycle-seconds: a whole number of
-seconds, at least 1 (absent or empty: 60)`). Step 3, the channels: `communication.whatsapp.enabled`,
+(anything else: 60 and a WARN line since step 8e). Step 3, the channels: `communication.whatsapp.enabled`,
 `communication.sms.enabled`, `communication.email.enabled` (`true` / `false`, absent or empty `false`, another value
-read as off with a WARN line, never a refused start); `communication.<channel>.provider` (absent or empty `test`, the
-only provider so far; an unknown name stops the start); `communication.phone-country-code` (absent or empty `216`, 1 to
-3 digits, else the start stops). All are in core's `application.properties`; details:
+read as off with a WARN line, never a refused start); `communication.<channel>.provider` (step 8e: no default, `smtp`,
+`http`, `meta` or `test` when written; a channel on with none or an unknown name is off with a WARN line; `test` gives a
+WARN at the start and a notice on the page); `communication.phone-country-code` (absent or empty `216`, 1 to 3 digits,
+else 216 and a WARN line). A store whose loyalty is the head office's reads none of the channel lines (step 8e: one WARN
+names those written). All are in core's `application.properties`; details:
 `docs/modules/communication.md`, "Step 3". Step 8a, the email for real: `communication.email.provider=smtp` with
 `communication.email.smtp.host`, `.port` (587), `.security` (`none`, `starttls` (default), `ssl`), `.username`,
 `.password` (only in the outside file), `.timeout-seconds` (15), `communication.email.from-address` and `.from-name`;

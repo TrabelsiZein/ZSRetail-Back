@@ -1062,6 +1062,90 @@ office's).
 Tests: `MetaWhatsAppProviderTest.step8dCodes` (131049, 131030, 132005, 131066, 131056, a line moving 131049 back);
 `positional` and `lines` expect v26.0; `ConfigurationKeysProofTest` (its record: v26.0).
 
+## Step 8e: what the module check found, fixed
+
+The six "before the real tests" points of step 8d and six of its "can wait" ones. The rest of 8d's list stays open
+(below).
+
+- **One message never blocks a channel** (`CommunicationSender`): a message that meets a channel problem pauses the
+  channel as before but waits behind the next try (its next attempt after the pause and two cycles more, attempts
+  unused), so the try that ends the pause uses another message. The sender remembers (in memory) the channel's count of
+  accepted messages at that time; the same message meeting a channel problem again after another one of its channel was
+  accepted is FAILED at once, no pause: `refused twice by the provider while other messages passed: check its text and
+  values (<the provider's words>)`. In a real outage the tries rotate and nothing is FAILED. A restart forgets the
+  count: one more pause at most. WhatsApp values are cleaned before sending (`MetaWhatsAppProvider.clean`: tab and line
+  break to a space, more than 4 spaces to one; Meta refuses them with code 100, a channel problem); a value empty once
+  cleaned never goes to Meta: `WhatsApp value of {firstName} is empty: not sent` (Meta's pages give no answer for an
+  empty value; the empty-field guard already keeps most of them out).
+- **Two back ends on one database**: a message is taken in one statement (`CommunicationMessageRepository.claim`:
+  SENDING only if still PENDING; 0 rows: skipped here), first in `handle`, before any other check; a test of the Canaux
+  tab comes SENDING already. An event is read with its row locked (`CommunicationEventRepository.findForProcessing`,
+  PESSIMISTIC_WRITE): the second back end waits, then finds it processed. The finders and the campaign maker were
+  already safe: their unique dedup keys refuse the double row, the loser's transaction rolls back and its next cycle
+  skips the rows that exist.
+- **A stopped or cancelled campaign**: sending again one of its messages is refused (`COMM_RESEND_CAMPAIGN_ENDED`: create
+  a new campaign); a message's expiry is read before its campaign's end; a waiting message of a campaign stopped or
+  cancelled is SKIPPED with the campaign's reason (it was left PENDING for ever, keeping the 5 s cycle on). The fast
+  cycle runs only while a message can leave now.
+- **Nothing of an off time**: `comm_state` row `MODULE_ON` (1 on, 0 off). At a start with the module on
+  (`CommunicationStates.startedOn`, from the scheduler): when the row is absent or 0, `ACTIVE_SINCE` moves to now, so
+  the ticket and member finders and the head office's receiver read nothing older; a start after a start with the module
+  on keeps catching up. At a start with the module off (`CommunicationOffMark`, every installation): the row set to 0
+  when it said 1 (one line; an installation never on writes nothing; a failure never stops the start). Rules and
+  channels already follow the same rule: an event while its rule is off closes "no active rule" and switching the rule
+  on does not send it; while a channel is off its rules make no message ("channel off"), its waiting messages are
+  SKIPPED when their turn comes, and a running campaign on it stops (below).
+- **A store whose loyalty is the head office's**: `CommunicationSettings` and the four providers only where messages
+  are sent (COMMUNICATION_SENDS_HERE): its channel lines are never read, checked nor logged; `CommunicationIgnoredLines`
+  (COMMUNICATION_PUSHED_UP) writes one WARN naming the `communication.*` lines written for it outside the WAR (the
+  names, never a value), but `communication.enabled` and `cycle-seconds`.
+- **No silent test provider**: `communication.<channel>.provider` has no default (empty in core's
+  `application.properties`). A channel on with no provider line or an unknown name is off with a WARN and its reason on
+  the Canaux tab. `test` only when written: a WARN at the start (`... runs on the provider test: nothing leaves, every
+  message is recorded as sent`), a notice on its Canaux card and in the New campaign window (`audience.testProvider`).
+- **A proxy's 502, 504, 524** with no error of the provider inside (SMS: no `error-field` value; Meta: no
+  `error.code`): the no-answer rule (`SMS: no answer from the gateway (HTTP 504)`, `WhatsApp: no answer from Meta (HTTP
+  504)`; with `retry-no-answer`, after the pause). The provider's own error inside still wins.
+- **No messaging line stops a back end**: `communication.enabled` not true or false: off and one WARN; `cycle-seconds`
+  not valid: 60 and a WARN; an unknown provider: the channel off and a WARN; `phone-country-code` not valid: 216 and a
+  WARN.
+- **A running campaign whose channel is switched off**: STOPPED by the maker with `channel <x> off`, its waiting
+  messages SKIPPED `campaign stopped: channel <x> off` (it ended DONE with everything SKIPPED).
+- **Sending again by hand a message "interrupted" or with "no answer"**: the page asks to confirm (it may already have
+  been received).
+- **Logs**: one WARN per refused template until its mark clears (then DEBUG); a pause going on with a provider's wait
+  under a minute and the same reason logs at INFO (a WARN when the pause starts or its reason changes).
+- **Cleaned**: `CommunicationTemplates.MEMBER_FIELDS`, the front's `CHANNELS` and `CAMPAIGN_STATUSES`, `GET
+  /communication/rules/{id}` and `/templates/{id}`; the 403 carries the code `COMM_FORBIDDEN` (translated); the campaign
+  window says "sera envoyé à {n} membres"; the rule's invalid phone reason has its own key `phoneInvalidRule` (the same
+  key twice in one object hid the rule's name).
+
+**Still open** (by decision): the `/loyalty/members` count with the module off; the head office's ticket search and a
+merged card's number; a loyalty ownership change while events wait; `sqlcmd` without `-b` in the script's header;
+`update.sql` on a fresh 3.2.0 copy (for the real tests); reasons holding "; " split in two on screen; the security points
+of step 8d.
+
+Tests: `CommunicationStep8eTest` (a message another back end took never given here; no resend of a stopped or cancelled
+campaign's message, its expiry first; a campaign STOPPED when its channel goes off; the on/off mark),
+`CommunicationChannelPauseTest.oneMessageNeverBlocks`, `HttpSmsProviderTest.proxyStatuses`,
+`MetaWhatsAppProviderTest.step8eValuesAndProxies`, `CommunicationSettingsTest` (providers, country code),
+`CommunicationSchedulerTest.cycleSeconds`, `CommunicationKeyTest.refused`. Changed on purpose: the pause tests (the
+message behind the next try), `CommunicationCampaignsTest.cancel` (a waiting message of a cancelled campaign SKIPPED),
+the test beds and `AppConfigAPITest.communication` and `SharedCommunicationRoundTripTest` (the provider line written),
+`InstallationBeansProofTest` (139 beans), `ConfigurationKeysProofTest` (the provider lines empty).
+
+Screen test (2026-11-21, store `pos_franchise_customer`, SMS and WhatsApp through the tests' catch provider on
+127.0.0.1, test numbers only): an email channel on without a provider line was off with its WARN and its reason on the
+Canaux tab; a 10-message SMS campaign with one number refused by a "destination" channel error paused the channel once
+(3 sent), sent the others when the pause ended, and FAILED the bad one with the refused-twice reason (fr, ar), no second
+pause; sending again a message of a STOPPED campaign was refused with its message, nothing left waiting; a "no answer"
+message asked to confirm, was sent again after "Renvoyer quand même" and its history read in fr and ar; a running SMS
+campaign stopped mid-send, the store started again with `communication.sms.enabled=false`: STOPPED "canal SMS
+désactivé", 8 waiting messages SKIPPED, the interrupted one FAILED, `on since` kept (caught up); `email.provider=test`
+written: the WARN at the start and the notice on the Canaux tab and in the New campaign window. 0 console error, 0
+back-end ERROR. Not proven on screen: real providers, two back ends on one database, a store whose loyalty is the head
+office's (unit tests only).
+
 ## Next steps (to be agreed one at a time)
 
 The member's language (it travels with the shared loyalty register; templates then need a key on code and language; a

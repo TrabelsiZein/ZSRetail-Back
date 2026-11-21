@@ -26,19 +26,25 @@ import lombok.extern.log4j.Log4j2;
  * <ul>
  * <li>communication.&lt;whatsapp|sms|email&gt;.enabled: true turns the channel on; absent, empty or false: off. Never
  * blocks the start: another value is read as off, with one WARN line.</li>
- * <li>communication.&lt;channel&gt;.provider: absent or empty, test; an unknown name stops the start.</li>
- * <li>communication.phone-country-code: absent or empty, 216; otherwise 1 to 3 digits, else the start stops.</li>
+ * <li>communication.&lt;channel&gt;.provider: step 8e, no default: a channel switched on with no provider line, or an
+ * unknown name, is off with one WARN line (before: test by default, an unknown name stopped the start). test only when
+ * written: one WARN at the start (nothing leaves, the messages are recorded as sent).</li>
+ * <li>communication.phone-country-code: absent or empty, 216; otherwise 1 to 3 digits; step 8e: another value is one
+ * WARN and 216 (it stopped the start before).</li>
  * </ul>
+ * Step 8e: only where messages are sent (COMMUNICATION_SENDS_HERE): a store whose loyalty is the head office's never
+ * reads these lines (CommunicationIgnoredLines names them in one WARN).
  * See docs/modules/communication.md and docs/deployment-modes.md.
  */
 @Component
-@ConditionalOnInstallation(Installation.COMMUNICATION)
+@ConditionalOnInstallation(Installation.COMMUNICATION_SENDS_HERE)
 @Log4j2
 public class CommunicationSettings {
 
 	public static final String COUNTRY_CODE_KEY = "communication.phone-country-code";
 	static final String DEFAULT_COUNTRY_CODE = "216";
-	static final String DEFAULT_PROVIDER = "test";
+	/** Step 8e: the provider that sends nothing; only when written (no default provider any more). */
+	static final String TEST_PROVIDER = "test";
 
 	/** Step 8a: the test-recipient mode, one line per kind of address. */
 	public static final String TEST_PHONE_KEY = "communication.test-recipient.phone";
@@ -46,6 +52,8 @@ public class CommunicationSettings {
 
 	private final Map<String, Boolean> enabled = new LinkedHashMap<>();
 	private final Map<String, String> providers = new LinkedHashMap<>();
+	/** Step 8e: why a channel's provider line cannot be used (empty, unknown), null when it can. */
+	private final Map<String, String> providerProblems = new LinkedHashMap<>();
 	/** Step 8a: why a channel set on is off (its provider cannot send, its test recipient is not an address). */
 	private final Map<String, String> offReasons = new LinkedHashMap<>();
 	private final String countryCode;
@@ -67,7 +75,17 @@ public class CommunicationSettings {
 			List<CommunicationProvider> providerBeans) {
 		for (String channel : CommunicationTypes.CHANNELS) {
 			enabled.put(channel, channelOn(env, enabledKey(channel)));
-			providers.put(channel, provider(env, providerKey(channel), providerNames));
+			String raw = env.getProperty(providerKey(channel));
+			String name = raw == null || raw.trim().isEmpty() ? null : raw.trim().toLowerCase(Locale.ROOT);
+			if (name == null) {
+				providerProblems.put(channel, providerKey(channel) + " is empty: write the channel's provider ("
+						+ String.join(", ", new TreeSet<>(providerNames)) + ")");
+			} else if (!providerNames.contains(name)) {
+				providerProblems.put(channel, providerKey(channel) + "='" + raw.trim() + "' is not a provider ("
+						+ String.join(", ", new TreeSet<>(providerNames)) + ")");
+				name = null;
+			}
+			providers.put(channel, name);
 		}
 		countryCode = countryCode(env.getProperty(COUNTRY_CODE_KEY));
 		testPhone = testPhone(env.getProperty(TEST_PHONE_KEY), countryCode);
@@ -77,6 +95,14 @@ public class CommunicationSettings {
 				continue;
 			}
 			String name = providers.get(channel);
+			if (name == null) {
+				// Step 8e: no provider line (or an unknown name): the channel off, like any missing setting
+				enabled.put(channel, false);
+				offReasons.put(channel, providerProblems.get(channel));
+				log.warn("Communication: {} is on, but {}: the channel is off", channel.toLowerCase(Locale.ROOT),
+						providerProblems.get(channel));
+				continue;
+			}
 			CommunicationProvider bean = providerBeans.stream().filter(p -> p.getName().equals(name)).findFirst()
 					.orElse(null);
 			// Step 8b: a provider sends its own channels only (smtp email, http SMS)
@@ -94,6 +120,13 @@ public class CommunicationSettings {
 						channel.toLowerCase(Locale.ROOT), name, cannot);
 			}
 		}
+		// Step 8e: a channel that runs on the provider test says so: nothing leaves
+		enabled.forEach((channel, on) -> {
+			if (Boolean.TRUE.equals(on) && TEST_PROVIDER.equals(providers.get(channel))) {
+				log.warn("Communication: {} runs on the provider test: nothing leaves, every message is recorded as sent",
+						channel.toLowerCase(Locale.ROOT));
+			}
+		});
 		log.info("Communication: channels {}, phone country code {}", enabled.entrySet().stream()
 				.map(e -> e.getKey().toLowerCase(Locale.ROOT) + (e.getValue() ? " on (" + providers.get(e.getKey()) + ")" : " off"))
 				.collect(Collectors.joining(", ")), countryCode);
@@ -164,14 +197,9 @@ public class CommunicationSettings {
 		return false;
 	}
 
-	private static String provider(PropertyResolver env, String key, Collection<String> providerNames) {
-		String raw = env.getProperty(key);
-		String value = raw == null || raw.trim().isEmpty() ? DEFAULT_PROVIDER : raw.trim().toLowerCase(Locale.ROOT);
-		if (!providerNames.contains(value)) {
-			throw new IllegalStateException("Invalid value '" + raw + "' for property " + key + ": the providers are "
-					+ String.join(", ", new TreeSet<>(providerNames)) + " (absent or empty: " + DEFAULT_PROVIDER + ")");
-		}
-		return value;
+	/** Step 8e: the channel runs on the provider test (nothing leaves): the Canaux tab and the campaign window say so. */
+	public boolean isTestProvider(String channel) {
+		return isEnabled(channel) && TEST_PROVIDER.equals(providers.get(channel));
 	}
 
 	public static String countryCode(String raw) {
@@ -183,11 +211,17 @@ public class CommunicationSettings {
 			value = value.substring(1);
 		}
 		if (!value.matches("\\d{1,3}")) {
-			throw new IllegalStateException("Invalid value '" + raw + "' for property " + COUNTRY_CODE_KEY
-					+ ": 1 to 3 digits, e.g. 216 (absent or empty: " + DEFAULT_COUNTRY_CODE + ")");
+			// Step 8e: one WARN and 216, never a refused start
+			if (COUNTRY_CODE_WARNED.add(raw)) {
+				log.warn("Communication: {}='{}' is not 1 to 3 digits: {}", COUNTRY_CODE_KEY, raw, DEFAULT_COUNTRY_CODE);
+			}
+			return DEFAULT_COUNTRY_CODE;
 		}
 		return value;
 	}
+
+	/** Step 8e: the wrong country codes already warned about (read by the settings and the SMS provider). */
+	private static final java.util.Set<String> COUNTRY_CODE_WARNED = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
 	/** WHATSAPP, SMS or EMAIL; an unknown channel is off. */
 	public boolean isEnabled(String channel) {

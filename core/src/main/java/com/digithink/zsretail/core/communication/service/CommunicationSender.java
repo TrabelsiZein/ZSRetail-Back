@@ -24,6 +24,7 @@ import com.digithink.zsretail.core.communication.CommunicationTypes;
 import com.digithink.zsretail.core.communication.enumeration.CommunicationCampaignStatus;
 import com.digithink.zsretail.core.communication.enumeration.CommunicationMessageStatus;
 import com.digithink.zsretail.core.communication.model.CommunicationCampaign;
+import com.digithink.zsretail.core.communication.model.CommunicationChannelState;
 import com.digithink.zsretail.core.communication.model.CommunicationMessage;
 import com.digithink.zsretail.core.communication.repository.CommunicationCampaignRepository;
 import com.digithink.zsretail.core.communication.provider.CommunicationProvider;
@@ -78,10 +79,12 @@ public class CommunicationSender implements CommunicationTask {
 	private static final class CampaignStatusRead {
 		final CommunicationCampaignStatus status;
 		final Instant readAt;
+		final String reason;
 
-		CampaignStatusRead(CommunicationCampaignStatus status, Instant readAt) {
+		CampaignStatusRead(CommunicationCampaignStatus status, Instant readAt, String reason) {
 			this.status = status;
 			this.readAt = readAt;
+			this.reason = reason;
 		}
 	}
 
@@ -249,12 +252,25 @@ public class CommunicationSender implements CommunicationTask {
 				if (handled.status == null) {
 					continue; // a cancelled campaign's: SKIPPED by the cancel itself
 				}
+				if (handled.outcome == Outcome.CHANNEL_PROBLEM && refusedAgain(message)) {
+					// Step 8e: the provider refused this message twice while other messages passed: its own data, not the
+					// channel: FAILED at once, no pause
+					message.setAttempts(message.getAttempts() + 1);
+					save(message, CommunicationMessageStatus.FAILED, REFUSED_TWICE + " (" + handled.error + ")");
+					suspects.remove(message.getId());
+					counts.merge(CommunicationMessageStatus.FAILED, 1, Integer::sum);
+					continue;
+				}
 				if (handled.outcome == Outcome.CHANNEL_PROBLEM || handled.outcome == Outcome.UNCERTAIN) {
 					cycle.stopped.add(message.getChannel());
 					cycle.paused.add(message.getChannel());
 					cycle.pausedNow.add(message.getChannel());
 					if (channelStates != null) {
-						channelStates.problem(message.getChannel(), pauseReason(handled), false, handled.retryAfter);
+						CommunicationChannelState paused = channelStates.problem(message.getChannel(), pauseReason(handled),
+								false, handled.retryAfter);
+						if (handled.outcome == Outcome.CHANNEL_PROBLEM) {
+							behindTheNextTry(message, paused);
+						}
 					}
 					if (handled.outcome == Outcome.UNCERTAIN) {
 						counts.merge(handled.status, 1, Integer::sum); // FAILED, sent again by hand only
@@ -293,20 +309,69 @@ public class CommunicationSender implements CommunicationTask {
 		}
 	}
 
-	/** Step 7: false when the message's campaign was cancelled (read at most every 2 s). */
-	private boolean campaignRunning(Long campaignId) {
+	/** Step 8e: the reason of a message the provider refused twice while other messages of its channel passed. */
+	public static final String REFUSED_TWICE = "refused twice by the provider while other messages passed: check its text"
+			+ " and values";
+
+	/**
+	 * Step 8e: the messages that met a channel problem, with the number of messages of their channel accepted at that
+	 * time (in memory: a restart forgets them, one more pause at most).
+	 */
+	private final Map<Long, Long> suspects = new HashMap<>();
+	/** Step 8e: the messages accepted per channel since the start. */
+	private final Map<String, Long> acceptedCount = new HashMap<>();
+
+	/** Step 8e: true when this message met a channel problem before and a message of its channel was accepted since. */
+	private boolean refusedAgain(CommunicationMessage message) {
+		Long before = message.getId() == null ? null : suspects.get(message.getId());
+		return before != null && acceptedCount.getOrDefault(message.getChannel(), 0L) > before;
+	}
+
+	/**
+	 * Step 8e: a message that met a channel problem waits behind the next try: its next attempt after the pause and two
+	 * cycles more, so the try that ends the pause uses another message (its attempts unused).
+	 */
+	private void behindTheNextTry(CommunicationMessage message, CommunicationChannelState paused) {
+		if (message.getId() == null) {
+			return;
+		}
+		suspects.put(message.getId(), acceptedCount.getOrDefault(message.getChannel(), 0L));
+		LocalDateTime from = paused != null && paused.getPausedUntil() != null ? paused.getPausedUntil() : clock.get();
+		long margin = Math.max(120, 2 * channelStates.cycleSeconds());
+		message.setNextAttemptAt(from.plusSeconds(margin));
+		messages.save(message);
+	}
+
+	/**
+	 * Step 7: the reason when the message's campaign was cancelled or stopped (read at most every 2 s), null while it
+	 * runs (or is done). Step 8e: the same reason as its other waiting messages got at the stop or the cancel.
+	 */
+	private String campaignEnded(Long campaignId) {
 		if (campaignId == null || campaigns == null) {
-			return true;
+			return null;
 		}
 		Instant now = Instant.now();
 		CampaignStatusRead read = campaignStatuses.get(campaignId);
 		if (read == null || read.readAt.plus(CAMPAIGN_STATUS_AGE).isBefore(now)) {
-			CommunicationCampaignStatus status = campaigns.findById(campaignId).map(CommunicationCampaign::getStatus)
-					.orElse(CommunicationCampaignStatus.CANCELLED);
-			read = new CampaignStatusRead(status, now);
+			CommunicationCampaign campaign = campaigns.findById(campaignId).orElse(null);
+			read = new CampaignStatusRead(campaign == null ? CommunicationCampaignStatus.CANCELLED : campaign.getStatus(),
+					now, endedReason(campaign));
 			campaignStatuses.put(campaignId, read);
 		}
-		return read.status != CommunicationCampaignStatus.CANCELLED && read.status != CommunicationCampaignStatus.STOPPED;
+		return read.status == CommunicationCampaignStatus.CANCELLED || read.status == CommunicationCampaignStatus.STOPPED
+				? read.reason : null;
+	}
+
+	/** Step 8e: the reason of a cancelled or stopped campaign's message. */
+	static String endedReason(CommunicationCampaign campaign) {
+		if (campaign == null) {
+			return "campaign stopped: the campaign is gone";
+		}
+		if (campaign.getStatus() == CommunicationCampaignStatus.CANCELLED) {
+			return CommunicationCampaigns.cancelledReason(campaign.getCancelledBy(),
+					campaign.getEndedAt() == null ? LocalDateTime.now() : campaign.getEndedAt());
+		}
+		return CommunicationTemplateProblems.CAMPAIGN_STOPPED + (campaign.getStopReason() == null ? "?" : campaign.getStopReason());
 	}
 
 	/**
@@ -364,7 +429,7 @@ public class CommunicationSender implements CommunicationTask {
 		}
 		if (message.getCampaignId() != null) {
 			campaignStatuses.put(message.getCampaignId(), new CampaignStatusRead(CommunicationCampaignStatus.STOPPED,
-					Instant.now()));
+					Instant.now(), CommunicationTemplateProblems.CAMPAIGN_STOPPED + reason));
 		}
 	}
 
@@ -427,13 +492,23 @@ public class CommunicationSender implements CommunicationTask {
 	 * leaves it waiting as it was (PENDING, its attempts and its next attempt unchanged).
 	 */
 	Handled handle(CommunicationMessage message, Cycle cycle) {
-		if (!campaignRunning(message.getCampaignId())) {
+		LocalDateTime now = clock.get();
+		// Step 8e: taken first, in one statement (SENDING only if still PENDING): another back end on the same database,
+		// or a stop of its campaign, that changed it meanwhile wins; a test of the Canaux tab comes SENDING already
+		if (message.getStatus() == CommunicationMessageStatus.PENDING && message.getId() != null
+				&& messages.claim(message.getId(), CommunicationMessageStatus.PENDING, CommunicationMessageStatus.SENDING,
+						now) == 0) {
 			return Handled.notGiven(null);
 		}
-		LocalDateTime now = clock.get();
+		// Step 8e: its own expiry first, then its campaign's end (a campaign stopped or cancelled: SKIPPED with the
+		// campaign's reason, never left waiting)
 		if (message.getExpiresAt() != null && !now.isBefore(message.getExpiresAt())) {
 			return Handled.notGiven(save(message, CommunicationMessageStatus.EXPIRED,
 					"expired at " + message.getExpiresAt() + ", not sent"));
+		}
+		String ended = campaignEnded(message.getCampaignId());
+		if (ended != null) {
+			return Handled.notGiven(save(message, CommunicationMessageStatus.SKIPPED, ended));
 		}
 		if (!settings.isEnabled(message.getChannel())) {
 			return Handled.notGiven(save(message, CommunicationMessageStatus.SKIPPED, "channel "
@@ -473,6 +548,9 @@ public class CommunicationSender implements CommunicationTask {
 		CommunicationMessageStatus status;
 		switch (result.getOutcome()) {
 			case ACCEPTED:
+				// Step 8e: the channel passes messages: one that met a channel problem before and meets it again is its own
+				acceptedCount.merge(message.getChannel(), 1L, Long::sum);
+				suspects.remove(message.getId());
 				message.setAttempts(message.getAttempts() + 1);
 				message.setSentAt(now);
 				message.setProviderMessageId(result.getProviderMessageId());

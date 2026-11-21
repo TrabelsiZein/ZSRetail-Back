@@ -2,6 +2,7 @@ package com.digithink.zsretail.core.communication.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -33,9 +34,10 @@ class CommunicationSettingsTest {
 		CommunicationSettings none = settings(new MockEnvironment());
 		for (String channel : CommunicationTypes.CHANNELS) {
 			assertFalse(none.isEnabled(channel));
-			assertEquals("test", none.provider(channel));
+			assertNull(none.provider(channel), "step 8e: no default provider");
 		}
 		CommunicationSettings some = settings(new MockEnvironment().withProperty("communication.sms.enabled", " TRUE ")
+				.withProperty("communication.sms.provider", "test")
 				.withProperty("communication.whatsapp.enabled", "").withProperty("communication.email.enabled", "yes"));
 		assertTrue(some.isEnabled(CommunicationTypes.SMS));
 		assertFalse(some.isEnabled(CommunicationTypes.WHATSAPP));
@@ -44,25 +46,40 @@ class CommunicationSettingsTest {
 	}
 
 	@Test
-	@DisplayName("Provider: absent or empty test; an unknown name stops the start naming the key")
+	@DisplayName("Step 8e, provider: no default; a channel on with no provider line, or an unknown name, is off with its"
+			+ " reason (never a refused start); test only when written, and then said (isTestProvider)")
 	void providers() {
-		assertEquals("test", settings(new MockEnvironment().withProperty("communication.sms.provider", " Test "))
-				.provider(CommunicationTypes.SMS));
-		String message = assertThrows(IllegalStateException.class, () -> settings(new MockEnvironment()
-				.withProperty("communication.whatsapp.provider", "meta"))).getMessage();
-		assertEquals("Invalid value 'meta' for property communication.whatsapp.provider: the providers are test (absent"
-				+ " or empty: test)", message);
+		CommunicationSettings written = settings(new MockEnvironment().withProperty("communication.sms.enabled", "true")
+				.withProperty("communication.sms.provider", " Test "));
+		assertEquals("test", written.provider(CommunicationTypes.SMS));
+		assertTrue(written.isEnabled(CommunicationTypes.SMS));
+		assertTrue(written.isTestProvider(CommunicationTypes.SMS));
+
+		CommunicationSettings missing = settings(new MockEnvironment().withProperty("communication.sms.enabled", "true"));
+		assertFalse(missing.isEnabled(CommunicationTypes.SMS));
+		assertFalse(missing.isTestProvider(CommunicationTypes.SMS));
+		assertEquals("communication.sms.provider is empty: write the channel's provider (test)",
+				missing.offReason(CommunicationTypes.SMS));
+
+		CommunicationSettings unknown = settings(new MockEnvironment().withProperty("communication.whatsapp.enabled", "true")
+				.withProperty("communication.whatsapp.provider", "meta"));
+		assertFalse(unknown.isEnabled(CommunicationTypes.WHATSAPP));
+		assertEquals("communication.whatsapp.provider='meta' is not a provider (test)",
+				unknown.offReason(CommunicationTypes.WHATSAPP));
+		assertNull(settings(new MockEnvironment().withProperty("communication.email.provider", "nope"))
+				.offReason(CommunicationTypes.EMAIL), "a channel off: its provider line is not judged");
 	}
 
 	@Test
-	@DisplayName("Country code: absent or empty 216; 1 to 3 digits, a + accepted; anything else stops the start")
+	@DisplayName("Country code: absent or empty 216; 1 to 3 digits, a + accepted; step 8e: anything else 216 with a WARN,"
+			+ " never a refused start")
 	void countryCode() {
 		assertEquals("216", CommunicationSettings.countryCode(null));
 		assertEquals("216", CommunicationSettings.countryCode(" "));
 		assertEquals("33", CommunicationSettings.countryCode(" +33 "));
-		assertEquals("Invalid value '21x' for property communication.phone-country-code: 1 to 3 digits, e.g. 216 (absent or"
-				+ " empty: 216)", assertThrows(IllegalStateException.class,
-						() -> CommunicationSettings.countryCode("21x")).getMessage());
+		assertEquals("216", CommunicationSettings.countryCode("21x"));
+		assertEquals("216", settings(new MockEnvironment().withProperty(CommunicationSettings.COUNTRY_CODE_KEY, "abcd"))
+				.getCountryCode());
 	}
 
 	@Test

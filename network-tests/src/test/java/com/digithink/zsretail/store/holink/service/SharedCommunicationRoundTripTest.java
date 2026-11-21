@@ -113,7 +113,8 @@ class SharedCommunicationRoundTripTest {
 		CommunicationStates states = new CommunicationStates(hoComm.stateRepository(), () -> T0.minusDays(1));
 		states.activeSince(); // the head office's activation instant: the day before
 		CommunicationSettings settings = new CommunicationSettings(new MockEnvironment()
-				.withProperty("communication.sms.enabled", "true"), Collections.singletonList("test"));
+				.withProperty("communication.sms.enabled", "true").withProperty("communication.sms.provider", "test"),
+				Collections.singletonList("test")); // step 8e: no default provider
 		receiver = new HoCommunicationReceiver(hoComm.eventRepository(), null, Optional.of(states),
 				TransactionOperations.withoutTransaction()) {
 			@Override

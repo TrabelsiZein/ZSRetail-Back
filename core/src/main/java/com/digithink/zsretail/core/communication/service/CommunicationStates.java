@@ -36,8 +36,43 @@ public class CommunicationStates {
 	}
 
 	/**
-	 * The instant of the first start with the module on: written at the first call, then only read. Turning the module
-	 * off and on again does not move it; nothing older is ever picked.
+	 * Step 8e: the module's state at the last start, idValue 1 on, 0 off (written by {@link #startedOn} and, with the
+	 * module off, by CommunicationOffMark). Absent: never started with this version.
+	 */
+	public static final String MODULE_ON = "MODULE_ON";
+
+	/**
+	 * Step 8e, at each start with the module on: when the last start was off (or none is known: the first start, or the
+	 * first with this version), the activation instant moves to now: the finders and the head office's receiver read
+	 * nothing older, so nothing of an off time is ever sent. A start after a start with the module on keeps catching up.
+	 * Returns the activation instant.
+	 */
+	public synchronized LocalDateTime startedOn() {
+		CommunicationState mark = states.findByCode(MODULE_ON).orElse(null);
+		if (mark != null && Long.valueOf(1L).equals(mark.getIdValue())) {
+			return activeSince();
+		}
+		LocalDateTime now = clock.get();
+		CommunicationState since = states.findByCode(ACTIVE_SINCE).orElseGet(() -> {
+			CommunicationState state = new CommunicationState();
+			state.setCode(ACTIVE_SINCE);
+			return state;
+		});
+		since.setTimeValue(now);
+		states.save(since);
+		if (mark == null) {
+			mark = new CommunicationState();
+			mark.setCode(MODULE_ON);
+		}
+		mark.setIdValue(1L);
+		mark.setTimeValue(now);
+		states.save(mark);
+		return now;
+	}
+
+	/**
+	 * The instant the module was switched on (step 8e: at the last start after an off one; before: the first start).
+	 * Written at the first call when absent; nothing older is ever picked.
 	 */
 	public synchronized LocalDateTime activeSince() {
 		return states.findByCode(ACTIVE_SINCE).map(CommunicationState::getTimeValue).orElseGet(() -> {

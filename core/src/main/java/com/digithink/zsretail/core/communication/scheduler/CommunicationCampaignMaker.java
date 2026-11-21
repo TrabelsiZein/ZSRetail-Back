@@ -29,6 +29,7 @@ import com.digithink.zsretail.core.communication.repository.CommunicationMessage
 import com.digithink.zsretail.core.communication.service.CampaignAudience;
 import com.digithink.zsretail.core.communication.service.CommunicationCampaigns;
 import com.digithink.zsretail.core.communication.service.CommunicationSettings;
+import com.digithink.zsretail.core.communication.service.CommunicationTemplateProblems;
 import com.digithink.zsretail.core.communication.service.CommunicationTemplates;
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
@@ -47,6 +48,7 @@ import com.digithink.zsretail.core.repository.LoyaltyMemberRepository;
 @Component
 @ConditionalOnInstallation(Installation.COMMUNICATION_SENDS_HERE)
 @Order(15)
+@lombok.extern.log4j.Log4j2
 public class CommunicationCampaignMaker implements CommunicationTask {
 
 	public static final String CODE = "CAMPAIGN_MESSAGES";
@@ -100,6 +102,14 @@ public class CommunicationCampaignMaker implements CommunicationTask {
 		Instant until = budget.isBefore(deadline) ? budget : deadline;
 		List<String> done = new ArrayList<>();
 		for (CommunicationCampaign running : campaigns.findByStatusOrderById(CommunicationCampaignStatus.RUNNING)) {
+			// Step 8e: its channel switched off: STOPPED with the reason, its waiting messages SKIPPED (no DONE)
+			if (!settings.isEnabled(running.getChannel())) {
+				String stopped = transactions.execute(status -> stopChannelOff(running.getId()));
+				if (stopped != null) {
+					done.add(stopped);
+				}
+				continue;
+			}
 			int made = 0;
 			boolean finished = false;
 			while (Instant.now().isBefore(until)) {
@@ -199,6 +209,33 @@ public class CommunicationCampaignMaker implements CommunicationTask {
 		}
 		campaigns.save(campaign);
 		return batch;
+	}
+
+	/** Step 8e: the reason of a campaign stopped because its channel is off, e.g. "channel sms off". */
+	public static String channelOffReason(String channel) {
+		return "channel " + channel.toLowerCase(java.util.Locale.ROOT) + " off";
+	}
+
+	/**
+	 * Step 8e: a running campaign whose channel is off: STOPPED with the reason, its waiting messages SKIPPED ("campaign
+	 * stopped: channel sms off"); null when it no longer runs.
+	 */
+	String stopChannelOff(long campaignId) {
+		CommunicationCampaign campaign = campaigns.findById(campaignId).orElse(null);
+		if (campaign == null || campaign.getStatus() != CommunicationCampaignStatus.RUNNING) {
+			return null;
+		}
+		LocalDateTime now = clock.get();
+		String reason = channelOffReason(campaign.getChannel());
+		campaign.setStatus(CommunicationCampaignStatus.STOPPED);
+		campaign.setStopReason(reason);
+		campaign.setEndedAt(now);
+		campaigns.save(campaign);
+		int skipped = messages.skipWaiting(campaignId, CommunicationMessageStatus.PENDING, CommunicationMessageStatus.SKIPPED,
+				CommunicationTemplateProblems.CAMPAIGN_STOPPED + reason, now, "system");
+		log.warn("Communication: campaign {} stopped, {} waiting message(s) skipped: {}", campaign.getCode(), skipped,
+				reason);
+		return campaign.getCode() + " stopped (" + reason + ")";
 	}
 
 	/** DONE once every member is read and none of its messages waits; true when it became DONE now. */

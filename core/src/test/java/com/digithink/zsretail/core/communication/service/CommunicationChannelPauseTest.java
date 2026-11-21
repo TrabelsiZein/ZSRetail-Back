@@ -47,6 +47,8 @@ class CommunicationChannelPauseTest {
 		int batches;
 		int closed;
 		final List<String> given = new ArrayList<>();
+		/** Step 8e: the addresses this provider refuses as a channel problem whatever the rest (one message's data). */
+		final java.util.Set<String> badAddresses = new java.util.HashSet<>();
 
 		@Override
 		public String getName() {
@@ -59,6 +61,9 @@ class CommunicationChannelPauseTest {
 			given.add(message.getAddress());
 			if (!next.isEmpty()) {
 				return next.poll();
+			}
+			if (badAddresses.contains(message.getAddress())) {
+				return SendResult.channelProblem("SMTP 554: bad data in this one");
 			}
 			return down ? SendResult.channelProblem(REFUSED) : SendResult.accepted("M-" + calls);
 		}
@@ -134,9 +139,11 @@ class CommunicationChannelPauseTest {
 		for (CommunicationMessage m : Arrays.asList(first, second, third)) {
 			assertEquals(CommunicationMessageStatus.PENDING, m.getStatus());
 			assertEquals(0, m.getAttempts(), "its attempts unused");
-			assertNull(m.getNextAttemptAt());
 			assertNull(m.getLastError());
 		}
+		// Step 8e: the message that met it waits behind the next try (the pause's end and two cycles more)
+		assertEquals(bed.now.plusMinutes(3), first.getNextAttemptAt());
+		assertNull(second.getNextAttemptAt());
 		CommunicationChannelState paused = state();
 		assertEquals(bed.now, paused.getPausedSince());
 		assertEquals(bed.now.plusMinutes(1), paused.getPausedUntil());
@@ -161,15 +168,58 @@ class CommunicationChannelPauseTest {
 
 		mail.down = false;
 		bed.now = bed.now.plusMinutes(2);
-		assertEquals("3 sent", cycle());
-		assertEquals(5, mail.calls);
+		assertEquals("2 sent", cycle(), "step 8e: the first and the third; the second, tried last, waits behind");
+		assertEquals(4, mail.calls);
 		assertFalse(state().isPaused(), "a message accepted ends the pause");
 		assertNull(state().getPausedUntil());
 		assertEquals(0, state().getProblems());
+		bed.now = bed.now.plusMinutes(5);
+		assertEquals("1 sent", cycle());
+		assertEquals(5, mail.calls);
 		for (CommunicationMessage m : Arrays.asList(first, second, third)) {
 			assertEquals(CommunicationMessageStatus.SENT, m.getStatus());
 			assertEquals(1, m.getAttempts());
 		}
+	}
+
+	@Test
+	@DisplayName("Step 8e: one message never blocks a channel: it meets a channel problem, waits behind the next try, the"
+			+ " others pass and end the pause; met again after them: FAILED at once with the reason, no new pause")
+	void oneMessageNeverBlocks() {
+		mail.down = false;
+		CommunicationMessage bad = email("LYL-1", "bad@exemple.tn");
+		CommunicationMessage good1 = email("LYL-2", "a@exemple.tn");
+		CommunicationMessage good2 = email("LYL-3", "b@exemple.tn");
+		mail.badAddresses.add("bad@exemple.tn");
+		CommunicationSender sender = bed.sender(mail);
+		assertEquals("channel email paused", sender.run(Instant.now().plusSeconds(20)));
+		assertEquals(CommunicationMessageStatus.PENDING, bad.getStatus());
+		assertEquals(0, bad.getAttempts());
+		assertEquals(bed.now.plusMinutes(3), bad.getNextAttemptAt(), "behind the next try");
+
+		bed.now = bed.now.plusSeconds(61);
+		assertEquals("2 sent", sender.run(Instant.now().plusSeconds(20)), "the try after the pause uses another message");
+		assertFalse(state().isPaused());
+		assertEquals(CommunicationMessageStatus.SENT, good1.getStatus());
+		assertEquals(CommunicationMessageStatus.SENT, good2.getStatus());
+
+		bed.now = bed.now.plusMinutes(3);
+		assertEquals("1 failed", sender.run(Instant.now().plusSeconds(20)));
+		assertEquals(CommunicationMessageStatus.FAILED, bad.getStatus());
+		assertEquals(CommunicationSender.REFUSED_TWICE + " (SMTP 554: bad data in this one)", bad.getLastError());
+		assertFalse(state().isPaused(), "no new pause");
+		assertFalse(sender.moreToDo());
+
+		// a real outage: the tries rotate, nothing FAILED
+		CommunicationMessage m1 = email("LYL-4", "c@exemple.tn");
+		CommunicationMessage m2 = email("LYL-5", "d@exemple.tn");
+		mail.down = true;
+		sender.run(Instant.now().plusSeconds(20));
+		bed.now = bed.now.plusSeconds(61);
+		sender.run(Instant.now().plusSeconds(20));
+		assertEquals(CommunicationMessageStatus.PENDING, m1.getStatus());
+		assertEquals(CommunicationMessageStatus.PENDING, m2.getStatus());
+		assertEquals(2, state().getProblems());
 	}
 
 	@Test
@@ -187,7 +237,7 @@ class CommunicationChannelPauseTest {
 		assertEquals(1, mail.closed);
 
 		mail.down = false;
-		bed.now = bed.now.plusMinutes(2);
+		bed.now = bed.now.plusMinutes(4); // step 8e: the email that met the problem waits behind the next try (3 min)
 		cycle();
 		assertEquals(3, mail.calls);
 		assertEquals(2, mail.batches, "one batch for the cycle's two emails");
@@ -197,7 +247,8 @@ class CommunicationChannelPauseTest {
 	@Test
 	@DisplayName("A test accepted on the Canaux tab ends the pause at once: the waiting messages leave at the next cycle")
 	void testLiftsThePause() {
-		CommunicationMessage waiting = email("LYL-1", "a@exemple.tn");
+		CommunicationMessage probed = email("LYL-1", "a@exemple.tn");
+		CommunicationMessage waiting = email("LYL-2", "b@exemple.tn");
 		cycle();
 		assertTrue(state().isPaused());
 		mail.down = false;
@@ -208,6 +259,9 @@ class CommunicationChannelPauseTest {
 		assertFalse(state().isPaused());
 		assertEquals("1 sent", cycle(), "the wait of 1 min not over, but the pause lifted");
 		assertEquals(CommunicationMessageStatus.SENT, waiting.getStatus());
+		assertEquals(CommunicationMessageStatus.PENDING, probed.getStatus(), "step 8e: behind the next try");
+		bed.now = bed.now.plusMinutes(3);
+		assertEquals("1 sent", cycle());
 	}
 
 	@Test

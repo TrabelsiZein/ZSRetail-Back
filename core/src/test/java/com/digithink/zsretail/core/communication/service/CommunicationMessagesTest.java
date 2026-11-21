@@ -131,6 +131,7 @@ class CommunicationMessagesTest {
 						.filter(e -> e.getId() > afterId).map(CommunicationEvent::getId)
 						.limit(((Pageable) args[4]).getPageSize()).collect(Collectors.toList());
 			case "findById":
+			case "findForProcessing": // step 8e: the locked read
 				return Optional.ofNullable(eventTable.get(args[0]));
 			default:
 				return UNHANDLED;
@@ -149,6 +150,14 @@ class CommunicationMessagesTest {
 		switch (method) {
 			case "findByDedupKey":
 				return messageTable.values().stream().filter(m -> m.getDedupKey().equals(args[0])).findFirst();
+			case "claim": { // step 8e: SENDING only if still PENDING
+				CommunicationMessage claimed = messageTable.get(args[0]);
+				if (claimed == null || claimed.getStatus() != args[1]) {
+					return 0;
+				}
+				claimed.setStatus((com.digithink.zsretail.core.communication.enumeration.CommunicationMessageStatus) args[2]);
+				return 1;
+			}
 			case "save":
 				CommunicationMessage message = (CommunicationMessage) args[0];
 				if (message.getId() == null) {
@@ -180,8 +189,8 @@ class CommunicationMessagesTest {
 	});
 
 	private CommunicationSettings settings() {
-		return new CommunicationSettings(new MockEnvironment().withProperty("communication.sms.enabled", smsEnabled),
-				Collections.singletonList("test"));
+		return new CommunicationSettings(new MockEnvironment().withProperty("communication.sms.enabled", smsEnabled)
+				.withProperty("communication.sms.provider", "test"), Collections.singletonList("test"));
 	}
 
 	private String process() {

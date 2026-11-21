@@ -160,7 +160,8 @@ public class CommunicationEventProcessor implements CommunicationTask {
 
 	/** One event, in its transaction. Returns its new status; null when it is no longer to process. */
 	CommunicationEventStatus process(long id) {
-		CommunicationEvent event = events.findById(id).orElse(null);
+		// Step 8e: read with its row locked: two back ends on one database never process the same event twice
+		CommunicationEvent event = events.findForProcessing(id).orElse(null);
 		if (event == null || (event.getStatus() != CommunicationEventStatus.PENDING
 				&& event.getStatus() != CommunicationEventStatus.ERROR)) {
 			return null;

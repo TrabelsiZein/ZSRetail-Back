@@ -198,7 +198,7 @@ class MetaWhatsAppProviderTest {
 		assertNull(provider.family(999999));
 		assertEquals(Outcome.PERMANENT_FAILURE, provider.answer(400, "{\"error\":{\"message\":\"odd\",\"code\":999999}}",
 				null, "zs_x", "fr").getOutcome());
-		assertEquals(Outcome.CHANNEL_PROBLEM, provider.answer(502, "<html>Bad gateway</html>", null, "zs_x", "fr")
+		assertEquals(Outcome.CHANNEL_PROBLEM, provider.answer(503, "<html>Service unavailable</html>", null, "zs_x", "fr")
 				.getOutcome());
 		SendResult held = provider.answer(200, "{\"messages\":[{\"id\":\"wamid.X\",\"message_status\":"
 				+ "\"held_for_quality_assessment\"}]}", null, "zs_x", "fr");
@@ -237,6 +237,35 @@ class MetaWhatsAppProviderTest {
 		assertEquals(MetaWhatsAppProvider.Family.TEMPLATE, provider.family(132001));
 		assertEquals(MetaWhatsAppProvider.Family.RETRY, new MetaWhatsAppProvider(env().withProperty(
 				MetaWhatsAppProvider.RETRY_CODES_KEY, "131049")).family(131049), "a line still moves it back");
+	}
+
+	@Test
+	@DisplayName("Step 8e: a tab or a line break becomes a space, more than 4 spaces become one; a value empty once"
+			+ " cleaned never goes to Meta (FAILED with the field's name); a proxy's 502 / 504 / 524 without Meta's error:"
+			+ " no answer (uncertain), Meta's code inside still wins")
+	void step8eValuesAndProxies() throws IOException {
+		assertEquals("Sa na Ben Ali", MetaWhatsAppProvider.clean("Sa\tna\r\nBen      Ali"));
+		assertEquals("a    b", MetaWhatsAppProvider.clean("a    b"), "4 spaces kept");
+		MetaWhatsAppProvider provider = new MetaWhatsAppProvider(env());
+		CommunicationTemplate template = template("Bonjour {firstName} chez {companyName}", "zs_bonjour", null, null);
+		Map<String, Object> tabbed = values();
+		tabbed.put("firstName", "Sana\tBen\nAli");
+		assertEquals(Outcome.ACCEPTED, provider.send(whatsapp("+21699000005", template, tabbed)).getOutcome());
+		assertTrue(meta.requests().get(0).getBody().contains("\"text\":\"Sana Ben Ali\""), meta.requests().get(0).getBody());
+
+		Map<String, Object> blank = values();
+		blank.put("firstName", " \t ");
+		SendResult empty = provider.send(whatsapp("+21699000005", template, blank));
+		assertEquals(Outcome.PERMANENT_FAILURE, empty.getOutcome());
+		assertEquals("WhatsApp value of {firstName} is empty: not sent", empty.getError());
+		assertEquals(1, meta.requests().size(), "no call to Meta");
+
+		SendResult proxy = provider.answer(504, "<html>Gateway Time-out</html>", null, "zs_x", "fr");
+		assertEquals(Outcome.UNCERTAIN, proxy.getOutcome());
+		assertEquals("WhatsApp: no answer from Meta (HTTP 504)", proxy.getError());
+		assertEquals(Outcome.UNCERTAIN, provider.answer(524, "", null, "zs_x", "fr").getOutcome());
+		assertEquals(Outcome.CHANNEL_PROBLEM, provider.answer(502, metaError(131000, "(#131000) Something went wrong"),
+				null, "zs_x", "fr").getOutcome(), "Meta's own code wins");
 	}
 
 	private static String metaError(long code, String message) {

@@ -131,6 +131,30 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   not in the allowed list of Meta's test number) FAILED at once with what to do; 132005 (the text too long once filled
   with this member's values) fails that message only, no longer stopping the campaign nor marking the template; 131066
   (Meta's code from February 2027) FAILED at once. 131056 is still tried again later.
+- Communication, step 8e: one message never blocks a channel: a message that meets a channel problem waits behind the
+  next try (its attempts unused) so another message checks the channel; met again after other messages passed, it is
+  FAILED at once ("refused twice by the provider while other messages passed: check its text and values"), no pause.
+  WhatsApp values cleaned before sending (tab and line break to a space, more than 4 spaces to one); a value empty once
+  cleaned is never sent to Meta (FAILED with the field's name).
+- Communication, step 8e: a message is taken for sending in one statement (SENDING only if still PENDING) and an event
+  is read with its row locked: two back ends on one database never send one message or process one event twice.
+- Communication, step 8e: nothing of an off time is ever sent: when the module starts on after a start with it off (or
+  for the first time), the events start from that moment (one line of comm_state written at a start with the module
+  off); a back end stopped and started again with the module on keeps catching up.
+- Communication, step 8e: a store whose loyalty is the head office's no longer reads, checks nor logs its channel lines
+  (one WARN names those written); no messaging line stops a back end any more: communication.enabled, cycle-seconds,
+  an unknown provider name and phone-country-code not valid are a WARN and the module or channel off, 60 s, 216.
+- Communication, step 8e: no default provider: a channel switched on with no provider line is off with a WARN; test
+  works only when written (a WARN at the start, a notice on the Canaux tab and in the New campaign window).
+- Communication, step 8e: a proxy's 502, 504 or 524 with no error of the provider inside follows the no-answer rule
+  (never sent again by itself); the provider's own error inside still wins.
+- Communication, step 8e: a running campaign whose channel is switched off ends STOPPED with "channel <x> off" (its
+  waiting messages SKIPPED), no longer DONE; a message of a stopped or cancelled campaign is never left waiting (SKIPPED
+  with the campaign's reason, its expiry read first), and sending it again by hand is refused
+  (COMM_RESEND_CAMPAIGN_ENDED): the fast 5 s cycle runs only while a message can leave now.
+- Communication, step 8e: one WARN per refused template until it clears (not one per sale); a pause going on with a
+  provider's wait of less than a minute logs at INFO, not a WARN every cycle. The 403 of the Communication API carries
+  a code (COMM_FORBIDDEN). Removed: GET /communication/rules/{id} and /templates/{id} (never called).
 
 ### Fixes
 - Communication, step 8d: the default WhatsApp API version is v26.0, the newest on Meta's versions page; step 8c had
@@ -172,6 +196,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   (200-299), `.accepted-field`, `.accepted-value`, `.accepted-text`, `.id-field`, `.id-regex`, `.error-field`,
   `.channel-error-texts` (all empty); one line per field and per header (`communication.sms.http.field.<name>`,
   `.header.<Name>`, no default); `communication.sms.provider` accepts `http`. No customer file names them.
+- Step 8e: `communication.<channel>.provider` has no default any more (empty in core's `application.properties`; it
+  was `test`): write `smtp`, `http`, `meta` or `test`. A wrong value of `communication.enabled`, `cycle-seconds`, a
+  provider or `phone-country-code` no longer stops the start. A store whose loyalty is the head office's reads only
+  `communication.enabled` and `cycle-seconds`.
 - Step 8c, all optional with their default in core's `application.properties`: `communication.sms.http.retry-no-answer`
   (false); `communication.whatsapp.meta.url` (https://graph.facebook.com), `.api-version` (v26.0), `.phone-number-id`
   (empty), `.token` (empty; only in the outside file), `.token-header` (Authorization), `.token-prefix` (Bearer),

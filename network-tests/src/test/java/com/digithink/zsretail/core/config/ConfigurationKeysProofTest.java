@@ -92,6 +92,9 @@ import com.digithink.zsretail.support.Installations;
  * read-timeout-seconds 30, channel-codes, retry-codes, message-codes, template-codes), all from core's
  * application.properties; token, token-header and token-prefix are recorded "(set)" (a key naming a token, the record's
  * rule for a secret): "keys 120", thirteen lines per configuration, the same everywhere; every other line unchanged.
+ * <p>
+ * 3.3.0, communication module step 8e: the three provider lines have no default any more
+ * (communication.&lt;channel&gt;.provider empty instead of test): "keys 120", three values per configuration changed.
  */
 class ConfigurationKeysProofTest {
 

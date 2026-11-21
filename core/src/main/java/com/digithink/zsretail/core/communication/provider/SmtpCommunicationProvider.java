@@ -58,7 +58,7 @@ import lombok.extern.log4j.Log4j2;
  * "Step 8a", "Step 8a, part 2" and "Step 8b".
  */
 @Component
-@ConditionalOnInstallation(Installation.COMMUNICATION)
+@ConditionalOnInstallation(Installation.COMMUNICATION_SENDS_HERE)
 @Log4j2
 public class SmtpCommunicationProvider implements CommunicationProvider {
 

@@ -74,8 +74,10 @@ public class CommunicationTemplateProblems {
 	public int refused(CommunicationMessage message, String reason) {
 		LocalDateTime now = clock.get();
 		String text = reason == null ? "" : reason.length() <= 900 ? reason : reason.substring(0, 900);
+		boolean[] newlyMarked = { false };
 		if (message.getTemplateCode() != null) {
 			templates.findByCode(message.getTemplateCode()).ifPresent(template -> {
+				newlyMarked[0] = template.getProviderProblem() == null;
 				template.setProviderProblem(text);
 				template.setProviderProblemAt(now);
 				templates.save(template);
@@ -95,7 +97,12 @@ public class CommunicationTemplateProblems {
 						text);
 			}
 		}
-		log.warn("Communication: template {} refused by the provider: {}", message.getTemplateCode(), text);
+		// Step 8e: one WARN when the template is marked, not one per message (per sale) until the mark clears
+		if (newlyMarked[0]) {
+			log.warn("Communication: template {} refused by the provider: {}", message.getTemplateCode(), text);
+		} else {
+			log.debug("Communication: template {} refused again: {}", message.getTemplateCode(), text);
+		}
 		return skipped;
 	}
 

@@ -68,7 +68,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * channel's; another: this message's). See docs/modules/communication.md, "Step 8c" and "Step 8d".
  */
 @Component
-@ConditionalOnInstallation(Installation.COMMUNICATION)
+@ConditionalOnInstallation(Installation.COMMUNICATION_SENDS_HERE)
 public class MetaWhatsAppProvider implements CommunicationProvider {
 
 	public static final String NAME = "meta";
@@ -231,6 +231,11 @@ public class MetaWhatsAppProvider implements CommunicationProvider {
 		if (phone == null) {
 			return SendResult.permanentFailure("invalid phone '" + message.getAddress() + "': not sent");
 		}
+		// Step 8e: a value empty once cleaned never goes to Meta: that message FAILED with the field's name
+		String empty = emptyValue(params);
+		if (empty != null) {
+			return SendResult.permanentFailure("WhatsApp value of {" + empty + "} is empty: not sent");
+		}
 		String templateName = params.path("name").asText();
 		String language = params.path("language").asText();
 		HttpPost post = new HttpPost(URI.create(url + "/" + apiVersion + "/" + phoneNumberId + "/messages"));
@@ -296,10 +301,31 @@ public class MetaWhatsAppProvider implements CommunicationProvider {
 				if (named) {
 					parameter.put("parameter_name", value.path("name").asText());
 				}
-				parameter.put("text", value.path("value").asText());
+				parameter.put("text", clean(value.path("value").asText()));
 			}
 		}
 		return root.toString();
+	}
+
+	/**
+	 * Step 8e: a value as Meta takes it: a tab or a line break becomes a space, more than 4 spaces in a row become one
+	 * (Meta refuses them, with code 100: the channel would have paused for one member's data).
+	 */
+	static String clean(String value) {
+		if (value == null) {
+			return "";
+		}
+		return value.replaceAll("[\t\r\n]+", " ").replaceAll(" {5,}", " ");
+	}
+
+	/** Step 8e: the field of the first value empty once cleaned, null when none. */
+	static String emptyValue(JsonNode params) {
+		for (JsonNode value : params.path("values")) {
+			if (clean(value.path("value").asText("")).trim().isEmpty()) {
+				return value.path("field").asText("?");
+			}
+		}
+		return null;
 	}
 
 	/** + and the country code, as Meta recommends (without +, Meta puts the business number's country code). */
@@ -322,6 +348,10 @@ public class MetaWhatsAppProvider implements CommunicationProvider {
 		}
 		JsonNode error = json == null ? null : json.path("error");
 		Long code = error == null || !error.path("code").canConvertToLong() ? null : error.path("code").asLong();
+		// Step 8e: 502, 504, 524 with no error of Meta inside: a proxy that may have passed the request on: uncertain
+		if (code == null && HttpSmsProvider.PROXY_STATUSES.contains(status)) {
+			return SendResult.uncertain("WhatsApp: no answer from Meta (HTTP " + status + ")");
+		}
 		String words = words(error, answer, status);
 		Family family = code == null ? null : family(code);
 		if (family == null) {

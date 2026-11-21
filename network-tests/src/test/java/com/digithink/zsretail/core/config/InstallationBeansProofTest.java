@@ -58,7 +58,7 @@ class InstallationBeansProofTest {
 	static final List<String> ERP_CONDITIONS = Arrays.asList("OnErpAbilityCondition", "OnErpConnectorCondition");
 
 	/** Every class and @Bean method these questions decide, by name: a lost or new annotation shows here. */
-	static final int EXPECTED_DECIDED = 138; // RFID: 3 services, the reader, 3 APIs; tags: 2 services, the check, the API;
+	static final int EXPECTED_DECIDED = 139; // RFID: 3 services, the reader, 3 APIs; tags: 2 services, the check, the API;
 	// POS: the sale tags hook, the POS service and its API; item variants (ZEN), step 9: the stores'
 	// ERP customers for the invoices read (HoErpInvoiceCustomers); 3.1.1, orders to the head office: the API, the
 	// service, the status writer, the draft index (store); the reception and admin APIs, the service, the posting
@@ -77,7 +77,10 @@ class InstallationBeansProofTest {
 	// smtp (COMMUNICATION) and the Canaux tab's service (COMMUNICATION_SENDS_HERE) (132 to 134); step 8a part 2: the
 	// channels' pause and speed (CommunicationChannelStates, COMMUNICATION_SENDS_HERE) (134 to 135); step 8b: the SMS
 	// provider http (COMMUNICATION) (135 to 136); step 8c: the WhatsApp provider meta (COMMUNICATION) and the templates
-	// refused by their provider (CommunicationTemplateProblems, COMMUNICATION_SENDS_HERE) (136 to 138)
+	// refused by their provider (CommunicationTemplateProblems, COMMUNICATION_SENDS_HERE) (136 to 138); step 8e: the
+	// settings and the four providers only where messages are sent (COMMUNICATION to COMMUNICATION_SENDS_HERE: a store
+	// whose loyalty is the head office's no longer reads its channel lines), the WARN naming its ignored lines
+	// (CommunicationIgnoredLines, COMMUNICATION_PUSHED_UP) (138 to 139)
 
 	/** True for an annotation whose condition is an installation question (a class of config, not an ERP one). */
 	static boolean isQuestion(Annotation annotation) {

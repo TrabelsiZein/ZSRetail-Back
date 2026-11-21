@@ -32,6 +32,7 @@ import com.digithink.zsretail.core.communication.CommunicationException;
 import com.digithink.zsretail.core.communication.CommunicationTypes;
 import com.digithink.zsretail.core.communication.enumeration.CommunicationEventStatus;
 import com.digithink.zsretail.core.communication.enumeration.CommunicationMessageStatus;
+import com.digithink.zsretail.core.communication.enumeration.CommunicationCampaignStatus;
 import com.digithink.zsretail.core.communication.model.CommunicationCampaign;
 import com.digithink.zsretail.core.communication.model.CommunicationEvent;
 import com.digithink.zsretail.core.communication.model.CommunicationMessage;
@@ -368,6 +369,18 @@ public class CommunicationAdmin {
 					+ was, "status", was == null ? "" : was.name());
 		}
 		requireChannelOn(message.getChannel());
+		// Step 8e: a message of a campaign stopped or cancelled is never sent again: a new campaign is the way
+		if (message.getCampaignId() != null && campaigns != null) {
+			CommunicationCampaign campaign = campaigns.findById(message.getCampaignId()).orElse(null);
+			if (campaign == null || campaign.getStatus() == CommunicationCampaignStatus.STOPPED
+					|| campaign.getStatus() == CommunicationCampaignStatus.CANCELLED) {
+				String code = campaign == null ? "?" : campaign.getCode();
+				String status = campaign == null ? "CANCELLED" : campaign.getStatus().name();
+				throw CommunicationException.refused("COMM_RESEND_CAMPAIGN_ENDED", "The campaign " + code + " is "
+						+ status + ": its messages are not sent again; create a new campaign", "campaign", code, "status",
+						status);
+			}
+		}
 		boolean addressChanged = false;
 		if (CommunicationTypes.LOYALTY_MEMBER.equals(message.getRecipientType()) && message.getRecipientRef() != null) {
 			Optional<LoyaltyMember> member = members.findByCardNumber(message.getRecipientRef());

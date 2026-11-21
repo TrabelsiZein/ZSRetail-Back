@@ -227,6 +227,29 @@ class HttpSmsProviderTest {
 	}
 
 	@Test
+	@DisplayName("Step 8e: a proxy's 502, 504 or 524 without the gateway's error: the no-answer rule (uncertain; with"
+			+ " retry-no-answer, after the pause); the gateway's own error field inside still wins (the channel's problem)")
+	void proxyStatuses() {
+		for (int status : new int[] { 502, 504, 524 }) {
+			gateway.status(status, null);
+			SendResult text = new HttpSmsProvider(getExample()).send(sms("+21699000002", "Bonjour"));
+			assertEquals(Outcome.UNCERTAIN, text.getOutcome(), "a text answer, no error field: " + status);
+			assertEquals("SMS: no answer from the gateway (HTTP " + status + ")", text.getError());
+		}
+		gateway.status(504, null);
+		SendResult retried = new HttpSmsProvider(getExample().withProperty(HttpSmsProvider.RETRY_NO_ANSWER_KEY, "true"))
+				.send(sms("+21699000002", "Bonjour"));
+		assertEquals(Outcome.CHANNEL_PROBLEM, retried.getOutcome());
+		assertEquals("SMS: no answer from the gateway (HTTP 504), tried again (the gateway refuses doubles)",
+				retried.getError());
+		gateway.status(502, null);
+		SendResult inside = new HttpSmsProvider(jsonExample()).send(sms("+21699000002", "Bonjour"));
+		assertEquals(Outcome.CHANNEL_PROBLEM, inside.getOutcome(), "the JSON answer holds the gateway's error");
+		assertTrue(inside.getError().startsWith("SMS server error (HTTP 502)"), inside.getError());
+		gateway.status(null, null);
+	}
+
+	@Test
 	@DisplayName("Step 8c, retry-no-answer for a gateway that refuses doubles on {messageId}: no answer is the channel's"
 			+ " problem (the message waits, tried again with the same reference); refused without a field carrying"
 			+ " {messageId}; anything but true or false refused")

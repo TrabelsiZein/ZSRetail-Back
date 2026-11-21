@@ -155,6 +155,8 @@ public class CommunicationCampaigns {
 		answer.put("sending", sending(template.getChannel(), counts.getReceive()));
 		answer.put("pause", channelStates == null ? null
 				: CommunicationChannelStates.pauseView(channelStates.of(template.getChannel())));
+		// Step 8e: the channel runs on the provider test: the window says nothing leaves
+		answer.put("testProvider", settings.isTestProvider(template.getChannel()));
 		return answer;
 	}
 

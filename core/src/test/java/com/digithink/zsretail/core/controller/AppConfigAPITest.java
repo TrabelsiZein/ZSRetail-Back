@@ -472,7 +472,7 @@ class AppConfigAPITest {
 		assertFalse(off.isSendsHere());
 		assertEquals(Collections.emptyList(), off.getChannels());
 		MockEnvironment on = new MockEnvironment().withProperty("communication.enabled", "true")
-				.withProperty("communication.sms.enabled", "true");
+				.withProperty("communication.sms.enabled", "true").withProperty("communication.sms.provider", "test"); // 8e
 		COMMUNICATION_SETTINGS[0] = new CommunicationSettings(on, Collections.singletonList("test"));
 		try {
 			CommunicationConfigDTO store = config(on, true, true).getCommunication();

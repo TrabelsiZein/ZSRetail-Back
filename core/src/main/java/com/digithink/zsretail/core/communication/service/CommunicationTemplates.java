@@ -29,10 +29,6 @@ public final class CommunicationTemplates {
 	public static final Set<String> CAMPAIGN_FIELDS = Collections.unmodifiableSet(new LinkedHashSet<>(Arrays.asList(
 			"firstName", "lastName", "cardNumber", "pointsBalance", "storeName", "companyName")));
 
-	/** Step 7: the fields filled from the member when the values lack them (a payload of before, a campaign). */
-	public static final Set<String> MEMBER_FIELDS = Collections.unmodifiableSet(new LinkedHashSet<>(Arrays.asList(
-			"firstName", "lastName", "cardNumber", "pointsBalance")));
-
 	private static final Pattern FIELD = Pattern.compile("\\{(\\w+)\\}");
 
 	/** The unknown fields already logged. */
