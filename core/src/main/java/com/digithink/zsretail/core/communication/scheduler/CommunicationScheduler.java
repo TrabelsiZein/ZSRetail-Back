@@ -28,7 +28,9 @@ import lombok.extern.log4j.Log4j2;
 /**
  * 3.3.0, communication module, step 2: runs the module's tasks ({@link CommunicationTask}, in their order) on one
  * thread, comm-1, built like the head office link's scheduler: the first cycle {@link #FIRST_DELAY} after the start,
- * then communication.cycle-seconds (default 60) after the end of the previous one. A cycle stops starting new work
+ * then communication.cycle-seconds (default 60) after the end of the previous one; step 8b: {@link #FAST_DELAY} (5 s)
+ * after it while a task has work left it can do at once (messages due on a channel not paused, a campaign still being
+ * made: {@link CommunicationTask#moreToDo()}). A cycle stops starting new work
  * after {@link #CYCLE_BOUND}; a task that fails is logged and never stops the next task or the next cycle. At its start
  * the activation instant is written when it is not yet (the first start with the module on). Only with the module on:
  * off, neither this bean nor its thread exists.
@@ -45,6 +47,8 @@ public class CommunicationScheduler {
 	static final long DEFAULT_CYCLE_SECONDS = 60;
 	static final Duration FIRST_DELAY = Duration.ofSeconds(30);
 	public static final Duration CYCLE_BOUND = Duration.ofSeconds(20);
+	/** Step 8b: the wait before the next cycle while messages wait (never longer than communication.cycle-seconds). */
+	public static final Duration FAST_DELAY = Duration.ofSeconds(5);
 
 	private final List<CommunicationTask> tasks;
 	private final CommunicationStates states;
@@ -98,8 +102,9 @@ public class CommunicationScheduler {
 		scheduler.setDaemon(true);
 		scheduler.initialize();
 		taskScheduler = scheduler;
-		scheduler.scheduleWithFixedDelay(this::cycle, Instant.now().plus(FIRST_DELAY), Duration.ofSeconds(cycleSeconds));
-		log.info("Communication: on since {}, a cycle every {} s on comm-1: {}", activeSince, cycleSeconds,
+		scheduler.schedule(this::loop, Instant.now().plus(FIRST_DELAY));
+		log.info("Communication: on since {}, a cycle every {} s on comm-1 (every {} s while messages wait): {}",
+				activeSince, cycleSeconds, busyDelay(cycleSeconds).getSeconds(),
 				tasks.isEmpty() ? "no task" : tasks.stream().map(CommunicationTask::getCode).collect(Collectors.joining(", ")));
 	}
 
@@ -111,18 +116,51 @@ public class CommunicationScheduler {
 		}
 	}
 
-	/** One cycle: every task in order, each with the cycle's deadline. Never throws. */
-	void cycle() {
+	/** Step 8b: the wait between two cycles while messages wait: {@link #FAST_DELAY}, at most cycle-seconds. */
+	public static Duration busyDelay(long cycleSeconds) {
+		return Duration.ofSeconds(Math.min(FAST_DELAY.getSeconds(), cycleSeconds));
+	}
+
+	/** Step 8b: one cycle, then the next one planned: sooner while a task has work left. */
+	void loop() {
+		boolean more = false;
+		try {
+			more = cycle();
+		} finally {
+			next(more);
+		}
+	}
+
+	private synchronized void next(boolean more) {
+		if (taskScheduler == null) {
+			return; // stopped
+		}
+		Duration wait = more ? busyDelay(cycleSeconds) : Duration.ofSeconds(cycleSeconds);
+		try {
+			taskScheduler.schedule(this::loop, Instant.now().plus(wait));
+		} catch (org.springframework.core.task.TaskRejectedException e) {
+			// shutting down
+		}
+	}
+
+	/**
+	 * One cycle: every task in order, each with the cycle's deadline. Never throws. Step 8b: true when a task has work
+	 * left it can do at once.
+	 */
+	boolean cycle() {
 		Instant deadline = clock.get().plus(CYCLE_BOUND);
+		boolean more = false;
 		for (CommunicationTask task : tasks) {
 			try {
 				String done = task.run(deadline);
 				if (done != null) {
 					log.info("Communication: {}: {}", task.getCode(), done);
 				}
+				more |= task.moreToDo();
 			} catch (RuntimeException e) {
 				log.warn("Communication: {} failed, tried again at the next cycle ({})", task.getCode(), ErrorTexts.cause(e));
 			}
 		}
+		return more;
 	}
 }

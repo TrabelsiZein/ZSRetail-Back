@@ -48,12 +48,14 @@ import lombok.extern.log4j.Log4j2;
  * connection that sent nothing yet, the server congested (x.4.5, e.g. a daily quota);</li>
  * <li>a 5xx answer of the server about the email (an address or a text refused): FAILED at once with the server's
  * reason;</li>
- * <li>a 4xx answer, a timeout or a connection lost while an email is sent: a temporary failure, tried again after the
- * waits of the sender (1, 5, 15, 60 min).</li>
+ * <li>a 4xx answer, a timeout or a connection lost while an email is sent, before its final ".": a temporary failure,
+ * tried again after the waits of the sender (1, 5, 15, 60 min);</li>
+ * <li>step 8b: no answer after the email's final "." (a timeout, the connection cut): uncertain, the server may have
+ * taken it: FAILED "no answer from the provider", sent again by hand only, the channel paused.</li>
  * </ul>
- * Without a host or a sender address the provider cannot send: the channel is treated as off, with one WARN line at
- * the start, never a refused start (CommunicationSettings). See docs/modules/communication.md, "Step 8a" and "Step 8a,
- * part 2".
+ * Email only (step 8b). Without a host or a sender address the provider cannot send: the channel is treated as off,
+ * with one WARN line at the start, never a refused start (CommunicationSettings). See docs/modules/communication.md,
+ * "Step 8a", "Step 8a, part 2" and "Step 8b".
  */
 @Component
 @ConditionalOnInstallation(Installation.COMMUNICATION)
@@ -172,6 +174,12 @@ public class SmtpCommunicationProvider implements CommunicationProvider {
 		return unavailable;
 	}
 
+	/** Step 8b: email only. */
+	@Override
+	public boolean serves(String channel) {
+		return com.digithink.zsretail.core.communication.CommunicationTypes.EMAIL.equals(channel);
+	}
+
 	@Override
 	public Map<String, Object> describe() {
 		Map<String, Object> view = new LinkedHashMap<>();
@@ -187,6 +195,7 @@ public class SmtpCommunicationProvider implements CommunicationProvider {
 	}
 
 	/** The sender: "Name <address>", or the address alone. */
+	@Override
 	public String sender() {
 		return fromAddress == null ? null : (fromName == null ? fromAddress : fromName + " <" + fromAddress + ">");
 	}
@@ -212,7 +221,7 @@ public class SmtpCommunicationProvider implements CommunicationProvider {
 	 */
 	public final class SmtpBatch implements Batch {
 
-		private Transport transport;
+		private MarkedTransport transport;
 		/** The emails accepted on the connection open now. */
 		private int acceptedOnConnection;
 		private int connections;
@@ -252,11 +261,15 @@ public class SmtpCommunicationProvider implements CommunicationProvider {
 				}
 			}
 			try {
+				transport.dataEnded = false;
 				transport.sendMessage(mime, mime.getAllRecipients());
 				acceptedOnConnection++;
 				return SendResult.accepted(mime.getMessageID());
 			} catch (MessagingException e) {
-				SendResult failed = failure(e, acceptedOnConnection > 0);
+				// Step 8b: the final "." left and no answer came: the server may have taken it (never sent again by itself)
+				SendResult failed = transport.dataEnded && noAnswer(e)
+						? SendResult.uncertain("SMTP: no answer after the email was sent (" + reason(e) + ")")
+						: failure(e, acceptedOnConnection > 0);
 				if (!transport.isConnected()) { // RSET (mail.smtp.userset): closed by the server or lost
 					drop();
 				}
@@ -266,9 +279,9 @@ public class SmtpCommunicationProvider implements CommunicationProvider {
 
 		/** The connection opened and logged in; null when done, the channel problem otherwise. */
 		private SendResult open() {
-			Transport opening = null;
+			MarkedTransport opening = null;
 			try {
-				opening = session.getTransport("smtp");
+				opening = new MarkedTransport(session, new javax.mail.URLName("smtp", host, port, null, username, null));
 				connections++;
 				opening.connect(host, port, username, password);
 				transport = opening;
@@ -313,6 +326,37 @@ public class SmtpCommunicationProvider implements CommunicationProvider {
 		} catch (AddressException e) {
 			return null;
 		}
+	}
+
+	/**
+	 * Step 8b: the SMTP transport, marking when an email's data ended (its final "." sent): a failure without an answer
+	 * after it is uncertain (the server may have taken the email), before it the email was not taken.
+	 */
+	static final class MarkedTransport extends com.sun.mail.smtp.SMTPTransport {
+
+		/** Set when the final "." of the email being sent is written. */
+		volatile boolean dataEnded;
+
+		MarkedTransport(Session session, javax.mail.URLName url) {
+			super(session, url);
+		}
+
+		@Override
+		protected void finishData() throws IOException, MessagingException {
+			dataEnded = true;
+			super.finishData();
+		}
+	}
+
+	/** Step 8b: the server gave no answer (a timeout, the connection cut, JavaMail's -1 "[EOF]"), not a refusal. */
+	static boolean noAnswer(MessagingException e) {
+		Integer code = smtpCode(e);
+		if (code != null && code >= 100) {
+			return false;
+		}
+		Throwable cause = rootCause(e);
+		return code != null || cause instanceof IOException
+				|| String.valueOf(e.getMessage()).startsWith("Exception reading response");
 	}
 
 	/** Why the connection could not be opened (every next email would meet it too): a channel problem's text. */

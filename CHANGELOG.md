@@ -74,6 +74,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   the provider test); longer than the lifetime, a warning and a proposed lifetime taken in one click, never a refusal.
   The Canaux tab shows a channel's pause (since when, why, the next try) and its recent rate; the Messages tab a banner
   per channel paused.
+- Communication, step 8b: SMS through an HTTP gateway (`communication.sms.provider=http`), plugged in by filling lines,
+  no code: the address, GET or POST, the fields in the address, a form or JSON (a template for any shape), the headers,
+  the key or login, the phone's format, the timeouts, how to read the answer; placeholders {phone} {text} {sender}
+  {messageId} {unicode} {key} {username} {password} {basic}; two worked examples in core's application.properties. The
+  Canaux tab shows its host only, the key "set" / "not set"; "Envoyer un test" sends a test SMS.
 
 ### Enhancements
 - Communication, step 4: a message sent again keeps its history in `last_error` ("resent ... by ...; before: ..."), and
@@ -95,6 +100,16 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Communication, step 8a part 2: one SMTP connection per cycle (5,000 emails to the local test server in 1.2 s, 8.7 s
   before); a connection lost before the server accepted stays a plain temporary failure. The server's name is checked
   against its TLS certificate; the EHLO name is the sender's domain, no longer this computer's name.
+- Communication, step 8b, every channel: a message that left with no answer back (a read timeout once an SMS request
+  was written, no answer after an email's final ".") is FAILED "no answer from the provider, check before sending it
+  again" and the channel pauses: never sent again by itself (before: tried again, so possibly twice). The SMS gateway's
+  answers: key refused, unreachable, a connect timeout, 5xx, 429 (its Retry-After), a wrong address (404 / 405 / 415),
+  a redirect, a refusal naming `channel-error-texts`: the channel pauses; a number refused or another 4xx, a 200 with an
+  error inside: that SMS FAILED with the gateway's words. A channel set to a provider that does not send it (smtp for
+  SMS, http for email) is off with a WARN.
+- Communication, step 8b: while messages are due on a channel not paused, or a campaign is still being made, the next
+  cycle starts after 5 s instead of communication.cycle-seconds; the New campaign window's estimate follows (about 3
+  times the rate of before).
 
 ### DB script
 - `db/3.3.0/update.sql`: the tables `comm_event` (what happened) and `comm_message` (what to send), every text column
@@ -105,7 +120,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `message_consent_by`, on a store and on a head office alike. Step 7: the table `comm_campaign` and
   `comm_message.campaign_id` with the index `ix_comm_message_campaign`; run the script again on a database that ran an
   earlier version of it. Step 8a: `comm_message.redirected_to` (nvarchar(255), the test-recipient mode). Step 8a part
-  2: the table `comm_channel_state` (a channel's pause and measured speed, one row per channel).
+  2: the table `comm_channel_state` (a channel's pause and measured speed, one row per channel). Step 8b:
+  `comm_message.send_ref` (varchar(40), our reference given to the provider as {messageId}).
 
 ### Config
 - `communication.enabled` (store and head office): `true` turns the module on; absent, empty or `false` (core's
@@ -122,6 +138,13 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `communication.email.from-name` (empty), `communication.test-recipient.phone` (empty),
   `communication.test-recipient.email` (empty); `communication.email.provider` accepts `smtp`. A value not valid is a
   WARN and its channel off, never a refused start. No customer file names them.
+- Step 8b, all optional with their default in core's `application.properties`: `communication.sms.http.url` (empty),
+  `.method` (GET), `.body` (query), `.json-template` (empty), `.key` (empty; only in the outside file), `.username`
+  (empty), `.password` (empty; only in the outside file), `.sender` (empty), `.phone-format` (with-plus),
+  `.unicode-values` (true,false), `.connect-timeout-seconds` (10), `.read-timeout-seconds` (30), `.accepted-status`
+  (200-299), `.accepted-field`, `.accepted-value`, `.accepted-text`, `.id-field`, `.id-regex`, `.error-field`,
+  `.channel-error-texts` (all empty); one line per field and per header (`communication.sms.http.field.<name>`,
+  `.header.<Name>`, no default); `communication.sms.provider` accepts `http`. No customer file names them.
 
 ## 3.2.0 — in progress (branch `release/3.2.0`)
 

@@ -52,6 +52,19 @@ public interface CommunicationProvider {
 	}
 
 	/**
+	 * Step 8b: whether this provider sends this channel's messages (smtp: email only; http: SMS only). A channel set to
+	 * a provider that does not send it is off, with one WARN line at the start (CommunicationSettings).
+	 */
+	default boolean serves(String channel) {
+		return true;
+	}
+
+	/** Step 8b: the sender the Canaux tab shows (an email's sender, an SMS's sender name); null when none. */
+	default String sender() {
+		return null;
+	}
+
+	/**
 	 * Step 8a: what the Canaux tab shows of this provider (host, port, sender...), never a password or a key: only
 	 * whether it is set. Empty for a provider without settings.
 	 */
@@ -69,10 +82,17 @@ public interface CommunicationProvider {
 		/**
 		 * Step 8a part 2: the channel cannot send now, whatever the message (a refused login, a server unreachable, the
 		 * sender refused, the server congested): not the message's fault. The message keeps its attempts and waits (until
-		 * its own expiry); the sender stops the channel for the cycle and pauses it (1, 5, 15, then every 60 min); a
-		 * message accepted, or a test accepted on the Canaux tab, lifts the pause.
+		 * its own expiry); the sender stops the channel for the cycle and pauses it (1, 5, 15, then every 60 min, or the
+		 * wait the provider gave, step 8b); a message accepted, or a test accepted on the Canaux tab, lifts the pause.
 		 */
-		CHANNEL_PROBLEM
+		CHANNEL_PROBLEM,
+		/**
+		 * Step 8b: the message left and no answer came back (a read timeout after the request, the connection cut after an
+		 * email's final "."): the provider may have taken it. Never sent again by itself (an SMS costs, an email twice
+		 * annoys): FAILED "no answer from the provider, check before sending it again", sent again by hand only; the
+		 * channel pauses as for a channel problem.
+		 */
+		UNCERTAIN
 	}
 
 	@Value
@@ -83,22 +103,34 @@ public interface CommunicationProvider {
 		String providerMessageId;
 		/** Why it failed, when it did. */
 		String error;
+		/** Step 8b: the wait the provider asked for (HTTP 429 Retry-After), null when it gave none. */
+		java.time.Duration retryAfter;
 
 		public static SendResult accepted(String providerMessageId) {
-			return new SendResult(Outcome.ACCEPTED, providerMessageId, null);
+			return new SendResult(Outcome.ACCEPTED, providerMessageId, null, null);
 		}
 
 		public static SendResult temporaryFailure(String error) {
-			return new SendResult(Outcome.TEMPORARY_FAILURE, null, error);
+			return new SendResult(Outcome.TEMPORARY_FAILURE, null, error, null);
 		}
 
 		public static SendResult permanentFailure(String error) {
-			return new SendResult(Outcome.PERMANENT_FAILURE, null, error);
+			return new SendResult(Outcome.PERMANENT_FAILURE, null, error, null);
 		}
 
 		/** Step 8a part 2: the channel's problem, not the message's. */
 		public static SendResult channelProblem(String error) {
-			return new SendResult(Outcome.CHANNEL_PROBLEM, null, error);
+			return new SendResult(Outcome.CHANNEL_PROBLEM, null, error, null);
+		}
+
+		/** Step 8b: the channel's problem with the wait the provider asked for (null: the pause's own wait). */
+		public static SendResult channelProblem(String error, java.time.Duration retryAfter) {
+			return new SendResult(Outcome.CHANNEL_PROBLEM, null, error, retryAfter);
+		}
+
+		/** Step 8b: sent, no answer: the provider may have taken it. */
+		public static SendResult uncertain(String error) {
+			return new SendResult(Outcome.UNCERTAIN, null, error, null);
 		}
 	}
 }

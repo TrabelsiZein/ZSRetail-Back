@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -132,6 +133,7 @@ public class CommunicationSender implements CommunicationTask {
 	 */
 	@Override
 	public String run(Instant deadline) {
+		moreDue = false;
 		Cycle cycle = new Cycle();
 		Map<CommunicationMessageStatus, Integer> counts = new LinkedHashMap<>();
 		int[] retried = { 0 };
@@ -163,6 +165,7 @@ public class CommunicationSender implements CommunicationTask {
 			cycle.spent.forEach((key, tally) -> channelStates.measured(key.substring(0, key.indexOf('|')),
 					key.substring(key.indexOf('|') + 1), tally[0], tally[1] / 1_000_000));
 		}
+		moreDue = anyDue(cycle.stopped);
 		if (counts.isEmpty() && retried[0] == 0 && cycle.pausedNow.isEmpty()) {
 			return null;
 		}
@@ -231,14 +234,17 @@ public class CommunicationSender implements CommunicationTask {
 				if (handled.status == null) {
 					continue; // a cancelled campaign's: SKIPPED by the cancel itself
 				}
-				if (handled.outcome == Outcome.CHANNEL_PROBLEM) {
+				if (handled.outcome == Outcome.CHANNEL_PROBLEM || handled.outcome == Outcome.UNCERTAIN) {
 					cycle.stopped.add(message.getChannel());
 					cycle.paused.add(message.getChannel());
 					cycle.pausedNow.add(message.getChannel());
 					if (channelStates != null) {
-						channelStates.problem(message.getChannel(), handled.error, false);
+						channelStates.problem(message.getChannel(), pauseReason(handled), false, handled.retryAfter);
 					}
-					continue; // waiting again, its attempts unused
+					if (handled.outcome == Outcome.UNCERTAIN) {
+						counts.merge(handled.status, 1, Integer::sum); // FAILED, sent again by hand only
+					}
+					continue; // a channel problem: waiting again, its attempts unused
 				}
 				if (handled.outcome != null) {
 					long[] tally = cycle.spent.computeIfAbsent(message.getChannel() + "|" + message.getProvider(),
@@ -278,6 +284,12 @@ public class CommunicationSender implements CommunicationTask {
 		return read.status != CommunicationCampaignStatus.CANCELLED;
 	}
 
+	/**
+	 * Step 8b: the reason of a message the provider gave no answer for (it may have left: sent again by hand only), its
+	 * details after it in brackets.
+	 */
+	public static final String NO_ANSWER = "no answer from the provider, check before sending it again";
+
 	/** Step 8a: the reason of a message left SENDING by a stop (it may have left: sent again by hand only). */
 	public static final String INTERRUPTED = "interrupted while it was being sent (the application stopped): it may have"
 			+ " left, check before sending it again";
@@ -305,10 +317,38 @@ public class CommunicationSender implements CommunicationTask {
 		Handled handled = handle(message, null);
 		if (channelStates != null && handled.outcome == Outcome.ACCEPTED) {
 			channelStates.lift(message.getChannel(), "a test accepted");
-		} else if (channelStates != null && handled.outcome == Outcome.CHANNEL_PROBLEM) {
-			channelStates.problem(message.getChannel(), handled.error, true);
+		} else if (channelStates != null
+				&& (handled.outcome == Outcome.CHANNEL_PROBLEM || handled.outcome == Outcome.UNCERTAIN)) {
+			channelStates.problem(message.getChannel(), pauseReason(handled), true, handled.retryAfter);
 		}
 		return handled;
+	}
+
+	/** Step 8b: the pause's reason: the provider's words, "no answer from the provider: ..." for an uncertain one. */
+	private static String pauseReason(Handled handled) {
+		return handled.outcome == Outcome.UNCERTAIN ? "no answer from the provider: " + handled.error : handled.error;
+	}
+
+	/** Step 8b: messages still due after the cycle, on a channel not stopped by it: the next cycle comes sooner. */
+	private volatile boolean moreDue;
+
+	@Override
+	public boolean moreToDo() {
+		return moreDue;
+	}
+
+	/** Step 8b: one due message of either queue, outside the channels stopped (one row read each). */
+	private boolean anyDue(Set<String> stopped) {
+		for (int queue : new int[] { CommunicationMessageRepository.AUTOMATIC, CommunicationMessageRepository.CAMPAIGN }) {
+			List<CommunicationMessage> one = stopped.isEmpty()
+					? messages.findDue(CommunicationMessageStatus.PENDING, clock.get(), 0, PageRequest.of(0, 1), queue)
+					: messages.findDueOutside(CommunicationMessageStatus.PENDING, clock.get(), 0, PageRequest.of(0, 1), queue,
+							new ArrayList<>(stopped));
+			if (one != null && !one.isEmpty()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -320,17 +360,21 @@ public class CommunicationSender implements CommunicationTask {
 		public final CommunicationMessageStatus status;
 		public final Outcome outcome;
 		public final String error;
+		/** Step 8b: the wait the provider asked for (null: none). */
+		public final java.time.Duration retryAfter;
 		final long nanos;
 
-		Handled(CommunicationMessageStatus status, Outcome outcome, String error, long nanos) {
+		Handled(CommunicationMessageStatus status, Outcome outcome, String error, java.time.Duration retryAfter,
+				long nanos) {
 			this.status = status;
 			this.outcome = outcome;
 			this.error = error;
+			this.retryAfter = retryAfter;
 			this.nanos = nanos;
 		}
 
 		static Handled notGiven(CommunicationMessageStatus status) {
-			return new Handled(status, null, null, 0);
+			return new Handled(status, null, null, null, 0);
 		}
 	}
 
@@ -365,6 +409,10 @@ public class CommunicationSender implements CommunicationTask {
 		// Step 8a, the test-recipient mode: given to the test address, the member's kept on the row
 		String testAddress = settings.testRecipient(message.getChannel());
 		message.setRedirectedTo(testAddress != null && !testAddress.equals(message.getAddress()) ? testAddress : null);
+		// Step 8b: our reference for the provider ({messageId}), written once, kept when it is sent again
+		if (message.getSendRef() == null) {
+			message.setSendRef(UUID.randomUUID().toString().replace("-", ""));
+		}
 		// Step 8a, no double send: SENDING written before the provider is called; left so by a stop, never sent again
 		message.setStatus(CommunicationMessageStatus.SENDING);
 		messages.save(message);
@@ -395,6 +443,11 @@ public class CommunicationSender implements CommunicationTask {
 				// Step 8a part 2: the channel's problem, not the message's: waiting again as it was
 				status = save(message, CommunicationMessageStatus.PENDING, message.getLastError());
 				break;
+			case UNCERTAIN:
+				// Step 8b: it left, no answer: the provider may have taken it; never sent again by itself
+				message.setAttempts(message.getAttempts() + 1);
+				status = save(message, CommunicationMessageStatus.FAILED, NO_ANSWER + " (" + result.getError() + ")");
+				break;
 			default:
 				message.setAttempts(message.getAttempts() + 1);
 				if (message.getAttempts() >= MAX_ATTEMPTS) {
@@ -406,7 +459,8 @@ public class CommunicationSender implements CommunicationTask {
 							+ " failed: " + result.getError());
 				}
 		}
-		return new Handled(status, result.getOutcome(), result.getError(), System.nanoTime() - started);
+		return new Handled(status, result.getOutcome(), result.getError(), result.getRetryAfter(),
+				System.nanoTime() - started);
 	}
 
 	/**

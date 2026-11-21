@@ -35,8 +35,8 @@ import lombok.extern.log4j.Log4j2;
  * wait as it is (a click never makes it longer). A restart keeps the pause.</li>
  * <li>The speed: the messages handed to the provider in each cycle and the time the sender spent on them (its reads and
  * writes included), about the last {@link #SPEED_WINDOW} messages, per provider. {@link #perHour}: that speed times the
- * sender's share of an hour while a queue waits (it sends for at most the cycle's bound, 20 s, then waits
- * communication.cycle-seconds). Not given for the provider test (it sends nothing) or a measure older than
+ * sender's share of an hour while a queue waits (it sends for at most the cycle's bound, 20 s, then waits 5 s, step 8b;
+ * communication.cycle-seconds before). Not given for the provider test (it sends nothing) or a measure older than
  * {@link #RECENT}.</li>
  * </ul>
  * See docs/modules/communication.md, "Step 8a, part 2".
@@ -92,6 +92,15 @@ public class CommunicationChannelStates {
 	 * running keeps its wait (only its reason changes); no pause yet: the first wait. Returns the row as saved.
 	 */
 	public synchronized CommunicationChannelState problem(String channel, String reason, boolean fromTest) {
+		return problem(channel, reason, fromTest, null);
+	}
+
+	/**
+	 * Step 8b: a channel problem with the wait the provider asked for (HTTP 429 Retry-After): the next try after that
+	 * wait instead of the pause's own (1 s to 24 h); null: the pause's own.
+	 */
+	public synchronized CommunicationChannelState problem(String channel, String reason, boolean fromTest,
+			Duration providerWait) {
 		LocalDateTime now = clock.get();
 		CommunicationChannelState row = states.findByChannel(channel).orElseGet(() -> fresh(channel));
 		boolean running = row.isPaused();
@@ -101,7 +110,7 @@ public class CommunicationChannelStates {
 		}
 		if (!(fromTest && running)) {
 			row.setProblems(row.getProblems() + 1);
-			row.setPausedUntil(now.plus(pause(row.getProblems())));
+			row.setPausedUntil(now.plus(providerWait != null ? providerWait : pause(row.getProblems())));
 		}
 		row.setPauseReason(reason == null || reason.length() <= CommunicationChannelState.PAUSE_REASON_LENGTH ? reason
 				: reason.substring(0, CommunicationChannelState.PAUSE_REASON_LENGTH));
@@ -183,11 +192,14 @@ public class CommunicationChannelStates {
 		return perHour(row.getSpeedMessages(), row.getSpeedMillis(), cycleSeconds);
 	}
 
-	/** The speed (messages in millis) times the sender's share of an hour: the cycle's bound, then the wait. */
+	/**
+	 * The speed (messages in millis) times the sender's share of an hour: the cycle's bound, then the wait. Step 8b: while
+	 * messages wait, the next cycle comes after CommunicationScheduler.FAST_DELAY (5 s), not communication.cycle-seconds.
+	 */
 	static int perHour(long messages, long millis, long cycleSeconds) {
 		double perMilli = messages / (double) Math.max(1, millis);
 		double bound = CommunicationScheduler.CYCLE_BOUND.getSeconds();
-		double share = bound / (bound + cycleSeconds);
+		double share = bound / (bound + CommunicationScheduler.busyDelay(cycleSeconds).getSeconds());
 		return (int) Math.max(1, Math.min(Integer.MAX_VALUE, Math.round(perMilli * 3_600_000d * share)));
 	}
 

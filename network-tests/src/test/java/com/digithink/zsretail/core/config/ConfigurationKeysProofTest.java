@@ -78,6 +78,13 @@ import com.digithink.zsretail.support.Installations;
  * from-name) and the two test-recipient lines (communication.test-recipient.phone, .email), all from core's
  * application.properties, empty but for the three defaults (the password "(set)", the record's rule for a secret):
  * "keys 87", ten lines per configuration, the same everywhere; every other line unchanged.
+ * <p>
+ * 3.3.0, communication module step 8b: the record gained the provider http's twenty keys (communication.sms.http.url,
+ * method GET, body query, json-template, key, username, password, sender, phone-format with-plus, unicode-values
+ * true,false, connect-timeout-seconds 10, read-timeout-seconds 30, accepted-status 200-299, accepted-field,
+ * accepted-value, accepted-text, id-field, id-regex, error-field, channel-error-texts), all from core's
+ * application.properties; the field.* and header.* lines have no default and no file names them: "keys 107", twenty
+ * lines per configuration, the same everywhere; every other line unchanged.
  */
 class ConfigurationKeysProofTest {
 

@@ -7,8 +7,10 @@ Communication page: messages, rules, templates), step 5 (the member's consent; r
 sends the messages), step 7 (the campaigns: one template to every member who accepts messages; the empty-field guard of
 every message), step 8a (the email channel for real through SMTP, the test-recipient mode, no double send, the Canaux
 tab, the right to launch a campaign), step 8a part 2 (a channel's problem pauses the channel, not its messages; one
-SMTP connection per cycle; the sending time in the New campaign window; the certificate's name checked, the EHLO name).
-SMS and WhatsApp still on the test provider; no member language, no member filter on a campaign.
+SMTP connection per cycle; the sending time in the New campaign window; the certificate's name checked, the EHLO name),
+step 8b (SMS through an HTTP gateway set entirely in the properties; an answer that never came is never sent again by
+itself; a faster cycle while messages wait). WhatsApp still on the test provider; no member language, no member filter
+on a campaign.
 
 Messages to loyalty members by WhatsApp, SMS and email: two automatic events in version 1 ("loyalty member created",
 "ticket validated for a member") and a simple campaign (one template to every member with consent). The till never
@@ -734,9 +736,113 @@ lifetime of 1 h, the warning and "Use 2 h". The head office: the Canaux tab and 
 new right, a user without it (the Campaigns tab read only, launch and cancel 403), the read-only line in Arabic. fr, ar,
 en. 0 back-end ERROR, 0 console error.
 
+## Step 8b: SMS through an HTTP gateway set in the properties, uncertain answers, a faster cycle
+
+WhatsApp still on the provider `test`. No delivery report, no sender name per store (not built).
+
+**The provider `http`** (`HttpSmsProvider`, `communication.sms.provider=http`, SMS only: a channel set to a provider
+that does not send it is off with a WARN, `CommunicationProvider.serves`): a gateway is plugged in by filling lines, no
+code; one HTTP call per SMS. Its own Apache HttpClient (core's dependency): connect and read timeouts, **no automatic
+retry, no redirect followed, a new connection per SMS** (the JDK's `HttpURLConnection` sends a GET again by itself when
+the connection breaks before the answer, and a pooled connection found dead is retried too: an SMS twice). Two worked
+examples, as comments, in core's `application.properties` (a GET gateway with the key in the address and a text
+answer; a JSON POST gateway with the key in a header and a JSON answer): a gateway is plugged in by copying one into
+the installation's own file.
+
+| Line | Default | Meaning |
+|---|---|---|
+| `communication.sms.http.url` | empty | the address, http or https, placeholders allowed; empty: the SMS channel off, one WARN, never a refused start |
+| `communication.sms.http.method` | `GET` | `GET` or `POST` |
+| `communication.sms.http.body` | `query` | how the fields travel: `query` (in the address; a GET's only way), `form`, `json` |
+| `communication.sms.http.json-template` | empty | `json` only: the body with its placeholders (any shape, nested); empty: one object of the fields |
+| `communication.sms.http.key` | empty | `{key}`; only in the outside file |
+| `communication.sms.http.username` | empty | `{username}`, `{basic}` |
+| `communication.sms.http.password` | empty | `{password}`, `{basic}`; only in the outside file |
+| `communication.sms.http.sender` | empty | `{sender}`, the sender name |
+| `communication.sms.http.phone-format` | `with-plus` | `with-plus` +21620123456, `without-plus` 21620123456, `with-00` 0021620123456, `local` 20123456 (another country keeps its code) |
+| `communication.sms.http.unicode-values` | `true,false` | what `{unicode}` becomes: the text needs Unicode (Arabic, SmsParts' rule), then not |
+| `communication.sms.http.connect-timeout-seconds` | `10` | 1 to 300 |
+| `communication.sms.http.read-timeout-seconds` | `30` | 1 to 300: past it, an answer that never came (uncertain, below) |
+| `communication.sms.http.accepted-status` | `200-299` | the statuses that mean accepted: a list or ranges |
+| `communication.sms.http.accepted-field` | empty | a JSON field of the answer (`status`, `data.state`, `messages[0].status`) that must hold... |
+| `communication.sms.http.accepted-value` | empty | ...one of these values (comma list, any case) |
+| `communication.sms.http.accepted-text` | empty | a text the answer must hold (a plain-text gateway, e.g. `OK`) |
+| `communication.sms.http.id-field` | empty | the JSON field of the gateway's id of the SMS |
+| `communication.sms.http.id-regex` | empty | or a regular expression with one group (a backslash written twice in a properties file) |
+| `communication.sms.http.error-field` | empty | the JSON field of the gateway's error text; empty: the answer's start |
+| `communication.sms.http.channel-error-texts` | empty | texts that, in a refusal, mean the channel cannot send at all (e.g. `credit,balance`): the channel pauses instead of failing each SMS |
+| `communication.sms.http.field.<name>` | none | one line per field (query or form, or the JSON object without a template) |
+| `communication.sms.http.header.<Name>` | none | one line per header |
+
+Placeholders in the address, the fields, the headers and the template: `{phone}` (in the phone format), `{text}`,
+`{sender}`, `{messageId}` (our reference: 32 characters, `comm_message.send_ref`, written at the first send and kept when
+the SMS is sent again by hand, so a gateway that knows it refuses the double; unique across installations, the row id
+is not), `{unicode}`, `{key}`, `{username}`, `{password}`, `{basic}` (Base64 of username:password). Each is escaped as
+its place needs (URL, form, JSON string). Checked at the start, the channel off with one WARN naming the line (never its
+value): no address, not http(s), a GET with a body, a template without `json`, an unknown placeholder, `{key}` with no
+key, no field carrying `{phone}` or `{text}`, a phone format, a status list or a regular expression not readable. The
+Canaux tab shows the host only (never the path, a field or a key), the method, how the fields travel, the phone format,
+the timeouts, the key and the password as "set" / "not set". The key and the password never reach a log; a gateway's
+words kept on a message have them masked (`***`).
+
+The answers (`HttpSmsProvider.answer`):
+- the channel's problem (part 2's pause; the SMS waits with its attempts): no connection (unreachable, a connect timeout,
+  TLS), 401 / 403 / 407 (key or login refused), 402, 404 / 405 / 415 (the address or the method: never one number's
+  fault, a wrong path would otherwise fail every SMS of a campaign), a 3xx (no redirect followed), 5xx, 429 (the pause
+  waits what `Retry-After` says, 1 s to 24 h, when given; 503 too), a refusal holding one of `channel-error-texts`;
+- the SMS's refusal, `FAILED` at once with the gateway's words: another 4xx (`SMS refused (HTTP 400): Invalid
+  destination number ...`), an accepted status whose answer fails the accepted rule (`SMS not accepted (HTTP 200): ...`,
+  a 200 with an error inside);
+- 408: tried again with the waits of every message;
+- the request left and no answer (below).
+
+**Uncertain answers, every channel** (`CommunicationProvider.Outcome.UNCERTAIN`): the message left and no answer came
+back (SMS: a read timeout once the request was written, `HTTP_REQ_SENT`; the connection lost then; email: no answer after
+its final "." left, `SmtpCommunicationProvider.MarkedTransport`). The provider may have taken it: `FAILED` with `no answer
+from the provider, check before sending it again (<why>)`, one attempt, never sent again by itself ("Renvoyer" sends it,
+with the same `{messageId}`); the channel pauses (reason `no answer from the provider: <why>`), the rest of the cycle
+stops on it. A cut before an email's final ".", or an SMS whose request never left, stays a plain temporary failure or a
+channel problem.
+
+**A faster cycle** (`CommunicationTask.moreToDo`): after a cycle, while messages are due on a channel not paused (the
+sender) or a campaign still has members to read (the maker), the next cycle starts after 5 s
+(`CommunicationScheduler.FAST_DELAY`, never more than `communication.cycle-seconds`) instead of 60. The automatic
+messages still go first in each cycle. The New campaign window's estimate follows: the sender's share of an hour is
+20 / 25 (20 s of sending, 5 s of wait), no longer 20 / 80. No new property.
+
+**Screens**: the Canaux tab shows the SMS provider's settings as above, its sender name, its test-recipient phone and its
+pause; "Envoyer un test" sends a test SMS through it. The template window's parts count was already right for Arabic
+(Unicode: 70 in one SMS, 67 a part); `{unicode}` uses the same rule. fr, ar, en.
+
+**Database** (`db/3.3.0/update.sql`, section 11, safe to run twice): `comm_message.send_ref` varchar(40).
+
+Tests: `HttpSmsProviderTest` (against `CatchHttpProvider`, a gateway written for the tests in core's test sources,
+127.0.0.1, no network: the two examples, a form, the phone formats, Arabic and `{unicode}`, 401, 429 and its wait, 503,
+404, 302, no server, no answer sent once, a number refused, a 200 with an error inside, `channel-error-texts`, the key
+masked, the lines checked, SMS only, the Canaux view), `CommunicationChannelPauseTest` (uncertain: FAILED, paused,
+never sent twice; the provider's wait; `moreToDo`), `CommunicationSchedulerTest.moreToDo`. Changed on purpose:
+`SmtpCommunicationProviderTest.temporary` (a cut after the final "." is now uncertain; a cut at RCPT stays temporary),
+`CommunicationChannelPauseTest.speed` and `.sendingTime` (the estimate at 20 / 25), `CommunicationAdminTest.smsParts`
+(Arabic bounds added), `CatchSmtpServer` (a hang-up at RCPT), `InstallationBeansProofTest` (136 beans: the provider
+http), `ConfigurationKeysProofTest` (keys 107).
+
+Screen test (2026-11-21): the Happyness store on `pos_franchise_customer` (`update.sql` run twice; the local file given
+the SMS lines for the test and restored byte for byte after; LOYALTY_ENABLED on for the two sales, put back), the WAR
+exploded, the tests' `CatchHttpProvider` alone on 127.0.0.1:8099 with a key (no SMS left the PC; the test members'
+numbers only). Set like the GET example: a welcome (new member LYL-000006) and a thanks (ticket FKAIROUAN261121005), the
+exact requests shown (the key in the address, the phone without +, `unicode=0`, the 32-character reference); an
+Arabic campaign of 5 (`unicode=1`, the Arabic text intact; the window: about 48,814 per hour, 93 characters, 2 SMS
+Unicode). Set like the JSON POST example, only lines changed: a wrong key (one 401 per try, 14:07:52 then 14:08:52, the 5
+SMS waiting with 0 attempts; the pause kept by a restart with the right key; "Envoyer un test" lifted it, the 5 left);
+a welcome (LYL-000007) and a thanks (FKAIROUAN261121006). No answer: the SMS FAILED "no answer from the provider", the
+channel paused, its request seen once by the gateway; a number refused (21699000005): FAILED with the gateway's words,
+the 4 others left. The test-recipient phone: 6 SMS to +21699000999, the banner. The Canaux tab for SMS in fr and ar; the
+template window's count for the Arabic template (94 characters, 2 SMS, Unicode). 0 back-end ERROR over four starts, 0
+console error, the key in no log. Fixed on the way: the Arabic phone-format example shown left to right.
+
 ## Next steps (to be agreed one at a time)
 
 The member's language (it travels with the shared loyalty register; templates then need a key on code and language; a
 rule then needs a purpose, service or marketing), member filters on a campaign (store, points, last purchase), a
-planned date, a promo code per member, step 8b the real SMS and WhatsApp providers (their channel problems through
-`CHANNEL_PROBLEM`), a shorter wait between cycles while a queue waits (about 4 times the rate, "Step 8a, part 2").
+planned date, a promo code per member, WhatsApp (its provider, through `CHANNEL_PROBLEM` and `UNCERTAIN`), the SMS
+gateways' delivery reports, a sender name per store.

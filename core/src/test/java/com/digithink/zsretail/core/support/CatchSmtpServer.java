@@ -115,6 +115,7 @@ public final class CatchSmtpServer implements Closeable {
 	private volatile int closeAfter;
 	private volatile boolean quota;
 	private volatile boolean hangUp;
+	private volatile boolean hangUpAtRecipient;
 	private volatile boolean verbose;
 
 	/** On 127.0.0.1, port 0 for any free port; folder null: kept in memory only. */
@@ -171,6 +172,12 @@ public final class CatchSmtpServer implements Closeable {
 	/** Step 8a part 2: the connection closed at the end of a mail's data, before any answer (the mail not accepted). */
 	public CatchSmtpServer hangUp(boolean hangUp) {
 		this.hangUp = hangUp;
+		return this;
+	}
+
+	/** Step 8b: the connection closed at RCPT TO, before any answer (the mail never accepted, its data never sent). */
+	public CatchSmtpServer hangUpAtRecipient(boolean hangUp) {
+		this.hangUpAtRecipient = hangUp;
 		return this;
 	}
 
@@ -282,6 +289,10 @@ public final class CatchSmtpServer implements Closeable {
 					}
 				} else if (upper.startsWith("RCPT TO:")) {
 					String rcpt = address(line.substring(8));
+					if (hangUpAtRecipient) {
+						note("connection " + connection + " lost: hung up at RCPT TO");
+						return;
+					}
 					if (refused.contains(rcpt.toLowerCase(Locale.ROOT))) {
 						say(out, "550 5.1.1 <" + rcpt + ">: Recipient address rejected: user unknown");
 					} else if (busy) {

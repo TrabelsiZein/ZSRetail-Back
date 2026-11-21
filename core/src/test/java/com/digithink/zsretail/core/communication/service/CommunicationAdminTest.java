@@ -365,6 +365,12 @@ class CommunicationAdminTest {
 		assertEquals(1, SmsParts.of(repeat('a', 69) + "ç").getParts());
 		assertEquals(2, SmsParts.of(repeat('a', 70) + "ç").getParts());
 		assertEquals(3, SmsParts.of(repeat('ب', 135)).getParts());
+		// Step 8b: Arabic is Unicode: 70 in one SMS, 67 a part (the provider http's {unicode} follows the same rule)
+		assertEquals("UNICODE", SmsParts.of(repeat('ب', 70)).getEncoding());
+		assertEquals(1, SmsParts.of(repeat('ب', 70)).getParts());
+		assertEquals(2, SmsParts.of(repeat('ب', 71)).getParts());
+		assertEquals(2, SmsParts.of(repeat('ب', 134)).getParts());
+		assertEquals("UNICODE", SmsParts.of("Bienvenue chez Happyness مرحبا").getEncoding());
 	}
 
 	private static String repeat(char c, int n) {

@@ -114,18 +114,24 @@ class SmtpCommunicationProviderTest {
 	}
 
 	@Test
-	@DisplayName("The email's own temporary failures: a recipient busy (451), the connection lost before the server"
-			+ " accepted (a plain temporary failure, never 'interrupted')")
+	@DisplayName("The email's own temporary failures: a recipient busy (451), the connection lost before its data (a"
+			+ " plain temporary failure); step 8b: the connection cut after its final \".\", no answer: uncertain, never"
+			+ " tried again by itself")
 	void temporary() {
 		server.busy(true);
 		SendResult busy = provider().send(email("sana@example.tn", "Bonjour", "Texte"));
 		assertEquals(Outcome.TEMPORARY_FAILURE, busy.getOutcome());
 		assertTrue(busy.getError().startsWith("SMTP 451: "), busy.getError());
 
-		server.busy(false).hangUp(true);
-		SendResult lost = provider().send(email("sana@example.tn", "Bonjour", "Texte"));
-		assertEquals(Outcome.TEMPORARY_FAILURE, lost.getOutcome());
-		assertTrue(lost.getError().startsWith("SMTP connection lost: "), lost.getError());
+		server.busy(false).hangUpAtRecipient(true);
+		SendResult before = provider().send(email("sana@example.tn", "Bonjour", "Texte"));
+		assertEquals(Outcome.TEMPORARY_FAILURE, before.getOutcome(), "cut before the data: never taken");
+		assertTrue(before.getError().startsWith("SMTP connection lost: "), before.getError());
+
+		server.hangUpAtRecipient(false).hangUp(true);
+		SendResult after = provider().send(email("sana@example.tn", "Bonjour", "Texte"));
+		assertEquals(Outcome.UNCERTAIN, after.getOutcome(), "cut after the final dot: may have been taken");
+		assertTrue(after.getError().startsWith("SMTP: no answer after the email was sent"), after.getError());
 		assertTrue(server.mails().isEmpty());
 	}
 

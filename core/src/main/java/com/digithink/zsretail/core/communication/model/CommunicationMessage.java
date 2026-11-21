@@ -78,6 +78,14 @@ public class CommunicationMessage extends _BaseEntity {
 	@Column(name = "redirected_to", length = 255)
 	private String redirectedTo;
 
+	/**
+	 * Step 8b: our reference of the message for its provider (the placeholder {messageId}: a gateway that knows it can
+	 * refuse a double), 32 hexadecimal characters, unique across installations; written at its first send, kept when it
+	 * is sent again (by hand). Null before.
+	 */
+	@Column(name = "send_ref", length = 40)
+	private String sendRef;
+
 	/** Email only. */
 	@Nationalized
 	@Column(name = "subject", length = 255)
@@ -150,6 +158,7 @@ public class CommunicationMessage extends _BaseEntity {
 		copy.setTemplateCode(templateCode);
 		copy.setLanguageCode(languageCode);
 		copy.setDedupKey(dedupKey);
+		copy.setSendRef(sendRef);
 		return copy;
 	}
 }

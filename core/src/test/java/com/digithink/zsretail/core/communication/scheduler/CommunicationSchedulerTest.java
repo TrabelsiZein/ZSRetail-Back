@@ -64,4 +64,32 @@ class CommunicationSchedulerTest {
 		assertEquals(Arrays.asList("TICKET_EVENTS until 2026-11-20T10:00:20Z", "MEMBER_EVENTS until 2026-11-20T10:00:20Z",
 				"TICKET_EVENTS until 2026-11-20T10:00:20Z", "MEMBER_EVENTS until 2026-11-20T10:00:20Z"), runs);
 	}
+
+	@Test
+	@DisplayName("Step 8b: a cycle says when a task has work left it can do at once; the next cycle then comes after 5 s"
+			+ " (never more than cycle-seconds)")
+	void moreToDo() {
+		CommunicationTask busy = new CommunicationTask() {
+			@Override
+			public String getCode() {
+				return "MESSAGES_SENT";
+			}
+
+			@Override
+			public String run(Instant deadline) {
+				return null;
+			}
+
+			@Override
+			public boolean moreToDo() {
+				return true;
+			}
+		};
+		assertEquals(false, new CommunicationScheduler(Arrays.asList(task("TICKET_EVENTS", false)), null, 60, () -> NOW)
+				.cycle());
+		assertEquals(true, new CommunicationScheduler(Arrays.asList(task("TICKET_EVENTS", true), busy), null, 60, () -> NOW)
+				.cycle(), "a failing task before never hides the work left");
+		assertEquals(java.time.Duration.ofSeconds(5), CommunicationScheduler.busyDelay(60));
+		assertEquals(java.time.Duration.ofSeconds(3), CommunicationScheduler.busyDelay(3));
+	}
 }

@@ -18,4 +18,13 @@ public interface CommunicationTask {
 	 * or null when there was nothing to do (nothing logged). A throw is logged and the next task and cycle go on.
 	 */
 	String run(Instant deadline);
+
+	/**
+	 * Step 8b: after its run, work this task can do at once is left (messages due on a channel not paused, a campaign
+	 * still being made): the next cycle starts after CommunicationScheduler.FAST_DELAY instead of
+	 * communication.cycle-seconds.
+	 */
+	default boolean moreToDo() {
+		return false;
+	}
 }

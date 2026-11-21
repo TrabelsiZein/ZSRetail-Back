@@ -23,6 +23,7 @@ import com.digithink.zsretail.core.communication.enumeration.CommunicationMessag
 import com.digithink.zsretail.core.communication.model.CommunicationChannelState;
 import com.digithink.zsretail.core.communication.model.CommunicationMessage;
 import com.digithink.zsretail.core.communication.provider.CommunicationProvider;
+import com.digithink.zsretail.core.communication.provider.CommunicationProvider.SendResult;
 import com.digithink.zsretail.core.communication.provider.TestCommunicationProvider;
 
 /**
@@ -40,6 +41,8 @@ class CommunicationChannelPauseTest {
 	/** The email channel's provider: down answers a channel problem; counts the calls and the batches. */
 	private static final class Mail implements CommunicationProvider {
 		boolean down = true;
+		/** Step 8b: the next answers, before the down rule (null: none left). */
+		final java.util.Deque<SendResult> next = new java.util.ArrayDeque<>();
 		int calls;
 		int batches;
 		int closed;
@@ -54,6 +57,9 @@ class CommunicationChannelPauseTest {
 		public SendResult send(CommunicationMessage message) {
 			calls++;
 			given.add(message.getAddress());
+			if (!next.isEmpty()) {
+				return next.poll();
+			}
 			return down ? SendResult.channelProblem(REFUSED) : SendResult.accepted("M-" + calls);
 		}
 
@@ -267,7 +273,7 @@ class CommunicationChannelPauseTest {
 
 	@Test
 	@DisplayName("The speed: each cycle's messages and time, about the last 1,000, per provider; per hour = the speed"
-			+ " times the sender's share of an hour (20 s of sending, then 60 s of wait); none for the provider test, another"
+			+ " times the sender's share of an hour (20 s of sending, then 5 s of wait, step 8b); none for the provider test, another"
 			+ " provider or a measure older than 30 days")
 	void speed() {
 		mail.down = false;
@@ -281,7 +287,7 @@ class CommunicationChannelPauseTest {
 		CommunicationChannelStates states = bed.channelStates();
 		bed.channelStateTable.clear();
 		states.measured(CommunicationTypes.EMAIL, "mail", 100, 50_000); // 2 a second
-		assertEquals(Integer.valueOf(1800), states.perHour(CommunicationTypes.EMAIL, "mail"), "2/s x 3600 x 20/80");
+		assertEquals(Integer.valueOf(5760), states.perHour(CommunicationTypes.EMAIL, "mail"), "2/s x 3600 x 20/25");
 		assertNull(states.perHour(CommunicationTypes.EMAIL, "smtp"), "measured on another provider");
 		assertNull(states.perHour(CommunicationTypes.SMS, "test"), "the provider test sends nothing");
 		states.measured(CommunicationTypes.EMAIL, "mail", 1400, 700_000);
@@ -304,7 +310,7 @@ class CommunicationChannelPauseTest {
 		assertNull(bed.campaigns().audience("PROMO_EMAIL", null).get("sending"), "never sent: no line");
 
 		CommunicationChannelStates states = bed.channelStates();
-		states.measured(CommunicationTypes.EMAIL, "mail", 1, 450_000); // 2 an hour
+		states.measured(CommunicationTypes.EMAIL, "mail", 1, 1_440_000); // 2 an hour (x 20/25)
 		@SuppressWarnings("unchecked")
 		Map<String, Object> sending = (Map<String, Object>) bed.campaigns().audience("PROMO_EMAIL", null).get("sending");
 		assertEquals(2, sending.get("perHour"));
@@ -327,5 +333,69 @@ class CommunicationChannelPauseTest {
 		assertEquals(1001.5, long_.get("hours"));
 		assertEquals(720, long_.get("proposedLifetimeHours"));
 		assertEquals(true, long_.get("beyondMax"));
+	}
+
+	@Test
+	@DisplayName("Step 8b, no answer once the message left: FAILED \"no answer from the provider, check before sending it"
+			+ " again\", one attempt; the channel paused; never sent again by the cycle; the others leave after the wait")
+	void uncertain() {
+		mail.down = false;
+		CommunicationMessage first = email("LYL-1", "a@exemple.tn");
+		CommunicationMessage second = email("LYL-2", "b@exemple.tn");
+		mail.next.add(SendResult.uncertain("SMS: no answer within 30 s"));
+		assertEquals("1 failed, channel email paused", cycle());
+		assertEquals(1, mail.calls, "the cycle stops on the channel");
+		assertEquals(CommunicationMessageStatus.FAILED, first.getStatus());
+		assertEquals(1, first.getAttempts());
+		assertEquals(CommunicationSender.NO_ANSWER + " (SMS: no answer within 30 s)", first.getLastError());
+		assertEquals(CommunicationMessageStatus.PENDING, second.getStatus());
+		assertEquals(0, second.getAttempts());
+		assertEquals("no answer from the provider: SMS: no answer within 30 s", state().getPauseReason());
+		assertEquals(bed.now.plusMinutes(1), state().getPausedUntil());
+		assertTrue(first.getSendRef() != null && first.getSendRef().matches("[0-9a-f]{32}"), first.getSendRef());
+
+		bed.now = bed.now.plusMinutes(2);
+		assertEquals("1 sent", cycle());
+		assertEquals(Arrays.asList("a@exemple.tn", "b@exemple.tn"), mail.given, "the first never sent twice");
+		assertEquals(CommunicationMessageStatus.FAILED, first.getStatus());
+		assertFalse(state().isPaused());
+	}
+
+	@Test
+	@DisplayName("Step 8b: the wait the provider gives (429 Retry-After) is the pause's wait; a test with no answer pauses"
+			+ " the channel too")
+	void providerWait() {
+		email("LYL-1", "a@exemple.tn");
+		mail.next.add(SendResult.channelProblem("SMS too many requests (HTTP 429), wait 90 s: slow down",
+				Duration.ofSeconds(90)));
+		cycle();
+		assertEquals(bed.now.plusSeconds(90), state().getPausedUntil());
+		assertEquals(1, state().getProblems());
+
+		bed.channelStateTable.clear();
+		mail.next.add(SendResult.uncertain("SMS: no answer within 30 s"));
+		Map<String, Object> test = channels().testSend("EMAIL", "essai@exemple.tn", "admin");
+		assertEquals(CommunicationMessageStatus.FAILED, test.get("status"));
+		assertEquals(CommunicationSender.NO_ANSWER + " (SMS: no answer within 30 s)", test.get("error"));
+		assertTrue(state().isPaused());
+	}
+
+	@Test
+	@DisplayName("Step 8b: after a cycle, messages still due on a channel not paused: more to do (the next cycle sooner);"
+			+ " none left, or only on a paused channel: nothing more")
+	void moreToDo() {
+		mail.down = false;
+		email("LYL-1", "a@exemple.tn");
+		CommunicationSender sender = bed.sender(mail);
+		sender.run(Instant.now().minusSeconds(1)); // the deadline passed: nothing sent
+		assertTrue(sender.moreToDo());
+		sender.run(Instant.now().plusSeconds(20));
+		assertFalse(sender.moreToDo(), "all sent");
+
+		email("LYL-2", "b@exemple.tn");
+		mail.down = true;
+		CommunicationSender paused = bed.sender(mail);
+		paused.run(Instant.now().plusSeconds(20));
+		assertFalse(paused.moreToDo(), "waiting on a paused channel only");
 	}
 }

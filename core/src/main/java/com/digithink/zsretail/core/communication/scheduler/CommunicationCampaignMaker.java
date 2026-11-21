@@ -95,21 +95,27 @@ public class CommunicationCampaignMaker implements CommunicationTask {
 
 	@Override
 	public String run(Instant deadline) {
+		moreToMake = false;
 		Instant budget = Instant.now().plus(BUDGET);
 		Instant until = budget.isBefore(deadline) ? budget : deadline;
 		List<String> done = new ArrayList<>();
 		for (CommunicationCampaign running : campaigns.findByStatusOrderById(CommunicationCampaignStatus.RUNNING)) {
 			int made = 0;
+			boolean finished = false;
 			while (Instant.now().isBefore(until)) {
 				Batch batch = transactions.execute(status -> batch(running.getId()));
 				if (batch == null) {
+					finished = true;
 					break;
 				}
 				made += batch.made;
 				if (batch.last) {
+					finished = true;
 					break;
 				}
 			}
+			// Step 8b: the time ran out with members left: the next cycle comes sooner
+			moreToMake |= !finished;
 			if (made > 0) {
 				done.add(made + " message(s) made for " + running.getCode());
 			}
@@ -119,6 +125,14 @@ public class CommunicationCampaignMaker implements CommunicationTask {
 			}
 		}
 		return done.isEmpty() ? null : String.join(", ", done);
+	}
+
+	/** Step 8b: a campaign still had members to read when the time of the last run ran out. */
+	private volatile boolean moreToMake;
+
+	@Override
+	public boolean moreToDo() {
+		return moreToMake;
 	}
 
 	/** The result of one batch: its messages, and whether every member is read. */

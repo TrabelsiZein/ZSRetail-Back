@@ -77,8 +77,12 @@ public class CommunicationSettings {
 				continue;
 			}
 			String name = providers.get(channel);
-			String cannot = providerBeans.stream().filter(p -> p.getName().equals(name)).findFirst()
-					.map(CommunicationProvider::unavailableReason).orElse(null);
+			CommunicationProvider bean = providerBeans.stream().filter(p -> p.getName().equals(name)).findFirst()
+					.orElse(null);
+			// Step 8b: a provider sends its own channels only (smtp email, http SMS)
+			String cannot = bean == null ? null : !bean.serves(channel)
+					? "the provider " + name + " does not send " + channel.toLowerCase(Locale.ROOT) + " messages"
+					: bean.unavailableReason();
 			if (cannot == null && blank(env.getProperty(testKey(channel))) != null && testRecipient(channel) == null) {
 				cannot = testKey(channel) + "='" + env.getProperty(testKey(channel)) + "' is not "
 						+ (CommunicationTypes.EMAIL.equals(channel) ? "an email" : "a phone (8 digits, or + and 8 to 15 digits)");
@@ -170,7 +174,7 @@ public class CommunicationSettings {
 		return value;
 	}
 
-	static String countryCode(String raw) {
+	public static String countryCode(String raw) {
 		String value = raw == null ? "" : raw.trim();
 		if (value.isEmpty()) {
 			return DEFAULT_COUNTRY_CODE;

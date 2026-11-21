@@ -20,7 +20,6 @@ import com.digithink.zsretail.core.communication.enumeration.CommunicationMessag
 import com.digithink.zsretail.core.communication.model.CommunicationChannelState;
 import com.digithink.zsretail.core.communication.model.CommunicationMessage;
 import com.digithink.zsretail.core.communication.provider.CommunicationProvider;
-import com.digithink.zsretail.core.communication.provider.SmtpCommunicationProvider;
 import com.digithink.zsretail.core.communication.repository.CommunicationMessageRepository;
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
@@ -99,8 +98,8 @@ public class CommunicationChannels {
 			row.put("offReason", settings.offReason(channel));
 			row.put("provider", providerName);
 			row.put("settings", provider == null ? null : provider.describe());
-			row.put("sender", provider instanceof SmtpCommunicationProvider ? ((SmtpCommunicationProvider) provider).sender()
-					: null);
+			// Step 8b: any provider's sender (an email's sender, an SMS's sender name)
+			row.put("sender", provider == null ? null : provider.sender());
 			String test = settings.testRecipient(channel);
 			testMode |= test != null;
 			row.put("testRecipient", test);
