@@ -12,6 +12,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - The Warranties page is off by default: a store that registers warranties needs `warranty.enabled=true` in its
   file (the script prints "Warranties exist: add warranty.enabled=true to this store's file." when its `warranty`
   table has rows). An installation already at 3.3.0 needs no script for this change: the new WARs and front suffice.
+- "Commandes centrale" is off by default: a store that orders from its head office needs `storeorders.enabled=true` in
+  its file (the script prints "Store orders exist: add storeorders.enabled=true to this store's file." when its
+  `hol_order` table has rows); its head office keeps `headoffice.storeorders.post`. No script is needed for this either.
 
 ### Features
 - Communication module, step 1 (`docs/modules/communication.md`): the switch and the two tables, nothing else (no job,
@@ -162,6 +165,13 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   off, every `/warranty` endpoint answers 404 {error} and `GET /config` `warrantyEnabled` is false (the frontend shows
   no menu entry, tile, search entry or Roles line); the `warranty` table and its rows stay. On: as 3.2.0. The startup
   summary says "warranties on". The ADMIN and RESPONSIBLE roles keep their warranty permissions.
+- "Commandes centrale" (the store's orders to its head office) is optional, off by default (`storeorders.enabled`, a
+  store whose goods come from its head office; `docs/modules/store-orders.md`): off, every `/store-order` endpoint answers
+  404 {error} and `GET /config` `storeOrdersEnabled` is false; the tables, the orders and the statuses coming down from
+  the head office stay. On: as 3.2.0. The startup summary says "store orders on".
+- Store orders: a head office that answers 404 on `/ho/orders` (it takes no store orders: `headoffice.storeorders.post`
+  not set there) is now a 409 `{error, code: HEAD_OFFICE_NO_STORE_ORDERS}` naming that line, on the variants and on the
+  send (it was a 503 "cannot be reached ... (HTTP 404)"); the order stays a draft.
 
 ### Removed
 - The page Vendor balance (store and head office), back end: `GET /purchase-header/vendor-balance`,
@@ -196,6 +206,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   13) the permissions `read:vendor-balance` and `read:admin-headoffice-vendor-balance` deleted from
   `app_role_permission` (every database); 14) a store whose `warranty` table has rows prints "Warranties exist: add
   warranty.enabled=true to this store's file." (nothing changed). Both may run again.
+  15) a store whose `hol_order` table has rows prints "Store orders exist: add storeorders.enabled=true to this store's
+  file." (nothing changed; may run again).
 
 ### Config
 - `communication.enabled` (store and head office): `true` turns the module on; absent, empty or `false` (core's
@@ -233,6 +245,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `false`): off. Any other value stops the start, and `true` on a head office too (as `rfid.enabled`). Written `true`
   in the dev, rehearsal and happyness-from-scratch store files (and the local ones); commented in
   `configs/machine-model.properties`. No customer file names it.
+- `storeorders.enabled` (a store whose goods come from its head office): `true` keeps "Commandes centrale"; absent or
+  `false` (the store type file says `false`): off. Any other value stops the start, and `true` on any other installation
+  (a head office included) too. Written `true` in `configs/customers/zen-store.properties` (and the local ZEN store);
+  commented in `configs/machine-model.properties`. The Happyness and dev stores have no line.
 
 ## 3.2.0 — in progress (branch `release/3.2.0`)
 

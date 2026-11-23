@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.dto.NavItemFilter;
@@ -40,7 +41,9 @@ import lombok.extern.log4j.Log4j2;
  * elsewhere these URLs answer 404. The NAV item number travels as a query parameter (it may hold a '/' or a space).
  * Errors {"error"}: 400 invalid data, 404 unknown order or NAV item, 409 an order that is no longer a draft or a refusal
  * of the head office, 503 the head office did not answer (nothing shown, nothing saved). See
- * docs/modules/store-orders.md.
+ * docs/modules/store-orders.md. 3.3.0: only with storeorders.enabled=true; otherwise every endpoint answers 404 {error}
+ * (the tables and the orders stay). A head office that takes no store orders (its /ho/orders answers 404): 409
+ * {error, code: HEAD_OFFICE_NO_STORE_ORDERS}.
  */
 @RestController
 @RequestMapping("store-order")
@@ -49,13 +52,17 @@ import lombok.extern.log4j.Log4j2;
 public class StoreOrderAPI {
 
 	private static final String NOT_FOUND = "Not found";
+	/** 3.3.0: the answer of a store without storeorders.enabled=true. */
+	static final String OFF = "Store orders are off on this store (storeorders.enabled=true turns them on).";
 
 	private final StoreOrderService service;
 	private final CurrentUserProvider currentUser;
+	private final ApplicationModeService mode;
 
-	public StoreOrderAPI(StoreOrderService service, CurrentUserProvider currentUser) {
+	public StoreOrderAPI(StoreOrderService service, CurrentUserProvider currentUser, ApplicationModeService mode) {
 		this.service = service;
 		this.currentUser = currentUser;
+		this.mode = mode;
 	}
 
 	/**
@@ -217,10 +224,19 @@ public class StoreOrderAPI {
 	}
 
 	private ResponseEntity<?> answer(Supplier<ResponseEntity<?>> call) {
+		if (!mode.isStoreOrdersEnabled()) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error(OFF));
+		}
 		try {
 			return call.get();
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(error(e.getMessage()));
+		} catch (StoreOrderService.HeadOfficeTakesNoOrdersException e) {
+			log.warn("StoreOrderAPI: {}", e.getMessage());
+			Map<String, String> body = new LinkedHashMap<>();
+			body.put("error", e.getMessage());
+			body.put("code", StoreOrderService.HeadOfficeTakesNoOrdersException.CODE);
+			return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
 		} catch (IllegalStateException e) {
 			return ResponseEntity.status(HttpStatus.CONFLICT).body(error(e.getMessage()));
 		} catch (StoreOrderService.HeadOfficeUnavailableException e) {

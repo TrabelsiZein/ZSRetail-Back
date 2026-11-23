@@ -100,6 +100,10 @@ import com.digithink.zsretail.support.Installations;
  * rehearsal and happyness-from-scratch store files say true, to keep the page): "keys 121" and one line per
  * configuration, true on those nine stores, false on the other stores, (none) on a head office; every other line
  * unchanged.
+ * <p>
+ * 3.3.0, Commandes centrale optional: the record gained storeorders.enabled (the store type file says false; the ZEN
+ * store of configs/customers says true): "keys 122" and one line per configuration, true on that store, false on the
+ * other stores, (none) on a head office; every other line unchanged.
  */
 class ConfigurationKeysProofTest {
 

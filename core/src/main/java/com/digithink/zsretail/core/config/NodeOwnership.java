@@ -72,6 +72,10 @@ import com.digithink.zsretail.erp.api.ErpAbility;
  * Warranties (3.3.0): {@code warranty.enabled}, the Warranties page of a store, as rfid.enabled: true or false (false
  * when absent); any other value stops the startup, and true on a head office too ({@link #isWarrantySet}).
  * <p>
+ * Store orders (3.3.0): {@code storeorders.enabled}, the store's "Commandes centrale", as rfid.enabled: true or false
+ * (false when absent); any other value stops the startup, and true anywhere but a store whose goods come from its head
+ * office too ({@link #isStoreOrdersEnabledSet}).
+ * <p>
  * Communication (3.3.0, step 1): {@code communication.enabled}, true or false; absent or blank is false (the module does
  * nothing, as 3.2.0); any other value is one WARN and the module off since step 8e ({@link #isCommunicationSet}). A store
  * and a head office alike.
@@ -114,6 +118,12 @@ public final class NodeOwnership {
 	 * default, stated in the store type file). Never true on a head office.
 	 */
 	static final String WARRANTY_KEY = "warranty.enabled";
+	/**
+	 * 3.3.0: a store that orders from its head office, "Commandes centrale" (true) or not (false, the default, stated in
+	 * the store type file). True only on a store whose goods come from its head office (isSupplyFromHeadOffice). The head
+	 * office's own key is headoffice.storeorders.post.
+	 */
+	public static final String STORE_ORDERS_ENABLED_KEY = "storeorders.enabled";
 	/** 3.3.0: the communication module is on (true) or off (false, absent or blank: the default). */
 	public static final String COMMUNICATION_KEY = "communication.enabled";
 
@@ -336,6 +346,49 @@ public final class NodeOwnership {
 		}
 		throw new IllegalStateException("Invalid value '" + raw + "' for property " + WARRANTY_KEY
 				+ ": true (this store registers warranties) or false (no Warranties page)");
+	}
+
+	/**
+	 * 3.3.0: true on a store with storeorders.enabled=true, its orders to the head office ("Commandes centrale": the
+	 * catalogue of the head office, its orders, the /store-order API). Throws like the startup on a value other than true
+	 * or false, and on true anywhere but a store whose goods come from its head office (a head office included). Not
+	 * called by {@link #resolve} (isSupplyFromHeadOffice resolves): ApplicationModeService checks it at the start.
+	 */
+	public static boolean isStoreOrdersEnabledSet(PropertyResolver env) {
+		if (!strictBoolean(env, STORE_ORDERS_ENABLED_KEY,
+				"true (this store orders from its head office) or false (no Commandes centrale)")) {
+			return false;
+		}
+		if (nodeTypeOf(env) == NodeType.HEAD_OFFICE) {
+			throw new IllegalStateException("Invalid value '" + env.getProperty(STORE_ORDERS_ENABLED_KEY)
+					+ "' for property " + STORE_ORDERS_ENABLED_KEY + ": a head office orders nothing from a head office (it"
+					+ " takes its stores' orders with " + STORE_ORDERS_POST_KEY + "). Remove the line.");
+		}
+		if (!isSupplyFromHeadOffice(env)) {
+			throw new IllegalStateException("Invalid value '" + env.getProperty(STORE_ORDERS_ENABLED_KEY)
+					+ "' for property " + STORE_ORDERS_ENABLED_KEY + ": only a store whose goods come from its head office"
+					+ " (headoffice.url and ownership.supply=HEAD_OFFICE) orders from it. Remove the line or set false.");
+		}
+		return true;
+	}
+
+	/**
+	 * A key read as true or false, trimmed and case-insensitive: false when absent. Any other value (blank included)
+	 * throws {@link IllegalStateException} naming the key and the two meanings.
+	 */
+	private static boolean strictBoolean(PropertyResolver env, String key, String meanings) {
+		if (!env.containsProperty(key)) {
+			return false;
+		}
+		String raw = env.getProperty(key);
+		String value = raw == null ? "" : raw.trim();
+		if ("true".equalsIgnoreCase(value)) {
+			return true;
+		}
+		if ("false".equalsIgnoreCase(value)) {
+			return false;
+		}
+		throw new IllegalStateException("Invalid value '" + raw + "' for property " + key + ": " + meanings);
 	}
 
 	/**

@@ -134,6 +134,25 @@ public class StoreOrderService {
 		return template;
 	}
 
+	/**
+	 * 3.3.0: the head office answered 404 on /ho/orders: it takes no store orders (headoffice.storeorders.post is not
+	 * set in its file, or its version has none). Not a network failure: 409 {error, code HEAD_OFFICE_NO_STORE_ORDERS}.
+	 */
+	public static class HeadOfficeTakesNoOrdersException extends RuntimeException {
+		private static final long serialVersionUID = 1L;
+		public static final String CODE = "HEAD_OFFICE_NO_STORE_ORDERS";
+
+		public HeadOfficeTakesNoOrdersException(String what) {
+			super("The head office takes no store orders (headoffice.storeorders.post is not set in its file): cannot "
+					+ what + ".");
+		}
+	}
+
+	/** True when the head office answered 404: its /ho/orders endpoints do not exist there. */
+	static boolean takesNoOrders(LiveAnswer<?> answer) {
+		return answer.isAnswered() && answer.getStatus() == 404;
+	}
+
 	/** The head office did not answer, or answered with an error: nothing shown, nothing saved (503). */
 	public static class HeadOfficeUnavailableException extends RuntimeException {
 		private static final long serialVersionUID = 1L;
@@ -221,6 +240,9 @@ public class StoreOrderService {
 			return Optional.empty();
 		}
 		LiveAnswer<VariantStockDTO[]> answer = client.variantStock(number);
+		if (takesNoOrders(answer)) {
+			throw new HeadOfficeTakesNoOrdersException("read the stock of " + number);
+		}
 		if (answer.isAnswered() && answer.getStatus() == 409) {
 			// The head office will not answer this store as it is (no ERP customer number): its reason, as for a send
 			throw new IllegalStateException("The head office refused the stock of " + number + ": "
@@ -639,6 +661,9 @@ public class StoreOrderService {
 			}
 			LocalDateTime at = clock.get();
 			LiveAnswer<SalesCopyResultDTO> answer = client.sendOrder(upOf(order, storeCode, at));
+			if (takesNoOrders(answer)) {
+				throw new HeadOfficeTakesNoOrdersException("send order " + order.getNumber() + " (it stays a draft)");
+			}
 			if (!answer.isOk()) {
 				throw new HeadOfficeUnavailableException(unavailable("send order " + order.getNumber(), answer));
 			}

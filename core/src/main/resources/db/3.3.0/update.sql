@@ -1,5 +1,5 @@
 -- ============================================================
--- Version 3.3.0 (in progress) — communication module: comm_event, comm_message (step 1), comm_state (step 2), comm_template, comm_rule (step 3), comm_campaign (step 7), comm_channel_state (step 8a part 2), comm_message.send_ref (step 8b), WhatsApp columns (step 8c), the Vendor balance permission removed and the warranties notice (13, 14)
+-- Version 3.3.0 (in progress) — communication module: comm_event, comm_message (step 1), comm_state (step 2), comm_template, comm_rule (step 3), comm_campaign (step 7), comm_channel_state (step 8a part 2), comm_message.send_ref (step 8b), WhatsApp columns (step 8c), the Vendor balance permission removed, the warranties and store orders notices (13 to 15)
 -- ============================================================
 -- Deployment order (a database at 3.2.0; CHANGELOG.md, 3.3.0, "Before deployment"):
 --   1) Bring the database to 3.2.0 first (db/3.2.0/update.sql). This script stops, without changing anything, while
@@ -12,7 +12,7 @@
 -- Re-runnable: each statement is guarded and changes nothing the second time. The tables are created in the form
 -- Hibernate gives them (the constraints and indexes named as in the entities), so the start finds them whole; on a
 -- database without them Hibernate would create them at the first start too. They stay empty while
--- communication.enabled is not true (docs/modules/communication.md). Steps 2, 3, 5, 7, 8a, 8a part 2, 8b and 8c added 1b and 3 to 12, the Vendor balance and Warranties change 13 and 14: run
+-- communication.enabled is not true (docs/modules/communication.md). Steps 2, 3, 5, 7, 8a, 8a part 2, 8b and 8c added 1b and 3 to 12, the Vendor balance, Warranties and store orders change 13 to 15: run
 -- the script again on a database that ran an earlier version of it.
 
 SET QUOTED_IDENTIFIER ON;
@@ -210,6 +210,14 @@ GO
 IF OBJECT_ID(N'warranty', N'U') IS NOT NULL
 	IF EXISTS (SELECT 1 FROM warranty)
 		PRINT 'Warranties exist: add warranty.enabled=true to this store''s file.';
+GO
+
+-- 15) Commandes centrale is off by default since 3.3.0 (storeorders.enabled, a store whose goods come from its head office):
+-- a store that has orders keeps its pages only with the line in its file. Nothing is changed (the tables and the orders
+-- stay; the statuses that come down from the head office are still written). A store only (it has the hol_order table).
+IF OBJECT_ID(N'hol_order', N'U') IS NOT NULL
+	IF EXISTS (SELECT 1 FROM hol_order)
+		PRINT 'Store orders exist: add storeorders.enabled=true to this store''s file.';
 GO
 
 UPDATE APP_VERSION SET version = '3.3.0';

@@ -55,6 +55,9 @@ public class ApplicationModeService {
 	/** 3.3.0: a store with warranty.enabled=true (NodeOwnership.isWarrantySet); false on a head office. */
 	private boolean warrantyEnabled;
 
+	/** 3.3.0: a store with storeorders.enabled=true, its orders to the head office (NodeOwnership.isStoreOrdersEnabledSet). */
+	private boolean storeOrdersEnabled;
+
 	/** 3.1.1: a head office with headoffice.storeorders.post=ERP (NodeOwnership.isStoreOrdersByErpSet); false on a store. */
 	private boolean storeOrdersByErp;
 
@@ -85,6 +88,7 @@ public class ApplicationModeService {
 		supplyNone = NodeOwnership.isSupplyNoneSet(environment);
 		rfidEnabled = NodeOwnership.isRfidSet(environment);
 		warrantyEnabled = NodeOwnership.isWarrantySet(environment);
+		storeOrdersEnabled = NodeOwnership.isStoreOrdersEnabledSet(environment); // after the ownership: it reads the supply
 		storeOrdersByErp = NodeOwnership.isStoreOrdersByErpSet(environment);
 		storeOrders = NodeOwnership.isStoreOrdersSet(environment);
 		communicationEnabled = NodeOwnership.isCommunicationSet(environment);
@@ -125,6 +129,14 @@ public class ApplicationModeService {
 	/** 3.3.0: true on a store with warranty.enabled=true, the Warranties page and the /warranty API exist. */
 	public boolean isWarrantyEnabled() {
 		return warrantyEnabled;
+	}
+
+	/**
+	 * 3.3.0: true on a store with storeorders.enabled=true (a store whose goods come from its head office): "Commandes
+	 * centrale" and the /store-order API exist.
+	 */
+	public boolean isStoreOrdersEnabled() {
+		return storeOrdersEnabled;
 	}
 
 	/** 3.3.0: communication.enabled=true. */

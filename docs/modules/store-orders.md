@@ -16,7 +16,39 @@ Only on a **store whose goods come from its head office** (`Installation.SUPPLY_
 and `ownership.supply=HEAD_OFFICE`). Elsewhere (EMTOP, a store without a head office, a head office) the beans do not
 exist and the URLs answer 404; the tables exist, empty, on every store. A Happyness store is supply-from-head-office too:
 it has the beans, but its items carry no NAV item number, so its catalogue is empty. The front shows the menu entry
-where `GET /config` gives `supplyFromHeadOffice` **and** `navItems` (no new flag).
+where `GET /config` gives `supplyFromHeadOffice` **and** `navItems` **and** (3.3.0) `storeOrdersEnabled`.
+
+### The switch: `storeorders.enabled` (3.3.0)
+
+| Key | Values | Absent |
+|---|---|---|
+| `storeorders.enabled` | `true` \| `false`, trimmed, any case | `false` |
+
+- A store's line; the store type file states `false`. `true` is accepted only on a store whose goods come from its head
+  office (`NodeOwnership.isSupplyFromHeadOffice`); anywhere else, a head office included, `true` stops the startup:
+  `Invalid value 'true' for property storeorders.enabled: only a store whose goods come from its head office
+  (headoffice.url and ownership.supply=HEAD_OFFICE) orders from it. Remove the line or set false.` (on a head office:
+  `... a head office orders nothing from a head office (it takes its stores' orders with headoffice.storeorders.post).
+  Remove the line.`). Any value other than true or false stops it too (as `rfid.enabled`). Checked by
+  `ApplicationModeService` at the start (not in `NodeOwnership.resolve`: the supply question resolves).
+- The head office's key is unchanged: `headoffice.storeorders.post` (MANUAL or ERP) makes it take orders.
+- `GET /config` `storeOrdersEnabled`; the startup summary says `store orders on`.
+- **On**: the behaviour of 3.2.0.
+- **Off**: no menu entries (Catalogue du siège, Mes commandes), no tile, no search entry, no permission lines on the
+  Roles page (ADMIN keeps them, not counted); a typed address goes to the dashboard; every `/store-order` endpoint
+  answers 404 `{"error": "Store orders are off on this store (storeorders.enabled=true turns them on)."}` before reading
+  anything (`StoreOrderAPITest`). Nothing is deleted: the tables and the orders stay, and the statuses that come down
+  from the head office for an existing order are still written (`SupplyDownHandler` → `StoreOrderStatusWriter`, not
+  switched).
+- **A head office that takes no orders** (its `/ho/orders` answers 404: `headoffice.storeorders.post` not set there, or
+  a version without them): the variants window and the send answer **409** `{"error": "The head office takes no store
+  orders (headoffice.storeorders.post is not set in its file): cannot ...", "code": "HEAD_OFFICE_NO_STORE_ORDERS"}`
+  (`StoreOrderService.HeadOfficeTakesNoOrdersException`); the screens show their own text naming that line (fr, ar, en).
+  "Cannot be reached" (503) stays for no answer, a 5xx, a 401 or a 402. Before 3.3.0 that 404 was a 503 "cannot be
+  reached".
+- Upgrade: `db/3.3.0/update.sql` prints `Store orders exist: add storeorders.enabled=true to this store's file.` on a
+  store whose `hol_order` table has rows. `configs/customers/zen-store.properties` says `true`; the Happyness and dev
+  stores (their head offices take no orders) have no line.
 
 Nothing in the sales, returns, BL, stock or copies-down paths changed. The only shared code that changed:
 `NavItemService` / `ItemRepository.NAV_ITEMS` (level filters, barcode match and sort, see below), `HeadOfficeClient`
@@ -115,13 +147,13 @@ draft, a cancelled order or an unknown number is left as it is, noted on the tra
 | Method and path | Answer |
 |---|---|
 | `GET /store-order/catalogue?page&size&search&categoryCode&familyId&subFamilyId&sectionCode&sort&dir` | `{content, page, size, totalElements, totalPages}`, one line per NAV item number with an active variant: `navItemNo`, `name`, `mainImage`, `mainImageItemId`, `variantCount`, `price`, `vatRate`, `familyName`, `subFamilyName`, `categoryCode` / `Name`, `sectionCode` / `Name` |
-| `GET /store-order/variants?navItemNo` | `{navItemNo, name, variants: [{itemId, itemCode, variantCode, variantDescription, sizeCode, sizeDescription, colorCode, colorDescription, choiceCode, choiceDescription, price, vatRate, mainImage, images, stock, details, sizeOrder, draftQuantity}]}`; 404 for a number no active item carries; **409** with the head office's reason when it refuses the store (no ERP customer number); **503** without the head office |
+| `GET /store-order/variants?navItemNo` | `{navItemNo, name, variants: [{itemId, itemCode, variantCode, variantDescription, sizeCode, sizeDescription, colorCode, colorDescription, choiceCode, choiceDescription, price, vatRate, mainImage, images, stock, details, sizeOrder, draftQuantity}]}`; 404 for a number no active item carries; **409** with the head office's reason when it refuses the store (no ERP customer number); 409 `HEAD_OFFICE_NO_STORE_ORDERS` when the head office takes no orders (3.3.0); **503** without the head office |
 | `GET /store-order/last?navItemNo` | the last order of this store **sent** with a line of that ERP item (`SENT`, `POSTED`, `ERROR` or `DELIVERED`: not a draft, not cancelled; the highest id): `{id, number, status, date, lines: [{itemId, variantCode, quantity}]}`, `date` the send's else the creation's, `lines` its lines of that item only; 204 when there is none; 400 without a number |
 | `GET /store-order/draft` | the draft with its lines; 204 when there is none |
 | `POST /store-order/draft/lines` `{itemId, quantity, availableQty?}` | the draft (204 for a 0 without a draft); 409 above the availability (the one sent, else the line's) |
 | `DELETE /store-order/draft/lines/{itemId}` | the draft; 404 without a draft |
 | `PUT /store-order/draft/note` `{note}` | the draft; 404 without a draft |
-| `POST /store-order/{id}/send` | the order `SENT`; 409 not a draft, no line, a line above its availability, or refused; 503 not answered |
+| `POST /store-order/{id}/send` | the order `SENT`; 409 not a draft, no line, a line above its availability, or refused; 409 `HEAD_OFFICE_NO_STORE_ORDERS` when the head office takes no orders (3.3.0); 503 not answered |
 | `POST /store-order/{id}/cancel` | the order `CANCELLED`; 409 not a draft |
 | `GET /store-order?status&from&to&search&page&size` | `{content, totalElements, totalPages, number, size}`, newest first, without lines; `status` one of the statuses or `ALL`; `from`, `to` `yyyy-MM-dd`, the creation day, both included; `search` in the order number, the head office's order number, a line's item code, ERP item number or name (any case, a `%` or `_` a character; blank: every order) |
 | `GET /store-order/{id}` | the order with its lines |

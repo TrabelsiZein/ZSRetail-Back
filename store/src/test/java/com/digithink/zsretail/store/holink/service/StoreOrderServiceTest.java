@@ -455,13 +455,12 @@ class StoreOrderServiceTest {
 	}
 
 	@Test
-	@DisplayName("Send without the head office (unreachable, HTTP 500, 404): 503, the order stays a draft, nothing saved")
+	@DisplayName("Send without the head office (unreachable, HTTP 500): 503, the order stays a draft, nothing saved")
 	void sendWithoutHeadOffice() {
 		put(small, 2);
 		Long id = draft().getId();
 		int saves = orders.saves;
-		for (ResponseCreator answer : Arrays.asList(unreachable(), withStatus(HttpStatus.INTERNAL_SERVER_ERROR),
-				withStatus(HttpStatus.NOT_FOUND))) {
+		for (ResponseCreator answer : Arrays.asList(unreachable(), withStatus(HttpStatus.INTERNAL_SERVER_ERROR))) {
 			server.reset();
 			expectSend(FIRST, answer);
 			StoreOrderService.HeadOfficeUnavailableException e = assertThrows(
@@ -472,6 +471,30 @@ class StoreOrderServiceTest {
 			assertNull(order.getSentAt());
 		}
 		assertEquals(saves, orders.saves, "nothing saved");
+	}
+
+	@Test
+	@DisplayName("3.3.0: the head office answers 404 (it takes no store orders): its own refusal naming"
+			+ " headoffice.storeorders.post, not 'unreachable'; the send stays a draft, nothing saved; the stock likewise")
+	void headOfficeTakesNoOrders() {
+		put(small, 2);
+		Long id = draft().getId();
+		int saves = orders.saves;
+		server.reset();
+		expectSend(FIRST, withStatus(HttpStatus.NOT_FOUND));
+		StoreOrderService.HeadOfficeTakesNoOrdersException e = assertThrows(
+				StoreOrderService.HeadOfficeTakesNoOrdersException.class, () -> service.send(id, "admin"));
+		assertEquals("The head office takes no store orders (headoffice.storeorders.post is not set in its file): cannot"
+				+ " send order " + FIRST + " (it stays a draft).", e.getMessage());
+		assertEquals(StoreOrderStatus.DRAFT, orders.orders.get(id).getStatus());
+		assertNull(orders.orders.get(id).getSentAt());
+		assertEquals(saves, orders.saves, "nothing saved");
+
+		server.reset();
+		server.expect(requestTo(STOCK)).andRespond(withStatus(HttpStatus.NOT_FOUND));
+		e = assertThrows(StoreOrderService.HeadOfficeTakesNoOrdersException.class, () -> service.variants("70061"));
+		assertEquals("The head office takes no store orders (headoffice.storeorders.post is not set in its file): cannot"
+				+ " read the stock of 70061.", e.getMessage());
 	}
 
 	@Test

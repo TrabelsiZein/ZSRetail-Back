@@ -218,4 +218,10 @@ public class AppConfigDTO {
 	 * everywhere else, a head office included. Read as false by the frontend when missing (an older backend).
 	 */
 	private boolean warrantyEnabled;
+
+	/**
+	 * 3.3.0: true on a store with storeorders.enabled=true (a store whose goods come from its head office): the pages
+	 * "Commandes centrale" and the /store-order API exist. False everywhere else; read as false when missing.
+	 */
+	private boolean storeOrdersEnabled;
 }

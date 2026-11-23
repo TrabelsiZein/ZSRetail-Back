@@ -57,6 +57,9 @@ public class InstallationSummary {
 		if (NodeOwnership.isWarrantySet(env)) {
 			line.add("warranties on"); // 3.3.0: off says nothing, so the line stays as before
 		}
+		if (NodeOwnership.isStoreOrdersEnabledSet(env)) {
+			line.add("store orders on"); // 3.3.0: off says nothing
+		}
 		if (NodeOwnership.isCommunicationSet(env)) {
 			line.add("communication on"); // 3.3.0: off says nothing, so the line stays as in 3.2.0
 		}

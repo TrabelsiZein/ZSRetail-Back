@@ -187,7 +187,8 @@ public class AppConfigAPI {
 				"true".equalsIgnoreCase(generalSetupService.findValueByCode(POS_CATALOGUE_VISIBLE)), // 3.1.1
 				applicationModeService.isHeadOfficeStockPoints(), // 3.1.1: the points de stock pages and filters
 				communication(), // 3.3.0, communication step 4
-				applicationModeService.isWarrantyEnabled() // 3.3.0: warranty.enabled
+				applicationModeService.isWarrantyEnabled(), // 3.3.0: warranty.enabled
+				applicationModeService.isStoreOrdersEnabled() // 3.3.0: storeorders.enabled
 		));
 	}
 
