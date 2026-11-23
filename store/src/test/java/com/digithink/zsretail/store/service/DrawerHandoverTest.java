@@ -318,6 +318,37 @@ class DrawerHandoverTest {
 		assertEquals(ClosingChoice.NONE, withdrawals.get(session.getId()).getChoice(), "the first answer stays");
 	}
 
+	@Test
+	@DisplayName("3.4.0, event log step 2: the verification (SESSION_VERIFIED by the responsible, the withdrawal), the next"
+			+ " opening (SESSION_OPENED) and its gap (SESSION_OPENING_GAP); an opening without a proposal has no gap")
+	void events() throws Exception {
+		com.digithink.zsretail.core.support.InMemoryEventLog log = new com.digithink.zsretail.core.support.InMemoryEventLog()
+				.logged(karim);
+		inject(service, CashierSessionService.class, "tillEvents",
+				new com.digithink.zsretail.store.eventlog.TillEvents(log.eventLog()));
+		rfid.drawerOwner = DrawerOwner.CASHIER;
+		CashierSession closed = closed(amira, 10, null);
+		verify(closed, "AMOUNT", 60.0); // 40 left
+		com.digithink.zsretail.core.eventlog.model.EventLogEntry verified = log.only("SESSION_VERIFIED");
+		assertEquals("karim", verified.getUserLogin());
+		assertEquals(closed.getId(), verified.getSessionId());
+		assertTrue(verified.getDetails().contains("Retrait du tiroir : 60,000 retiré, 40,000 laissé"), verified.getDetails());
+
+		log.logged(amira);
+		CashierSession next = service.openSession(amira, 45.5, "192.168.1.99");
+		com.digithink.zsretail.core.eventlog.model.EventLogEntry opened = log.only("SESSION_OPENED");
+		assertEquals(next.getId(), opened.getSessionId());
+		assertEquals(45.5, opened.getAmount(), 1e-9);
+		com.digithink.zsretail.core.eventlog.model.EventLogEntry gap = log.only("SESSION_OPENING_GAP");
+		assertEquals(5.5, gap.getAmount(), 1e-9);
+		assertEquals("40,000", gap.getOldValue());
+		assertEquals("45,500", gap.getNewValue());
+
+		service.openSession(sami, 30.0, "192.168.1.98");
+		assertEquals(java.util.Arrays.asList("SESSION_VERIFIED", "SESSION_OPENED", "SESSION_OPENING_GAP", "SESSION_OPENED"),
+				log.codes(), "no proposal: no gap");
+	}
+
 	// ─── At the next opening ─────────────────────────────────────────
 
 	@Test

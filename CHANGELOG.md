@@ -14,6 +14,18 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Event log ("Journal des événements"), step 1 (`docs/modules/event-log.md`): the switch, the tables, the catalogue
   of events and the helper `EventLog`. Nothing calls it yet except the start (`EVENTLOG_STARTED`, an Alert, at each
   start with the module on). Off, the application behaves as 3.3.0.
+- Event log, step 2: the server's till events, one call at the end of each gesture (`TillEvents`): `SALE_VALIDATED`
+  (a sale, a pending ticket completed, the part of a table ticket paid apart), `PENDING_SAVED` (saved, saved again),
+  `PENDING_DELETED`, `PAYMENT_CHANGED`, `RETURN_DONE`, `CASH_MOVEMENT`, `SESSION_OPENED` and `SESSION_OPENING_GAP`,
+  `SESSION_CLOSED` or `SESSION_CLOSED_WITH_DIFFERENCE` (whatever `ENABLE_CASH_DISCREPANCY_CHECK` says), `SESSION_VERIFIED`.
+  Each has a French text for a store manager. The user, the badge's owner (the grants `TillRightsGuard` used in the
+  request), the session and the POS machine are filled by themselves (`StoreEventContext`). Nothing changes for the
+  gestures; off, nothing is made.
+
+### Enhancements
+- `POST /sales-header/process-sale`, `save-pending`, `update-pending/{id}`, `complete-pending/{id}`: optional `cartId`
+  (the cart's UUID, sent by the till from event log step 5), kept on the events only.
+- Event log: `EVENTLOG_STARTED` is Notable, not an Alert (a store restarts every morning).
 
 ### DB script
 - `db/3.4.0/update.sql` 1-2: `event_log` (one row per event, never updated; unique `event_uuid`; indexes by date,

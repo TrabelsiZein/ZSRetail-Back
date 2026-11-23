@@ -136,6 +136,10 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 	@Autowired
 	private QuantityPolicy quantityPolicy;
 
+	/** 3.4.0, event log step 2: the events of the sales, the pending tickets and the payment changes. */
+	@Autowired
+	private com.digithink.zsretail.store.eventlog.TillEvents tillEvents;
+
 	/** What follows the tagged pieces of the tickets (RFID); none by default. */
 	@Autowired(required = false)
 	private ObjectProvider<SaleTagHooks> saleTagHooks;
@@ -357,6 +361,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		// This allows multiple POS terminals to print independently
 		log.info("Sale completed successfully: " + salesNumber + ". Printing handled by frontend.");
 
+		if (tillEvents != null) tillEvents.saleValidated(salesHeader, salesLines.size(), payments, request.getCartId(), false, null);
 		return salesHeader;
 	}
 
@@ -465,6 +470,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		// Payments will be added when the sale is completed
 		log.info("Pending sale saved successfully: " + salesNumber);
 
+		if (tillEvents != null) tillEvents.pendingSaved(salesHeader, salesLines.size(), request.getCartId(), false);
 		return salesHeader;
 	}
 
@@ -535,6 +541,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		}
 
 		log.info("Pending sale updated successfully: " + salesHeader.getSalesNumber());
+		if (tillEvents != null) tillEvents.pendingSaved(salesHeader, request.getLines().size(), request.getCartId(), true);
 		return salesHeader;
 	}
 
@@ -701,6 +708,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 
 		triggerSessionExportForPayments(payments, salesHeader);
 
+		if (tillEvents != null) tillEvents.saleValidated(salesHeader, salesLines.size(), payments, request.getCartId(), true, null);
 		return salesHeader;
 	}
 
@@ -852,6 +860,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		}
 
 		log.info("Split-bill completed: new ticket {}, original {}", splitHeader.getSalesNumber(), original.getSalesNumber());
+		if (tillEvents != null) tillEvents.saleValidated(splitHeader, selectedLines.size(), null, null, false, original.getSalesNumber());
 		return splitHeader;
 	}
 
@@ -1295,6 +1304,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 				payment.getId(), oldMethod != null ? oldMethod.getCode() : "?", newMethod.getCode(),
 				currentUser != null ? currentUser.getUsername() : "?", session.getSessionNumber());
 
+		if (tillEvents != null) tillEvents.paymentChanged(ticket, payment, oldMethod, newMethod, request.getReason(), session);
 		return payment;
 	}
 
@@ -1513,6 +1523,7 @@ public class SalesHeaderService extends _BaseService<SalesHeader, Long> {
 		}
 
 		log.info("Pending sale cancelled successfully: " + salesHeader.getSalesNumber());
+		if (tillEvents != null && tillEvents.isOn()) tillEvents.pendingDeleted(salesHeader, salesLineRepository.findBySalesHeader(salesHeader).size());
 	}
 
 	/** The hook that follows the tagged pieces (RFID); null when there is none. */

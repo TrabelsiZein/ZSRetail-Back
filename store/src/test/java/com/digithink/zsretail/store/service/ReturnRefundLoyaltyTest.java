@@ -230,6 +230,40 @@ class ReturnRefundLoyaltyTest {
 		assertEquals(50.0, voucher.getTotalReturnAmount().doubleValue(), 1e-6);
 	}
 
+	@Test
+	@DisplayName("3.4.0, event log step 2: a return writes RETURN_DONE, its amount, the ticket returned, and the badge's owner"
+			+ " whose grant the request used (MAKE_RETURN)")
+	void returnEvent() throws Exception {
+		com.digithink.zsretail.core.support.InMemoryEventLog log = new com.digithink.zsretail.core.support.InMemoryEventLog();
+		log.contexts.add(new com.digithink.zsretail.store.eventlog.StoreEventContext(id -> Optional.empty(),
+				id -> Optional.empty(), address -> Optional.empty(), id -> Optional.empty()));
+		inject(returns, ReturnHeaderService.class, "tillEvents",
+				new com.digithink.zsretail.store.eventlog.TillEvents(log.eventLog()));
+		org.springframework.web.context.request.RequestContextHolder.setRequestAttributes(
+				new org.springframework.web.context.request.ServletRequestAttributes(
+						new org.springframework.mock.web.MockHttpServletRequest()));
+		try {
+			UserAccount owner = new UserAccount();
+			owner.setId(1L);
+			owner.setUsername("karim");
+			owner.setFullName("Karim Responsable");
+			com.digithink.zsretail.store.model.TillGrant grant = new com.digithink.zsretail.store.model.TillGrant();
+			grant.setBadgeOwner(owner);
+			com.digithink.zsretail.store.eventlog.TillRequestGrants.keep(grant); // as TillRightsGuard.checkReturn does
+
+			SalesHeader sale = sale(null, 0.0, 0, 0.0, 100.0, 50.0);
+			ReturnHeader done = returnLines(sale, ReturnType.SIMPLE_RETURN, 1);
+			com.digithink.zsretail.core.eventlog.model.EventLogEntry row = log.only("RETURN_DONE");
+			assertEquals(50.0, row.getAmount(), 1e-6);
+			assertEquals(String.valueOf(done.getId()), row.getSubjectId());
+			assertEquals("karim", row.getAuthorisedByLogin());
+			assertEquals("Karim Responsable", row.getAuthorisedByName());
+			org.junit.jupiter.api.Assertions.assertTrue(row.getDetails().contains("remboursés en espèces"), row.getDetails());
+		} finally {
+			org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
+		}
+	}
+
 	// ─── Tickets without loyalty points: refund rules unchanged ──────
 
 	@Test

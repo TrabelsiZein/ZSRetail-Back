@@ -193,11 +193,13 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 		CashierSession saved = save(session);
 		sessionPosMachineService.record(saved, machine);
 		// 3.2.0, the opening amount: the float left in the same drawer at its last verification, and the écart
+		com.digithink.zsretail.store.cashmovement.model.OpeningFloat opening = null;
 		if (drawerHandoverService != null) {
-			drawerHandoverService.recordOpening(saved, cashier, machine,
-					id -> cashierSessionRepository.findById(id).orElse(null));
+			opening = drawerHandoverService.recordOpening(saved, cashier, machine,
+					id -> cashierSessionRepository.findById(id).orElse(null)).orElse(null);
 			unverifiedPrevious.ifPresent(previous -> drawerHandoverService.recordUnverified(saved, previous));
 		}
+		if (tillEvents != null) tillEvents.sessionOpened(saved, opening);
 		return saved;
 	}
 
@@ -238,6 +240,10 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 	 */
 	@Autowired
 	private com.digithink.zsretail.store.cashmovement.service.DrawerHandoverService drawerHandoverService;
+
+	/** 3.4.0, event log step 2: the events of the sessions; a service built without it (a unit test) writes none. */
+	@Autowired
+	private com.digithink.zsretail.store.eventlog.TillEvents tillEvents;
 
 	/**
 	 * Get expected cash (real cash) for a session by ID This is a public method
@@ -438,6 +444,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			log.info("Total cash count lines saved: " + cashCounts.size());
 		}
 
+		if (tillEvents != null) tillEvents.sessionClosed(session, realCash, countedCash);
 		return session;
 	}
 
@@ -636,12 +643,14 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			log.warn("[verifySession] paymentDetails is null or empty — no RESPONSIBLE SCC rows will be saved");
 		}
 
+		com.digithink.zsretail.store.cashmovement.model.ClosingWithdrawal taken = null;
 		if (drawerHandoverService != null) {
-			drawerHandoverService.record(session, responsibleUser, withdrawal);
+			taken = drawerHandoverService.record(session, responsibleUser, withdrawal);
 		}
 
 		log.info("[verifySession] session verified: {}, responsibleClosureCash={}", session.getSessionNumber(),
 				responsibleClosureCash);
+		if (tillEvents != null) tillEvents.sessionVerified(session, responsibleUser, taken);
 		return session;
 	}
 

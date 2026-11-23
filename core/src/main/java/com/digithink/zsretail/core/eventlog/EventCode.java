@@ -100,8 +100,11 @@ public enum EventCode {
 	HEAD_OFFICE_SYNC_RUN(EventSubject.SYNC, STEP),
 
 	// ── The event log itself ──
-	/** Written at each start with the module on: a hole in time between two of them shows it was off. */
-	EVENTLOG_STARTED(EventSubject.EVENT_LOG, ALERT),
+	/**
+	 * Written at each start with the module on: a hole in time between two of them shows it was off. Notable, not an
+	 * Alert (step 2): a store restarts every morning.
+	 */
+	EVENTLOG_STARTED(EventSubject.EVENT_LOG, NOTABLE),
 	EVENTLOG_SETTINGS_CHANGED(EventSubject.EVENT_LOG, ALERT),
 	EVENTLOG_CLEANUP(EventSubject.EVENT_LOG, ALERT);
 

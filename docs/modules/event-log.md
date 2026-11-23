@@ -6,8 +6,11 @@ What the cashiers, the responsibles and the admins do, written so that a theft c
 refused. Looking (a search, a page opened, a report read) is never an event. Only explicit business events are written,
 never every database change.
 
-The build is in small steps. **Step 1 (done): the foundation.** It has the switch, the two tables, the catalogue, the
-helper and the start event. Nothing calls the helper yet, and no screen has changed.
+The build is in small steps.
+
+- **Step 1 (done): the foundation.** The switch, the two tables, the catalogue, the helper and the start event.
+- **Step 2 (done): the server's till events.** One call at the end of each gesture's service method; see "Step 2"
+  below. No screen has changed.
 
 ## The switch: `eventlog.enabled`
 
@@ -102,8 +105,46 @@ The two ways to write:
 On a database without its number rows, two first events of one importance at once would both try to create the row.
 The second one is tried again and takes number 2.
 
-**`EventLogStart`** writes `EVENTLOG_STARTED` (an Alert) at each start with the module on. A long time between two of
-them, with no event in between, shows the module was off.
+**`EventLogStart`** writes `EVENTLOG_STARTED` (Notable since step 2: a store restarts every morning) at each start with
+the module on. A long time between two of them, with no event in between, shows the module was off.
+
+**What the gesture's transaction sees (step 2).** At the gesture only memory is read: the logged login, the request's
+address, and the contexts' `atCall`. No query runs there: a failing query inside the gesture's transaction would mark
+it rollback-only. The user's id, name and role, and the contexts' `complete` (the session, the machine, the names), are
+read in the event's own transaction, before it is numbered. A completion that fails leaves those columns empty; the
+event is written all the same.
+
+## Step 2: the server's till events (store)
+
+**One call per gesture.** Each gesture's service method ends with one call to `TillEvents` (store, `store.eventlog`),
+guarded by `if (tillEvents != null)` so a unit test that builds the service without it writes none. `TillEvents` builds
+the event and a French text a store manager reads (amounts with 3 decimals). Off, it does nothing at all, not even the
+text. A mistake in the making (a missing value) is one WARN and costs the event, never the gesture.
+
+**Filled by itself (`StoreEventContext`).** A value the caller gave is never replaced.
+
+- **The badge's owner.** `TillRightsGuard` keeps each grant it uses in the request's attributes (`TillRequestGrants`,
+  one line in `useGrant` and in `checkCashMovement`). The event names the first owner; the others are named in the
+  details ("Autorisé aussi par : …"). A pass by the user's own role keeps nothing: nobody authorised it.
+- **The session**: the user's open session, and its number when only the id is given.
+- **The POS machine**: the one registered at the request's address, else the session's.
+
+**`cartId`.** `ProcessSaleRequestDTO.cartId` is optional; the till sends it from step 5. It is kept on the sale and
+pending events.
+
+| Event | Where (store) | Subject | Values |
+|---|---|---|---|
+| `SALE_VALIDATED` (Step) | `SalesHeaderService.processCompleteSale`, `completePendingSale`, `splitAndPay` (the part paid apart) | ticket | total; lines, payments, change in the text; the cart |
+| `PENDING_SAVED` (Step) | `savePendingSale`, `updatePendingSale` ("mis à jour") | ticket | total, lines, table |
+| `PENDING_DELETED` (Notable) | `cancelPendingSale` (also the tables screen emptied) | ticket | total, lines (counted only when the module is on) |
+| `PAYMENT_CHANGED` (Alert) | `changePaymentMethod` | ticket | old → new method names, the payment's amount, the reason |
+| `RETURN_DONE` (Notable) | `ReturnHeaderService.processReturn` | return | amount, lines, ticket returned, cash or voucher; the badge's owner (MAKE_RETURN) |
+| `CASH_MOVEMENT` (Notable) | `CashMovementService.record` | movement | type, amount, note; the badge's owner when a badge allowed it |
+| `SESSION_OPENED` (Step), `SESSION_OPENING_GAP` (Notable) | `CashierSessionService.openSession` | session | the float; the gap: float left → float typed, the gap as the amount |
+| `SESSION_CLOSED` (Step) / `SESSION_CLOSED_WITH_DIFFERENCE` (Alert) | `closeSessionWithCashCount` | session | expected → counted cash; the difference (counted − expected) as the amount, above 0.01 whatever `ENABLE_CASH_DISCREPANCY_CHECK` says |
+| `SESSION_VERIFIED` (Notable) | `verifySession` | session | the cashier's count → the responsible's; the drawer's withdrawal; the responsible as the user |
+
+A gesture refused (an exception before its end) writes none of these: the refusals come with step 3.
 
 ## Tests
 
@@ -114,12 +155,20 @@ them, with no event in between, shows the module was off.
   and a row never updated.
 - `AppConfigAPITest`: `eventLogEnabled`.
 - `ConfigurationKeysProofTest`: keys 123.
+- Step 2:
+  - `EventLogTest.contexts`: `atCall` at the gesture, `complete` in the event's transaction, a failing context.
+  - `TillEventsTest`: each event's code, importance, values and text; off; a mistake never thrown.
+  - `StoreEventContextTest`: the badge's owners, the session, the machine, the given values kept.
+  - The real services: `SaleUnitCostTest.eventsOfTheSales` (sale, pending saved / again / completed / deleted, split),
+    `CashMovementTest.events` (a movement by badge; a refused closing writes nothing; a closing with a difference),
+    `DrawerHandoverTest.events` (verification, opening, gap), `ReturnRefundLoyaltyTest.returnEvent` (the badge's owner).
+  - `PAYMENT_CHANGED` has no test on the real service (none exists for `changePaymentMethod`): its text and values are
+    in `TillEventsTest`.
 
 ## Next steps
 
 | Step | What |
 |---|---|
-| 2 | The server's till events: sale, pending, return, payment change, cash movement, sessions. |
 | 3 | Badge and logins. |
 | 4 | The batch endpoint and the till's queue. |
 | 5 | The till's gestures. |

@@ -466,6 +466,48 @@ class CashMovementTest {
 	}
 
 	@Test
+	@DisplayName("3.4.0, event log step 2: a movement allowed by a badge (CASH_MOVEMENT, the badge's owner); a closing refused"
+			+ " writes nothing; a closing with a difference (SESSION_CLOSED_WITH_DIFFERENCE, the difference as the amount)")
+	void events() throws Exception {
+		com.digithink.zsretail.core.support.InMemoryEventLog log = new com.digithink.zsretail.core.support.InMemoryEventLog()
+				.logged(amira);
+		com.digithink.zsretail.store.eventlog.TillEvents events = new com.digithink.zsretail.store.eventlog.TillEvents(
+				log.eventLog());
+		set(movementService, CashMovementService.class, "tillEvents", events);
+		set(sessionService, CashierSessionService.class, "tillEvents", events);
+
+		CashMovementRequest withGrant = request("PRELEVEMENT", 30.0, "coffre");
+		withGrant.setTillGrant(rights.grant(BadgePermission.CASH_MOVEMENT, amiraSession.getId(), amira, karim));
+		movementService.record(amira, withGrant);
+		com.digithink.zsretail.core.eventlog.model.EventLogEntry movement = log.only("CASH_MOVEMENT");
+		assertEquals("amira", movement.getUserLogin());
+		assertEquals(Long.valueOf(1), movement.getAuthorisedById());
+		assertEquals("Karim Responsable", movement.getAuthorisedByName());
+		assertEquals(amiraSession.getId(), movement.getSessionId());
+		assertEquals(30.0, movement.getAmount(), 1e-9);
+		assertEquals("Prélèvement de 30,000 (SESSION261114002-M01). Note : coffre", movement.getDetails());
+
+		CloseSessionRequestDTO count = new CloseSessionRequestDTO();
+		CloseSessionRequestDTO.CashCountLineDTO line = new CloseSessionRequestDTO.CashCountLineDTO();
+		line.setDenominationValue(145.0); // 150 expected
+		line.setQuantity(1);
+		line.setPaymentMethodId(cash.getId());
+		count.setCashCountLines(Arrays.asList(line));
+		assertThrows(CashDiscrepancyException.class,
+				() -> sessionService.closeSessionWithCashCount(karimSession.getId(), count));
+		assertEquals(1, log.rows.size(), "the refused closing wrote nothing");
+		count.setDiscrepancyConfirmed(true);
+		log.logged(karim);
+		sessionService.closeSessionWithCashCount(karimSession.getId(), count);
+		com.digithink.zsretail.core.eventlog.model.EventLogEntry closed = log.only("SESSION_CLOSED_WITH_DIFFERENCE");
+		assertEquals(-5.0, closed.getAmount(), 1e-9);
+		assertEquals("150,000", closed.getOldValue());
+		assertEquals("145,000", closed.getNewValue());
+		assertEquals(karimSession.getId(), closed.getSessionId());
+		assertEquals("SESSION261114001", closed.getSubjectLabel());
+	}
+
+	@Test
 	@DisplayName("Session ticket X / Z: the block MOUVEMENTS DE CAISSE (number and total per type), absent without any;"
 			+ " the cash line of CONTRÔLE holds them")
 	void sessionTicket() throws Exception {

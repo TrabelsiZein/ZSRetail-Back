@@ -48,6 +48,12 @@ public class ProcessSaleRequestDTO {
 	 */
 	private String tillGrant;
 
+	/**
+	 * 3.4.0, event log step 2: the cart's UUID, made by the till at the cart's first line (sent from step 5), kept on the
+	 * events of the sale and of the pending ticket; optional, null from an older till.
+	 */
+	private String cartId;
+
 	private List<SaleLineDTO> lines;
 	private List<PaymentDTO> payments;
 	

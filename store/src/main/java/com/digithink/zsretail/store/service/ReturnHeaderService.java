@@ -56,6 +56,10 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 	@Autowired
 	private TillRightsGuard tillRightsGuard;
 
+	/** 3.4.0, event log step 2: the event of a return. */
+	@Autowired
+	private com.digithink.zsretail.store.eventlog.TillEvents tillEvents;
+
 	@Autowired
 	private ReturnHeaderRepository returnHeaderRepository;
 
@@ -575,6 +579,7 @@ public class ReturnHeaderService extends _BaseService<ReturnHeader, Long> {
 					returnHeader, goodsAndStamp[0], previouslyReturnedGoods + returnedGoodsNow, goodsAndStamp[1]);
 		}
 
+		if (tillEvents != null) tillEvents.returnDone(returnHeader, returnLines.size());
 		return returnHeader;
 	}
 

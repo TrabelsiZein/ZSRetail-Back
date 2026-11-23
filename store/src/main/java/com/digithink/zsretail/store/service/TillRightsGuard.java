@@ -25,6 +25,7 @@ import com.digithink.zsretail.core.service.CustomerService;
 import com.digithink.zsretail.core.service.PricingService;
 import com.digithink.zsretail.store.dto.ProcessReturnRequestDTO;
 import com.digithink.zsretail.store.dto.ProcessSaleRequestDTO;
+import com.digithink.zsretail.store.eventlog.TillRequestGrants;
 import com.digithink.zsretail.store.exception.TillRightRequiredException;
 import com.digithink.zsretail.store.exception.TillRightRequiredException.Reason;
 import com.digithink.zsretail.store.model.TillGrant;
@@ -179,6 +180,7 @@ public class TillRightsGuard {
 		}
 		TillGrant grant = tillGrantService.valid(token, action, idOf(session), null);
 		tillGrantService.consume(grant, ref, null);
+		TillRequestGrants.keep(grant); // 3.4.0, event log: the event of this request names the badge's owner
 		badgeService.logBadgePass(grant.getScannedBy(), grant.getBadgeOwner(), grant.getBadgeCode(), action,
 				idOf(session));
 		return new Pass(com.digithink.zsretail.core.model.enumeration.GrantedBy.BADGE, grant.getBadgeOwner());
@@ -239,6 +241,7 @@ public class TillRightsGuard {
 	private void useGrant(BadgePermission action, String token, Integer lineIndex, CashierSession session, String ref) {
 		TillGrant grant = tillGrantService.valid(token, action, idOf(session), lineIndex);
 		tillGrantService.consume(grant, ref, lineIndex);
+		TillRequestGrants.keep(grant); // 3.4.0, event log: the event of this request names the badge's owner
 		badgeService.logBadgePass(grant.getScannedBy(), grant.getBadgeOwner(), grant.getBadgeCode(), action,
 				idOf(session));
 	}

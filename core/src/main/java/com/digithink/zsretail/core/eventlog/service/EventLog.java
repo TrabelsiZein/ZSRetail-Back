@@ -1,21 +1,29 @@
 package com.digithink.zsretail.core.eventlog.service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronizationAdapter;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.eventlog.model.EventLogEntry;
 import com.digithink.zsretail.core.model.UserAccount;
-import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.repository.UserAccountRepository;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -29,6 +37,9 @@ import lombok.extern.log4j.Log4j2;
  * <li>{@link #writeNow}: written at once, in its own transaction, whatever becomes of the caller's: a refusal (the
  * gesture throws and rolls back, its event stays).</li>
  * </ul>
+ * Step 2: at the gesture only memory is read (the logged login, the request's address, the contexts' atCall: no query
+ * in the gesture's transaction); the user's id, name and role and the contexts' completion (machine, session, names) are
+ * read in the event's own transaction.
  */
 @Component
 @Log4j2
@@ -36,20 +47,30 @@ public class EventLog {
 
 	private final BooleanSupplier on;
 	private final EventLogWriter writer;
-	private final Supplier<UserAccount> loggedUser;
+	private final Supplier<String> loggedLogin;
+	private final Function<String, UserAccount> userByLogin;
+	private final Supplier<String> requestAddress;
+	private final List<EventLogContext> contexts;
 	private final Supplier<LocalDateTime> clock;
 
 	@Autowired
-	public EventLog(ApplicationModeService mode, EventLogWriter writer, CurrentUserProvider users) {
-		this(mode::isEventLogEnabled, writer, () -> loggedUser(users), LocalDateTime::now);
+	public EventLog(ApplicationModeService mode, EventLogWriter writer, UserAccountRepository users,
+			ObjectProvider<EventLogContext> contexts) {
+		this(mode::isEventLogEnabled, writer, EventLog::loggedLogin, login -> users.findByUsername(login).orElse(null),
+				EventLog::requestAddress, new ArrayList<>(), LocalDateTime::now);
+		contexts.orderedStream().forEach(this.contexts::add);
 	}
 
-	/** With the switch, the logged user and the clock given: used by the tests. */
-	public EventLog(BooleanSupplier on, EventLogWriter writer, Supplier<UserAccount> loggedUser,
+	/** Everything given: used by the tests. */
+	public EventLog(BooleanSupplier on, EventLogWriter writer, Supplier<String> loggedLogin,
+			Function<String, UserAccount> userByLogin, Supplier<String> requestAddress, List<EventLogContext> contexts,
 			Supplier<LocalDateTime> clock) {
 		this.on = on;
 		this.writer = writer;
-		this.loggedUser = loggedUser;
+		this.loggedLogin = loggedLogin;
+		this.userByLogin = userByLogin;
+		this.requestAddress = requestAddress;
+		this.contexts = contexts;
 		this.clock = clock;
 	}
 
@@ -95,13 +116,31 @@ public class EventLog {
 
 	private void store(EventLogEntry entry) {
 		try {
-			writer.insert(entry);
+			writer.insert(entry, this::complete);
 		} catch (RuntimeException e) {
 			log.warn("Event log: {} not written ({})", entry.getCode(), e.toString());
 		}
 	}
 
-	/** The row: the catalogue's importance and subject, the server's clock and UUID, the texts cut to their columns. */
+	/** In the event's own transaction: the user's id, name and role from the login, then the contexts. */
+	void complete(EventLogEntry entry) {
+		if (entry.getUserId() == null && entry.getUserLogin() != null) {
+			try {
+				withUser(entry, userByLogin.apply(entry.getUserLogin()));
+			} catch (RuntimeException e) {
+				log.debug("Event log: the user {} not read ({})", entry.getUserLogin(), e.toString());
+			}
+		}
+		for (EventLogContext context : contexts) {
+			try {
+				context.complete(entry);
+			} catch (RuntimeException e) {
+				log.debug("Event log: a context of {} not read ({})", entry.getCode(), e.toString());
+			}
+		}
+	}
+
+	/** The row at the gesture: the catalogue's importance and subject, the server's clock and UUID, the texts cut. */
 	EventLogEntry entryOf(NewEvent event) {
 		EventLogEntry entry = new EventLogEntry();
 		entry.setCode(event.getCode().name());
@@ -124,30 +163,33 @@ public class EventLog {
 			entry.setUserName(cut(event.getUserName(), EventLogEntry.NAME_LENGTH));
 			entry.setUserRole(cut(event.getUserRole(), EventLogEntry.LOGIN_LENGTH));
 		} else {
-			withLoggedUser(entry);
+			entry.setUserLogin(cut(safely(loggedLogin), EventLogEntry.LOGIN_LENGTH));
 		}
 		entry.setAuthorisedById(event.getAuthorisedById());
 		entry.setAuthorisedByLogin(cut(event.getAuthorisedByLogin(), EventLogEntry.LOGIN_LENGTH));
 		entry.setAuthorisedByName(cut(event.getAuthorisedByName(), EventLogEntry.NAME_LENGTH));
 		entry.setSentById(event.getSentById());
 		entry.setSentByLogin(cut(event.getSentByLogin(), EventLogEntry.LOGIN_LENGTH));
-		entry.setClientAddress(cut(event.getClientAddress(), EventLogEntry.ADDRESS_LENGTH));
+		entry.setClientAddress(cut(event.getClientAddress() != null ? event.getClientAddress() : safely(requestAddress),
+				EventLogEntry.ADDRESS_LENGTH));
 		entry.setMachineSequenceNo(event.getMachineSequenceNo());
 		entry.setOldValue(cut(event.getOldValue(), EventLogEntry.VALUE_LENGTH));
 		entry.setNewValue(cut(event.getNewValue(), EventLogEntry.VALUE_LENGTH));
 		entry.setAmount(event.getAmount());
 		entry.setDetails(cut(event.getDetails(), EventLogEntry.DETAILS_LENGTH));
+		for (EventLogContext context : contexts) {
+			try {
+				context.atCall(entry);
+			} catch (RuntimeException e) {
+				log.debug("Event log: a context of {} not read at the gesture ({})", entry.getCode(), e.toString());
+			}
+		}
+		entry.setDetails(cut(entry.getDetails(), EventLogEntry.DETAILS_LENGTH));
 		return entry;
 	}
 
-	/** The logged user's id, login, name and role; nothing when nobody is logged (a start, a job). */
-	private void withLoggedUser(EventLogEntry entry) {
-		UserAccount user;
-		try {
-			user = loggedUser.get();
-		} catch (RuntimeException e) {
-			user = null;
-		}
+	/** Fills the user's id, login, name and role; nothing when there is none. */
+	static void withUser(EventLogEntry entry, UserAccount user) {
 		if (user == null) {
 			return;
 		}
@@ -161,13 +203,30 @@ public class EventLog {
 		}
 	}
 
-	/** The logged user, or null when there is none (no request, an anonymous one, a login that matches no user). */
-	private static UserAccount loggedUser(CurrentUserProvider users) {
-		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-		if (authentication == null || !authentication.isAuthenticated()) {
+	private static String safely(Supplier<String> value) {
+		try {
+			return value.get();
+		} catch (RuntimeException e) {
 			return null;
 		}
-		return users.getCurrentUser();
+	}
+
+	/** The logged login, from memory (no query); null when nobody is logged (a start, a job, an anonymous request). */
+	private static String loggedLogin() {
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+		if (authentication == null || !authentication.isAuthenticated()
+				|| authentication instanceof AnonymousAuthenticationToken) {
+			return null;
+		}
+		return authentication.getName();
+	}
+
+	/** The address the request came from; null outside a request. */
+	private static String requestAddress() {
+		RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+		return attributes instanceof ServletRequestAttributes
+				? ((ServletRequestAttributes) attributes).getRequest().getRemoteAddr()
+				: null;
 	}
 
 	static String cut(String text, int length) {

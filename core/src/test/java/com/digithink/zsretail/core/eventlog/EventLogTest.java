@@ -30,6 +30,7 @@ import com.digithink.zsretail.core.eventlog.model.EventLogSequence;
 import com.digithink.zsretail.core.eventlog.repository.EventLogEntryRepository;
 import com.digithink.zsretail.core.eventlog.repository.EventLogSequenceRepository;
 import com.digithink.zsretail.core.eventlog.service.EventLog;
+import com.digithink.zsretail.core.eventlog.service.EventLogContext;
 import com.digithink.zsretail.core.eventlog.service.EventLogStart;
 import com.digithink.zsretail.core.eventlog.service.EventLogWriter;
 import com.digithink.zsretail.core.eventlog.service.NewEvent;
@@ -52,6 +53,9 @@ class EventLogTest {
 	RuntimeException saveFails;
 	int sequenceRowRaces;
 	UserAccount logged = user(7L, "cashier1", "Sana Ben Ali", "POS_USER");
+	String loggedLogin = "cashier1";
+	String address = "192.168.1.21";
+	final List<EventLogContext> contexts = new ArrayList<>();
 
 	@AfterEach
 	void noSynchronizationLeft() {
@@ -144,25 +148,71 @@ class EventLogTest {
 	@Test
 	@DisplayName("Nobody logged (a start, a job): the row without a user; a user lookup that fails changes nothing")
 	void nobodyLogged() {
-		logged = null;
+		loggedLogin = null;
 		eventLog().writeNow(NewEvent.of(EventCode.EVENTLOG_STARTED));
 		assertNull(rows.get(0).getUserId());
-		EventLog failingLookup = new EventLog(() -> on, writer(), () -> {
-			throw new IllegalStateException("no user");
-		}, () -> NOW);
+		assertNull(rows.get(0).getUserLogin());
+		loggedLogin = "cashier1";
+		EventLog failingLookup = new EventLog(() -> on, writer(), () -> loggedLogin, login -> {
+			throw new IllegalStateException("database down");
+		}, () -> null, Collections.emptyList(), () -> NOW);
 		failingLookup.writeNow(NewEvent.of(EventCode.EVENTLOG_STARTED));
 		assertEquals(2, rows.size());
-		assertNull(rows.get(1).getUserLogin());
+		assertNull(rows.get(1).getUserId());
+		assertEquals("cashier1", rows.get(1).getUserLogin()); // the login stays readable
 	}
 
 	@Test
-	@DisplayName("The start writes one EVENTLOG_STARTED (Alert) naming the version")
+	@DisplayName("The start writes one EVENTLOG_STARTED (Notable: a store restarts every morning) naming the version")
 	void startEvent() {
 		new EventLogStart(eventLog(), "3.4.0").started();
 		assertEquals(1, rows.size());
 		assertEquals("EVENTLOG_STARTED", rows.get(0).getCode());
-		assertEquals(EventImportance.ALERT, rows.get(0).getImportance());
+		assertEquals(EventImportance.NOTABLE, rows.get(0).getImportance());
 		assertTrue(rows.get(0).getDetails().contains("3.4.0"));
+	}
+
+	// ─── Step 2: the contexts and the request ────────────────────────
+
+	@Test
+	@DisplayName("Step 2: a context at the gesture (memory) and in the event's transaction; one that throws stops nothing")
+	void contexts() {
+		List<String> order = new ArrayList<>();
+		contexts.add(new EventLogContext() {
+			@Override
+			public void atCall(EventLogEntry entry) {
+				order.add("atCall user=" + entry.getUserId()); // the user is read later, in the event's transaction
+				entry.setAuthorisedById(4L);
+			}
+
+			@Override
+			public void complete(EventLogEntry entry) {
+				order.add("complete user=" + entry.getUserId());
+				entry.setPosMachineName("Caisse 2");
+			}
+		});
+		contexts.add(new EventLogContext() {
+			@Override
+			public void atCall(EventLogEntry entry) {
+				throw new IllegalStateException("no request");
+			}
+
+			@Override
+			public void complete(EventLogEntry entry) {
+				throw new IllegalStateException("database down");
+			}
+		});
+		EventLog log = eventLog();
+		inTransaction();
+		log.write(NewEvent.of(EventCode.RETURN_DONE));
+		assertEquals(Collections.singletonList("atCall user=null"), order); // at the gesture: nothing read yet
+		commit();
+		assertEquals(Arrays.asList("atCall user=null", "complete user=7"), order);
+		EventLogEntry row = rows.get(0);
+		assertEquals(Long.valueOf(4), row.getAuthorisedById());
+		assertEquals("Caisse 2", row.getPosMachineName());
+		assertEquals("192.168.1.21", row.getClientAddress()); // the request's address
+		assertEquals("Sana Ben Ali", row.getUserName());
 	}
 
 	// ─── The numbering ───────────────────────────────────────────────
@@ -232,7 +282,8 @@ class EventLogTest {
 	// ─── Helpers ─────────────────────────────────────────────────────
 
 	EventLog eventLog() {
-		return new EventLog(() -> on, writer(), () -> logged, () -> NOW);
+		return new EventLog(() -> on, writer(), () -> loggedLogin, login -> login.equals("cashier1") ? logged : null,
+				() -> address, contexts, () -> NOW);
 	}
 
 	EventLogWriter writer() {

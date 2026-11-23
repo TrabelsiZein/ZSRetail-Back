@@ -48,6 +48,10 @@ public class CashMovementService {
 	/** The time of a movement; a test sets its own. */
 	Clock clock = Clock.systemDefaultZone();
 
+	/** 3.4.0, event log step 2: the event of a movement; a service built without it (a unit test) writes none. */
+	@org.springframework.beans.factory.annotation.Autowired(required = false)
+	com.digithink.zsretail.store.eventlog.TillEvents tillEvents;
+
 	public CashMovementService(CashMovementRepository movements, CashierSessionRepository sessions,
 			TillRightsGuard tillRightsGuard, SessionPosMachineService sessionMachines) {
 		this.movements = movements;
@@ -101,6 +105,7 @@ public class CashMovementService {
 		movement.setCreatedBy(user.getUsername());
 		movement.setUpdatedBy(user.getUsername());
 		CashMovement saved = movements.save(movement);
+		if (tillEvents != null) tillEvents.cashMovement(saved);
 		return dto(saved, sessionMachines.nameOf(session.getId()));
 	}
 

@@ -308,6 +308,48 @@ class SaleUnitCostTest {
 		assertEquals(new BigDecimal("-1.250"), SalesHeaderService.frozenCost(item(21L, -1.25)));
 	}
 
+	@Test
+	@DisplayName("3.4.0, event log step 2: a sale, a pending ticket saved, saved again, completed, another deleted, a split"
+			+ " part paid: one event each, in order, the cart kept")
+	void eventsOfTheSales() throws Exception {
+		com.digithink.zsretail.core.support.InMemoryEventLog log = new com.digithink.zsretail.core.support.InMemoryEventLog();
+		inject(sales, SalesHeaderService.class, "tillEvents",
+				new com.digithink.zsretail.store.eventlog.TillEvents(log.eventLog()));
+		ProcessSaleRequestDTO withCart = request(costed);
+		withCart.setCartId("c0ffee00-0000-4000-8000-000000000001");
+		SalesHeader sale = sales.processCompleteSale(withCart, cashier);
+		SalesHeader held = sales.savePendingSale(request(costed), cashier);
+		sales.updatePendingSale(held.getId(), request(costed), cashier);
+		sales.completePendingSale(held.getId(), request(costed), cashier);
+		SalesHeader dropped = sales.savePendingSale(request(costed), cashier);
+		sales.cancelPendingSale(dropped.getId(), cashier);
+		SalesHeader table = sales.savePendingSale(request(costed, component), cashier);
+		SplitBillRequestDTO split = new SplitBillRequestDTO();
+		split.setSelectedLineIds(new ArrayList<>(Collections.singletonList(lineOf(table, costed, 10.0).getId())));
+		split.setSubtotal(10.0);
+		split.setTaxAmount(0.0);
+		split.setTotalAmount(10.0);
+		split.setPaidAmount(10.0);
+		split.setChangeAmount(0.0);
+		SplitBillRequestDTO.PaymentDTO payment = new SplitBillRequestDTO.PaymentDTO();
+		payment.setPaymentMethodId(CASH_METHOD_ID);
+		payment.setAmount(10.0);
+		split.setPayments(new ArrayList<>(Collections.singletonList(payment)));
+		sales.splitAndPay(table.getId(), split, cashier);
+
+		assertEquals(Arrays.asList("SALE_VALIDATED", "PENDING_SAVED", "PENDING_SAVED", "SALE_VALIDATED", "PENDING_SAVED",
+				"PENDING_DELETED", "PENDING_SAVED", "SALE_VALIDATED"), log.codes());
+		assertEquals("c0ffee00-0000-4000-8000-000000000001", log.rows.get(0).getCartId());
+		assertEquals(sale.getTotalAmount(), log.rows.get(0).getAmount());
+		assertEquals(String.valueOf(sale.getId()), log.rows.get(0).getSubjectId());
+		assertEquals(Long.valueOf(7), log.rows.get(0).getSessionId());
+		assertTrue(log.rows.get(0).getDetails().contains("Paiement : Cash"), log.rows.get(0).getDetails());
+		assertTrue(log.rows.get(2).getDetails().startsWith("Ticket en attente mis à jour"));
+		assertTrue(log.rows.get(3).getDetails().contains("repris d'un ticket en attente"));
+		assertTrue(log.rows.get(5).getDetails().startsWith("Ticket en attente supprimé"));
+		assertTrue(log.rows.get(7).getDetails().contains("partie payée du ticket"), log.rows.get(7).getDetails());
+	}
+
 	// ─── Fixtures ────────────────────────────────────────────────────
 
 	private Item item(long id, Double cost) {
