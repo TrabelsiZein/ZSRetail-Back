@@ -159,9 +159,22 @@ public class TillEvents {
 
 	/** A session opened, and its opening gap when the amount typed is not the float left in the drawer. */
 	public void sessionOpened(CashierSession session, OpeningFloat opening) {
+		sessionOpened(session, opening, null);
+	}
+
+	/**
+	 * The same; {@code lastClosing}: what the drawer's last clôture left in it, said in the text (fixes after the test
+	 * round: "fond 20,000, tiroir laissé à 0,000"); null without one. No gap event for it: the 3.2.0 écart is unchanged.
+	 */
+	public void sessionOpened(CashierSession session, OpeningFloat opening, ClosingWithdrawal lastClosing) {
 		run("SESSION_OPENED", () -> {
+			String left = lastClosing == null || lastClosing.getAmountLeft() == null ? ""
+					: " (tiroir laissé à " + money(lastClosing.getAmountLeft()) + " à la clôture"
+							+ (lastClosing.getSession() != null && lastClosing.getSession().getSessionNumber() != null
+									? " de " + lastClosing.getSession().getSessionNumber() : "")
+							+ ")";
 			eventLog.write(sessionEvent(EventCode.SESSION_OPENED, session).amount(session.getOpeningCash())
-					.details("Session ouverte avec un fond de caisse de " + money(session.getOpeningCash()) + "."));
+					.details("Session ouverte avec un fond de caisse de " + money(session.getOpeningCash()) + left + "."));
 			if (opening != null && opening.getOpeningGap() != null && Math.abs(opening.getOpeningGap()) > DIFFERENCE) {
 				eventLog.write(sessionEvent(EventCode.SESSION_OPENING_GAP, session)
 						.change(money(opening.getProposedFloat()), money(session.getOpeningCash()))

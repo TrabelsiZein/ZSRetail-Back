@@ -248,4 +248,36 @@ class AccessEventsTest {
 		user.setAppRole(role);
 		return user;
 	}
+
+	@Test
+	@DisplayName("Fixes after the test round: the till's admin-return password check is ADMIN_RETURN_VERIFIED (Step), never a"
+			+ " LOGIN_OK; its wrong password is a LOGIN_REFUSED that says so, still counted toward the run")
+	void adminReturn() {
+		LocalDateTime[] now = { LocalDateTime.of(2026, 11, 23, 21, 32, 0) };
+		AccessEvents counted = new AccessEvents(log.eventLog(), users::get, () -> now[0]);
+		counted.loginOk(amine, "127.0.0.1", AccessEvents.TILL_ADMIN_RETURN);
+		EventLogEntry verified = log.only("ADMIN_RETURN_VERIFIED");
+		assertEquals(EventImportance.STEP, verified.getImportance());
+		assertEquals("amine", verified.getUserLogin());
+		assertEquals("Retour à l'administration — mot de passe vérifié pour Amine K., depuis 127.0.0.1.", verified.getDetails());
+		assertTrue(!log.codes().contains("LOGIN_OK"));
+
+		for (int i = 1; i <= 5; i++) {
+			now[0] = now[0].plusSeconds(10);
+			counted.loginRefused("amine", new BadCredentialsException("x"), "127.0.0.1",
+					i % 2 == 0 ? AccessEvents.TILL_ADMIN_RETURN : null);
+		}
+		EventLogEntry second = log.rows.get(2);
+		assertEquals("LOGIN_REFUSED", second.getCode());
+		assertEquals("Connexion refusée pour Amine K. : mot de passe incorrect (retour à l'administration), depuis 127.0.0.1.",
+				second.getDetails());
+		assertEquals("LOGIN_REFUSED_REPEATED", log.rows.get(5).getCode(), "the popup's refusals count toward the run");
+	}
+
+	@Test
+	@DisplayName("Fixes after the test round: the start event in French")
+	void startText() {
+		new com.digithink.zsretail.core.eventlog.service.EventLogStart(log.eventLog(), "3.4.0").started();
+		assertEquals("Journal des événements actif, version 3.4.0.", log.only("EVENTLOG_STARTED").getDetails());
+	}
 }

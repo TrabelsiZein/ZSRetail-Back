@@ -199,7 +199,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 					id -> cashierSessionRepository.findById(id).orElse(null)).orElse(null);
 			unverifiedPrevious.ifPresent(previous -> drawerHandoverService.recordUnverified(saved, previous));
 		}
-		if (tillEvents != null) tillEvents.sessionOpened(saved, opening);
+		if (tillEvents != null) tillEvents.sessionOpened(saved, opening, tillEvents.isOn() && drawerHandoverService != null ? drawerHandoverService.lastClosingOf(cashier, machine).orElse(null) : null);
 		if (tillEvents != null && unverifiedPrevious.isPresent()) tillEvents.sessionOpenedPreviousUnverified(saved, unverifiedPrevious.get());
 		return saved;
 	}

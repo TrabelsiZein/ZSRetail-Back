@@ -83,7 +83,7 @@ public class StoreEventContext implements EventLogContext {
 
 	@Override
 	public void complete(EventLogEntry entry) {
-		if (entry.getSessionId() == null && entry.getUserId() != null) {
+		if (entry.getSessionId() == null && entry.getUserId() != null && !refusedLogin(entry)) {
 			openSessionOfUser.apply(entry.getUserId()).ifPresent(session -> {
 				entry.setSessionId(session.getId());
 				entry.setSessionNumber(session.getSessionNumber());
@@ -98,6 +98,12 @@ public class StoreEventContext implements EventLogContext {
 				entry.setPosMachineName(found.getName());
 			});
 		}
+	}
+
+	/** A refused login: nobody is logged in, the user's open session is not its own (fixes after the test round). */
+	private static boolean refusedLogin(EventLogEntry entry) {
+		return EventCode.LOGIN_REFUSED.name().equals(entry.getCode())
+				|| EventCode.LOGIN_REFUSED_REPEATED.name().equals(entry.getCode());
 	}
 
 	private static boolean sameOwner(TillRequestGrants.Owner owner, TillRequestGrants.Owner first) {

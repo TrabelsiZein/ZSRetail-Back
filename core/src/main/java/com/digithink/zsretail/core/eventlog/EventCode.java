@@ -69,6 +69,11 @@ public enum EventCode {
 
 	// ── Logins ──
 	LOGIN_OK(EventSubject.LOGIN, STEP),
+	/**
+	 * Fixes after the test round: the till's "Retour à l'administration" popup, its password right (the login request
+	 * marked login-purpose TILL_ADMIN_RETURN): not a login. Its wrong password stays a LOGIN_REFUSED (said in the text).
+	 */
+	ADMIN_RETURN_VERIFIED(EventSubject.LOGIN, STEP),
 	/** Step 4 (Zein): Notable, a typo at the morning login is not an Alert. */
 	LOGIN_REFUSED(EventSubject.LOGIN, NOTABLE),
 	/** Step 4: the 5th refused login in a row on one login or from one address (and each one after it). */

@@ -40,6 +40,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   gestures themselves are the front's (`ZSRetail-Front` CHANGELOG).
 - Event log, step 5b: `PROMO_CODE_ADDED`, `PROMO_CODE_REMOVED` and `CART_CUSTOMER_CHANGED` (Notable), codes the till may
   send.
+- Event log, fixes after the test round: the till's "Retour à l'administration" password check (login request marked
+  `login-purpose: TILL_ADMIN_RETURN`, allowed in the CORS headers) writes `ADMIN_RETURN_VERIFIED` (Step), never a
+  `LOGIN_OK`; its wrong password is a `LOGIN_REFUSED` that says so, still counted. `SESSION_OPENED` says what the drawer's
+  last clôture left (no gap event, the 3.2.0 écart unchanged). A refused login has no session. `EVENTLOG_STARTED` in
+  French.
 
 ### Enhancements
 - Event log: `LOGIN_REFUSED` is Notable; from the 5th refused login in a row on one login or from one address (a run

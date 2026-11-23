@@ -318,6 +318,40 @@ change seen twice for one cart (the payment page, then the till) is told once.
 - The split payment of a table ticket: the server writes its `SALE_VALIDATED`.
 - The price passes of the cart (promotions worked out again), which are no gesture.
 
+## Fixes after the first test round (2026-11-23)
+
+- A search result clicked in the grid is a line added "par la recherche" (it went through the tile path).
+- **The till's "Retour à l'administration" popup** checks the password with the login request, marked by the header
+  `login-purpose: TILL_ADMIN_RETURN` (front `useJwt.login(..., { purpose })`, allowed in the CORS headers).
+  - The right password writes `ADMIN_RETURN_VERIFIED` (Step, "Retour à l'administration — mot de passe vérifié"), never
+    a `LOGIN_OK`.
+  - A wrong one stays a `LOGIN_REFUSED` whose text adds "(retour à l'administration)". It still counts toward
+    `LOGIN_REFUSED_REPEATED`.
+  - The marker is the till's claim: it changes only the event, never the answer (a token as before).
+- `SESSION_OPENED` says what the drawer's last clôture left: "fond 20,000 (tiroir laissé à 0,000 à la clôture de
+  SESSION…)", via `DrawerHandoverService.lastClosingOf`, read only when the module is on. There is no gap event for
+  it: the 3.2.0 écart is unchanged (nothing proposed when 0 was left).
+- A refused login has no session (nobody is logged in); the machine is kept.
+- Texts:
+  - the lost cart and the events dropped give the till's local time ("le 23/11/2026 à 21:29");
+  - real plurals ("1 ligne", "2 lignes");
+  - `EVENTLOG_STARTED` reads "Journal des événements actif, version …".
+- **For the Journal page (step 6):** `amount` is a float column (21.899999…), so the page rounds it to 3 decimals.
+
+**The measure of a validated sale** (2026-11-23).
+
+- The sale path in Java (the real `SalesHeaderService`, `TillEvents`, `EventLog`; the database in memory), 20
+  sales each after a warm-up:
+  - off: 0.53 ms on average, 1.04 ms worst;
+  - on: 0.73 ms on average, 1.31 ms worst;
+  - so building the event costs about 0.2 ms.
+- The event's reads on SQL Server (pos_franchise_customer, read-only, 20 rounds): 3.2 ms on average, 4.1 ms worst.
+- The write (counter update, insert, commit) was not measured: it would change data. Estimated at 1 to 3 ms.
+- So a sale's request waits about 5 to 7 ms more. The event is written after the sale's commit, in the request's
+  thread, in its own transaction, on a second connection of the pool.
+- **When the write is slow** (the counter row locked, a slow disk): the request waits up to the 5 s timeout. Then the
+  event is lost (one WARN) and the sale stays done: the cashier sees a slow sale, never a failed one.
+
 ## Tests
 
 - `EventLogKeyTest`: the switch.
@@ -360,6 +394,12 @@ change seen twice for one cart (the payment page, then the till) is told once.
   - `AppConfigAPITest`: `eventLogTillCodes`.
   - Front: `node tools/event-queue-check.mjs` (order, numbers, install, cap and drop event, Alerts kept, quota, group,
     answer).
+- Fixes after the test round:
+  - `AccessEventsTest.adminReturn` (verified, refused, counted), `startText`.
+  - `JWTAuthenticationFilterTest.adminReturnHeader`.
+  - `StoreEventContextTest.refusedLoginNoSession`.
+  - `TillEventsTest.openingSaysTheDrawer`, `DrawerHandoverTest.openingAfterAllTaken`.
+  - Front: `event-queue-check` (local time, plurals).
 - Step 5:
   - Front: `node tools/till-cart-check.mjs` (a cart's ID from its first line to its end, the amount, a pending ticket's
     own cart, the logout mark, the cart lost on reload told once, a storage that refuses).

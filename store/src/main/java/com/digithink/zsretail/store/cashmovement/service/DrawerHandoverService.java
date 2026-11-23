@@ -139,6 +139,19 @@ public class DrawerHandoverService {
 	 * it) or of the cashier. Only the most recent closed session of that drawer; verified with an answer that left
 	 * something: its amount left. Empty otherwise (not verified, nothing left, verified before this step, no machine).
 	 */
+	/**
+	 * 3.4.0, event log: what the drawer's last clôture left in it (its previous session verified and its withdrawal),
+	 * 0 included; empty without one (the first session of the drawer, or the previous one not verified). The same reads
+	 * as proposalFor; the 3.2.0 rule is not changed (nothing proposed when 0 was left).
+	 */
+	public Optional<ClosingWithdrawal> lastClosingOf(UserAccount cashier, PosMachine machine) {
+		Optional<CashierSession> previous = previousOfDrawer(cashier, machine);
+		if (!previous.isPresent() || previous.get().getStatus() != SessionStatus.TERMINATED) {
+			return Optional.empty();
+		}
+		return withdrawals.findById(previous.get().getId());
+	}
+
 	public Optional<OpeningFloatDTO> proposalFor(UserAccount cashier, PosMachine machine) {
 		Optional<CashierSession> previous = previousOfDrawer(cashier, machine);
 		if (!previous.isPresent() || previous.get().getStatus() != SessionStatus.TERMINATED) {

@@ -596,4 +596,22 @@ class DrawerHandoverTest {
 		rfid.drawerOwner = DrawerOwner.POS_MACHINE;
 		assertEquals("M" + caisse1.getId(), handover.withdrawalOf(session).getDrawerKey());
 	}
+
+	@Test
+	@DisplayName("Fixes after the test round: the real opening after a clôture that took everything says the drawer was left at"
+			+ " 0; no SESSION_OPENING_GAP (the 3.2.0 écart unchanged: nothing proposed)")
+	void openingAfterAllTaken() throws Exception {
+		com.digithink.zsretail.core.support.InMemoryEventLog log = new com.digithink.zsretail.core.support.InMemoryEventLog()
+				.logged(amira);
+		inject(service, CashierSessionService.class, "tillEvents",
+				new com.digithink.zsretail.store.eventlog.TillEvents(log.eventLog()));
+		rfid.drawerOwner = DrawerOwner.CASHIER;
+		CashierSession closed = closed(amira, 10, null);
+		verify(closed, "ALL", null);
+		service.openSession(amira, 20.0, null);
+		com.digithink.zsretail.core.eventlog.model.EventLogEntry opened = log.only("SESSION_OPENED");
+		assertEquals("Session ouverte avec un fond de caisse de 20,000 (tiroir laissé à 0,000 à la clôture de "
+				+ closed.getSessionNumber() + ").", opened.getDetails());
+		assertTrue(!log.codes().contains("SESSION_OPENING_GAP"));
+	}
 }

@@ -336,4 +336,21 @@ class TillEventsTest {
 		movement.setAuthorisedBy(authorisedBy);
 		return movement;
 	}
+
+	@Test
+	@DisplayName("Fixes after the test round: the opening says what the drawer's last clôture left (0 included), no gap event")
+	void openingSaysTheDrawer() {
+		session.setOpeningCash(20.0);
+		CashierSession previous = new CashierSession();
+		previous.setSessionNumber("SESSION261120001");
+		ClosingWithdrawal left = new ClosingWithdrawal();
+		left.setAmountLeft(0.0);
+		left.setSession(previous);
+		events.sessionOpened(session, null, left);
+		events.sessionOpened(session, null, null);
+		assertEquals(Arrays.asList("SESSION_OPENED", "SESSION_OPENED"), log.codes());
+		assertEquals("Session ouverte avec un fond de caisse de 20,000 (tiroir laissé à 0,000 à la clôture de"
+				+ " SESSION261120001).", log.rows.get(0).getDetails());
+		assertEquals("Session ouverte avec un fond de caisse de 20,000.", log.rows.get(1).getDetails());
+	}
 }

@@ -26,6 +26,6 @@ public class EventLogStart {
 	@EventListener(ApplicationReadyEvent.class)
 	public void started() {
 		eventLog.writeNow(NewEvent.of(EventCode.EVENTLOG_STARTED).subject("EVENT_LOG", "Journal des événements")
-				.details("Event log on, version " + appVersion));
+				.details("Journal des événements actif, version " + appVersion + "."));
 	}
 }

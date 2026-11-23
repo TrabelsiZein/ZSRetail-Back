@@ -39,6 +39,12 @@ public class AccessEvents {
 	/** What a refused login with a login that is nobody's shows in place of the text typed. */
 	public static final String UNKNOWN_LOGIN = "Identifiant inconnu";
 
+	/**
+	 * The login-purpose header of the till's "Retour à l'administration" popup: its password check is the login
+	 * request, not a login (ADMIN_RETURN_VERIFIED; a wrong password is a LOGIN_REFUSED that says so, still counted).
+	 */
+	public static final String TILL_ADMIN_RETURN = "TILL_ADMIN_RETURN";
+
 	private static final DateTimeFormatter HOUR = DateTimeFormatter.ofPattern("HH:mm:ss");
 
 	private final EventLog eventLog;
@@ -73,11 +79,26 @@ public class AccessEvents {
 
 	/** A login answered with a token. */
 	public void loginOk(UserAccount user, String address) {
+		loginOk(user, address, null);
+	}
+
+	/** A login answered with a token; {@code purpose} TILL_ADMIN_RETURN: the till's admin-return password check. */
+	public void loginOk(UserAccount user, String address, String purpose) {
 		run("LOGIN_OK", () -> {
 			tries.succeeded(LoginTries.loginKey(user.getId()), LoginTries.addressKey(address));
+			if (adminReturn(purpose)) {
+				eventLog.writeNow(NewEvent.of(EventCode.ADMIN_RETURN_VERIFIED).subject(user.getId(), user.getUsername())
+						.user(user).from(address).details(sentence("Retour à l'administration — mot de passe vérifié pour "
+								+ who(user) + from(address))));
+				return;
+			}
 			eventLog.writeNow(NewEvent.of(EventCode.LOGIN_OK).subject(user.getId(), user.getUsername()).user(user)
 					.from(address).details(sentence("Connexion de " + who(user) + role(user) + from(address))));
 		});
+	}
+
+	private static boolean adminReturn(String purpose) {
+		return purpose != null && TILL_ADMIN_RETURN.equalsIgnoreCase(purpose.trim());
 	}
 
 	/**
@@ -87,6 +108,12 @@ public class AccessEvents {
 	 * LOGIN_REFUSED_REPEATED (Alert), the run said in the details.
 	 */
 	public void loginRefused(String typedLogin, Exception failure, String address) {
+		loginRefused(typedLogin, failure, address, null);
+	}
+
+	/** The same; {@code purpose} TILL_ADMIN_RETURN: the till's admin-return popup (said in the text, still counted). */
+	public void loginRefused(String typedLogin, Exception failure, String address, String purpose) {
+		String where = adminReturn(purpose) ? " (retour à l'administration)" : "";
 		run("LOGIN_REFUSED", () -> {
 			UserAccount known = known(typedLogin);
 			LoginTries.Run run = tries.refused(known != null ? LoginTries.loginKey(known.getId()) : null,
@@ -97,10 +124,10 @@ public class AccessEvents {
 			String text;
 			if (known == null) {
 				event.subject(null, UNKNOWN_LOGIN).user(null, null, null, null);
-				text = "Connexion refusée : identifiant inconnu" + from(address) + ".";
+				text = "Connexion refusée : identifiant inconnu" + where + from(address) + ".";
 			} else {
 				event.subject(known.getId(), known.getUsername()).user(known);
-				text = "Connexion refusée pour " + who(known) + " : " + reason(failure) + from(address) + ".";
+				text = "Connexion refusée pour " + who(known) + " : " + reason(failure) + where + from(address) + ".";
 			}
 			if (repeated) {
 				event.amount((double) run.count);

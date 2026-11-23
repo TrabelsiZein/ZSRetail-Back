@@ -227,4 +227,21 @@ class JWTAuthenticationFilterTest {
 		field.setAccessible(true);
 		field.set(target, value);
 	}
+
+	@Test
+	@DisplayName("Fixes after the test round: the login-purpose header of the till's admin-return popup writes ADMIN_RETURN_VERIFIED, the answer unchanged")
+	void adminReturnHeader() throws Exception {
+		com.digithink.zsretail.core.support.InMemoryEventLog log = new com.digithink.zsretail.core.support.InMemoryEventLog();
+		UserAccount cashier = cashier();
+		cashier.setId(3L);
+		JWTAuthenticationFilter filter = new JWTAuthenticationFilter(null, mode(new MockEnvironment(), true),
+				new com.digithink.zsretail.core.eventlog.service.AccessEvents(log.eventLog(), login -> cashier));
+		MockHttpServletRequest request = new MockHttpServletRequest("POST", "/login");
+		request.addHeader(JWTAuthenticationFilter.LOGIN_PURPOSE, "TILL_ADMIN_RETURN");
+		MockHttpServletResponse answer = new MockHttpServletResponse();
+		filter.successfulAuthentication(request, answer, new MockFilterChain(), new UsernamePasswordAuthenticationToken(cashier, null));
+		assertEquals(200, answer.getStatus());
+		assertTrue(new JSONObject(answer.getContentAsString()).getString("token").length() > 0);
+		assertEquals(java.util.Arrays.asList("ADMIN_RETURN_VERIFIED"), log.codes());
+	}
 }

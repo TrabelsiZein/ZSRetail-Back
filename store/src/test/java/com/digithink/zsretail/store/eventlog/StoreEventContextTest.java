@@ -180,4 +180,16 @@ class StoreEventContextTest {
 		machine.setName(name);
 		return machine;
 	}
+
+	@Test
+	@DisplayName("Fixes after the test round: a refused login keeps no session (nobody is logged in), the machine kept")
+	void refusedLoginNoSession() {
+		request("192.168.1.21");
+		log.contexts.add(context());
+		log.eventLog().writeNow(NewEvent.of(EventCode.LOGIN_REFUSED).user(TillEventsTest.user(7L, "amira", "Amira", "POS_USER")));
+		log.eventLog().writeNow(NewEvent.of(EventCode.LOGIN_OK).user(TillEventsTest.user(7L, "amira", "Amira", "POS_USER")));
+		assertNull(log.only("LOGIN_REFUSED").getSessionId());
+		assertEquals("Caisse 1", log.only("LOGIN_REFUSED").getPosMachineName());
+		assertEquals(Long.valueOf(3), log.only("LOGIN_OK").getSessionId(), "a login keeps the user's open session");
+	}
 }

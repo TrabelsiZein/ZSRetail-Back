@@ -29,6 +29,12 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class JWTAuthenticationFilter extends UsernamePasswordAuthenticationFilter {
 
+	/**
+	 * 3.4.0, event log: what the login request is for, sent by the till's "Retour à l'administration" popup
+	 * (TILL_ADMIN_RETURN): its event is not a login. Only the event changes; the answer is the same.
+	 */
+	static final String LOGIN_PURPOSE = "login-purpose";
+
 	static final String HEAD_OFFICE_CASHIER_REFUSAL = "This installation is a head office: cashier accounts cannot sign in here.";
 
 	private final AuthenticationManager authenticationManager;
@@ -63,7 +69,7 @@ public class JWTAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 			} catch (IOException e1) {
 				log.error("Error during authentication response writing", e1);
 			}
-			if (accessEvents != null) accessEvents.loginRefused(request.getHeader("username"), e, request.getRemoteAddr());
+			if (accessEvents != null) accessEvents.loginRefused(request.getHeader("username"), e, request.getRemoteAddr(), request.getHeader(LOGIN_PURPOSE));
 			return null;
 		}
 	}
@@ -117,7 +123,7 @@ public class JWTAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 		response.setCharacterEncoding("UTF-8");
 		response.getWriter().write(authRep.toString());
 		response.getWriter().flush();
-		if (accessEvents != null) accessEvents.loginOk(user, request.getRemoteAddr());
+		if (accessEvents != null) accessEvents.loginOk(user, request.getRemoteAddr(), request.getHeader(LOGIN_PURPOSE));
 	}
 
 	/** The isPosRole the login response sends to the frontend: the user's AppRole flag, false without an AppRole. */
