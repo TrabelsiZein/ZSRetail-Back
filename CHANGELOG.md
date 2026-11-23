@@ -36,6 +36,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   session or machine, an unreadable till time) is marked in the new column `doubt` and in the details, never refused.
   The sender, the address and the server's clock are the server's. One counter update per importance reserves the
   group's numbers, one JDBC batch inserts it. 404 when off, 400 above 100 events, 503 when not stored.
+- Event log, step 5: two codes the till may send, `CART_LEFT_AT_LOGOUT` and `CART_LOST_ON_RELOAD` (both Notable); the
+  gestures themselves are the front's (`ZSRetail-Front` CHANGELOG).
 
 ### Enhancements
 - Event log: `LOGIN_REFUSED` is Notable; from the 5th refused login in a row on one login or from one address (a run

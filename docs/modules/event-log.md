@@ -15,6 +15,9 @@ The build is in small steps.
   `badge_scan_log`, the 403 `TILL_RIGHT_REQUIRED`); see "Step 3" below. No screen has changed.
 - **Step 4 (done): the till's queue and `POST /event-log/batch`.** The front keeps its events in localStorage and sends
   them in groups; no gesture is logged yet (step 5). See "Step 4" below.
+- **Step 5 (done): the till's gestures.** One line beside each gesture of the front (the cart, the discounts, a pending
+  ticket taken back, the reprints, the tickets X / Z and the session tickets, the logouts) and the cart's ID; see
+  "Step 5" below. No screen has changed.
 
 ## The switch: `eventlog.enabled`
 
@@ -267,6 +270,49 @@ stateless: the token stays valid until it expires and the browser drops it.
 - **`db/3.4.0/update.sql` 3**: `event_log.install_id`, `event_log.doubt` and `ix_event_log_install` (install, number:
   the holes).
 
+## Step 5: the till's gestures (front)
+
+One call beside each gesture, `src/services/tillEvents.js`; each builds the French text (the item's code and label, the
+quantity, the amount) and hands it to `logEvent`, which takes the event and its time at once and writes the storage just
+after the gesture: a scan, online or offline, waits for nothing.
+
+| Event | Where (front) | Values |
+|---|---|---|
+| `CART_LINE_ADDED` (Step) | `ItemSelection.addToCart`: every scan, tile, search, kit component, RFID read and bulk line (`pickItem(item, via)`) | the item, the quantity added, the line's quantity and amount, how |
+| `CART_QTY_RAISED` (Step) / `CART_QTY_LOWERED` (Notable) | `increaseQuantity`, `decreaseQuantity`, `setQuantity` (typed) | old → new quantity, the line's amount |
+| `CART_LINE_DELETED` (Notable) | `removeFromCart` (its bin, or − at the last piece) | the quantity, the amount |
+| `CART_CLEARED` (Notable) | `confirmClearCart` | lines, amount |
+| `LINE_DISCOUNT` (Notable) | `applyLineDiscount` | old → new (percent and amount), on the line's amount |
+| `CART_DISCOUNT` (Notable) | `Payment.applyHeaderDiscount`, `clearHeaderDiscount` | old → new, on the total |
+| `PENDING_TAKEN_BACK` (Step) | `ItemSelection.retrievePendingTicket`, `TableSelection` (a table's ticket) | the ticket, lines, amount; a cart with lines it replaced |
+| `RECEIPT_REPRINTED` (Alert) | `TicketsHistory.printTicketData` (the till's and the back office's page) | the ticket, its amount, from the till or the back office |
+| `RETURN_VOUCHER_REPRINTED` (Alert) | `ReturnsManagement.printVoucher` | the voucher, its amount |
+| `TICKET_X_PRINTED` (Step) / `TICKET_Z_PRINTED` (Notable) | `StoreDay.print` | the day, the POS machine or the store |
+| `SESSION_TICKET_PRINTED` (Step) | `SessionDetailsModal.printReport` (X / Z of a session), the till's closing ticket | the session |
+| `CART_LEFT_AT_LOGOUT` (Notable, new) | every logout (`Navbar`, `UserDropdown`, `LicenseExpired`, `OpenSession`, after a closing) | lines, amount; the cart is not emptied (the gap kept for later) |
+| `CART_LOST_ON_RELOAD` (Notable, new) | `main.js`, when the app opens | lines, amount, started at; a pending ticket it came from stays pending |
+
+**The cart's ID** (`src/libs/till-cart.js`, localStorage `zsrCart`).
+
+- Made at the first line and kept by the pos store at every `SET_CART` / `CLEAR_CART`, with the lines count; the amount
+  comes from the till's `totalAmount` watcher.
+- Sent as `cartId` with process-sale, complete-pending, save-pending and update-pending (`Payment`, and
+  `ItemSelection.backToTables` for a table).
+- Ended when the cart is emptied in memory (a sale, a pending save, the button, the last line deleted) and after a
+  table's ticket is saved.
+- A pending ticket taken back starts its own cart.
+- It survives a reload, the cart does not (Vuex): a record still holding lines when the app opens is a cart lost on
+  reload, said once. Scan + refresh is never an invisible way to drop a cart. A cart told at a logout is not told again.
+
+**The logout.** `tillLogout()`, first in every logout: `CART_LEFT_AT_LOGOUT` when the cart has lines, then
+`POST /logout` with the leaving user's token, read before it is removed, never waited for.
+
+**Not logged (decided or for later).**
+
+- A promo code added or taken off, and a customer chosen, which reprices the cart.
+- The split payment of a table ticket: the server writes its `SALE_VALIDATED`.
+- The price passes of the cart (promotions worked out again), which are no gesture.
+
 ## Tests
 
 - `EventLogKeyTest`: the switch.
@@ -309,12 +355,15 @@ stateless: the token stays valid until it expires and the browser drops it.
   - `AppConfigAPITest`: `eventLogTillCodes`.
   - Front: `node tools/event-queue-check.mjs` (order, numbers, install, cap and drop event, Alerts kept, quota, group,
     answer).
+- Step 5:
+  - Front: `node tools/till-cart-check.mjs` (a cart's ID from its first line to its end, the amount, a pending ticket's
+    own cart, the logout mark, the cart lost on reload told once, a storage that refuses).
+  - `TillEventBatchTest.tillCodes`: the two new codes the till may send.
 
 ## Next steps
 
 | Step | What |
 |---|---|
-| 5 | The till's gestures. |
 | 6 | The Journal page. |
 | 7 | The old badge scans copied in. |
 | 8 | General setup and the cleanup. |

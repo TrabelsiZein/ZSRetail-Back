@@ -150,7 +150,8 @@ class TillEventBatchTest {
 				EventCode.TILL_RIGHT_USED, EventCode.LOGIN_OK, EventCode.EVENTLOG_CLEANUP)) {
 			assertFalse(EventCode.FROM_TILL.contains(money), money.name());
 		}
-		assertEquals(14, EventCode.FROM_TILL.size());
+		assertEquals(16, EventCode.FROM_TILL.size()); // step 5: + CART_LEFT_AT_LOGOUT, CART_LOST_ON_RELOAD
+		assertTrue(EventCode.FROM_TILL.contains(EventCode.CART_LOST_ON_RELOAD));
 		assertTrue(EventCode.FROM_TILL.contains(EventCode.EVENTLOG_EVENTS_DROPPED));
 		assertEquals(EventImportance.ALERT, EventCode.EVENTLOG_EVENTS_DROPPED.getImportance());
 	}
