@@ -104,6 +104,10 @@ import com.digithink.zsretail.support.Installations;
  * 3.3.0, Commandes centrale optional: the record gained storeorders.enabled (the store type file says false; the ZEN
  * store of configs/customers says true): "keys 122" and one line per configuration, true on that store, false on the
  * other stores, (none) on a head office; every other line unchanged.
+ * <p>
+ * 3.4.0, opened from 3.3.0: app.version=3.4.0 on every configuration; the event log, eventlog.enabled (the store type
+ * file says false, no other file has the line): "keys 123" and one line per configuration, false on every store,
+ * (none) on a head office; every other line unchanged.
  */
 class ConfigurationKeysProofTest {
 

@@ -439,6 +439,7 @@ the "Connect a store" procedure: `docs/modules/head-office.md`, "Head office lin
   - `supplyFromHeadOffice` (step 7A): `true` on a store whose goods come from the head office by BL (URL, explicit `ownership.supply=HEAD_OFFICE`, no ERP). Since step 9 the same as `ownership.SUPPLY` = `HEAD_OFFICE`; the frontend reads this flag.
   - `rfidEnabled` (RFID step 2, last field): `true` on a store with `rfid.enabled=true`; the frontend shows the RFID pages and buttons only then (a missing field reads as `false`).
   - `warrantyEnabled` (3.3.0, last field): `true` on a store with `warranty.enabled=true`; the frontend shows the Warranties page only then (a missing field reads as `false`; `docs/modules/warranties.md`).
+  - `eventLogEnabled` (3.4.0, last field): `true` on a store with `eventlog.enabled=true`, the event log is written (a missing field reads as `false`; `docs/modules/event-log.md`).
 - **Frontend store** (`store/app-config/index.js`, task 0.5): state `nodeType` (default `'STORE'`), `ownership` (default `{}`), `salesUpstreams` (default `[]`). Getters `nodeType`, `ownerOf(domain)` (owner name, `null` when unknown) and `salesUpstreams`. Defaults when talking to an older backend, or when the call fails: a missing or unknown `nodeType` gives `'STORE'`, a missing or non-object `ownership` gives `{}`, a missing or non-array `salesUpstreams` gives `[]`. No component, route or menu reads them yet.
 
 ## 6. Frontend

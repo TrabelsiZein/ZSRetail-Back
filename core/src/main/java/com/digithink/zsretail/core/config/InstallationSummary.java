@@ -60,6 +60,9 @@ public class InstallationSummary {
 		if (NodeOwnership.isStoreOrdersEnabledSet(env)) {
 			line.add("store orders on"); // 3.3.0: off says nothing
 		}
+		if (NodeOwnership.isEventLogSet(env)) {
+			line.add("event log on"); // 3.4.0: off says nothing
+		}
 		if (NodeOwnership.isCommunicationSet(env)) {
 			line.add("communication on"); // 3.3.0: off says nothing, so the line stays as in 3.2.0
 		}

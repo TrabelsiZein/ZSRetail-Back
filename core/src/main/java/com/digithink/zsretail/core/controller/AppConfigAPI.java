@@ -188,7 +188,8 @@ public class AppConfigAPI {
 				applicationModeService.isHeadOfficeStockPoints(), // 3.1.1: the points de stock pages and filters
 				communication(), // 3.3.0, communication step 4
 				applicationModeService.isWarrantyEnabled(), // 3.3.0: warranty.enabled
-				applicationModeService.isStoreOrdersEnabled() // 3.3.0: storeorders.enabled
+				applicationModeService.isStoreOrdersEnabled(), // 3.3.0: storeorders.enabled
+				applicationModeService.isEventLogEnabled() // 3.4.0: eventlog.enabled
 		));
 	}
 

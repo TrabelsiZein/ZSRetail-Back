@@ -4,6 +4,27 @@ One section per product version, newest first. Every commit that changes behavio
 its line here, under the version of its branch. The screens are in `ZSRetail-Front/CHANGELOG.md`. The French notes shown
 in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql` from this file when a version is closed.
 
+## 3.4.0 — in progress (branch `release/3.4.0`, opened from `release/3.3.0` on 2026-11-23)
+
+### Before deployment
+- A database at 3.3.0: `db/3.4.0/update.sql`, then the 3.4.0 WAR (`AppVersionGuard`). The script stops, changing
+  nothing, while APP_VERSION is not 3.3.0 or 3.4.0; it may run again. Same script on a store and a head office.
+
+### Features
+- Event log ("Journal des événements"), step 1 (`docs/modules/event-log.md`): the switch, the tables, the catalogue
+  of events and the helper `EventLog`. Nothing calls it yet except the start (`EVENTLOG_STARTED`, an Alert, at each
+  start with the module on). Off, the application behaves as 3.3.0.
+
+### DB script
+- `db/3.4.0/update.sql` 1-2: `event_log` (one row per event, never updated; unique `event_uuid`; indexes by date,
+  subject, session, user, importance + number) and `event_log_sequence` (the last number of each importance, rows 10,
+  20 and 30 seeded at 0). Every database.
+
+### Config
+- `eventlog.enabled` (a store only): `false` by default and in the store type file, strictly true/false. Absent is
+  false; `true` on a head office stops the start. `GET /config` `eventLogEnabled`; startup summary "event log on".
+  Commented in `configs/machine-model.properties`; the configuration keys record (keys 123).
+
 ## 3.3.0 — in progress (branch `release/3.3.0`, opened from `release/3.2.0` on 2026-11-20)
 
 ### Before deployment

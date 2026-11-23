@@ -76,6 +76,9 @@ import com.digithink.zsretail.erp.api.ErpAbility;
  * (false when absent); any other value stops the startup, and true anywhere but a store whose goods come from its head
  * office too ({@link #isStoreOrdersEnabledSet}).
  * <p>
+ * Event log (3.4.0): {@code eventlog.enabled}, the store's "Journal des événements", as warranty.enabled: true or false
+ * (false when absent); any other value stops the startup, and true on a head office too ({@link #isEventLogSet}).
+ * <p>
  * Communication (3.3.0, step 1): {@code communication.enabled}, true or false; absent or blank is false (the module does
  * nothing, as 3.2.0); any other value is one WARN and the module off since step 8e ({@link #isCommunicationSet}). A store
  * and a head office alike.
@@ -124,6 +127,11 @@ public final class NodeOwnership {
 	 * office's own key is headoffice.storeorders.post.
 	 */
 	public static final String STORE_ORDERS_ENABLED_KEY = "storeorders.enabled";
+	/**
+	 * 3.4.0: a store that writes its event log, "Journal des événements" (true) or not (false, the default, stated in the
+	 * store type file). Version 1 of the module: never true on a head office (docs/modules/event-log.md).
+	 */
+	public static final String EVENT_LOG_KEY = "eventlog.enabled";
 	/** 3.3.0: the communication module is on (true) or off (false, absent or blank: the default). */
 	public static final String COMMUNICATION_KEY = "communication.enabled";
 
@@ -373,6 +381,22 @@ public final class NodeOwnership {
 	}
 
 	/**
+	 * 3.4.0: true on a store with eventlog.enabled=true, the event log is written. Throws like the startup on a value
+	 * other than true or false, and on true on a head office (version 1 of the module: the events stay in the store).
+	 */
+	public static boolean isEventLogSet(PropertyResolver env) {
+		if (!strictBoolean(env, EVENT_LOG_KEY, "true (this store writes its event log) or false (no event log)")) {
+			return false;
+		}
+		if (nodeTypeOf(env) == NodeType.HEAD_OFFICE) {
+			throw new IllegalStateException("Invalid value '" + env.getProperty(EVENT_LOG_KEY) + "' for property "
+					+ EVENT_LOG_KEY + ": a head office writes no event log yet (the events stay in each store). Remove the"
+					+ " line.");
+		}
+		return true;
+	}
+
+	/**
 	 * A key read as true or false, trimmed and case-insensitive: false when absent. Any other value (blank included)
 	 * throws {@link IllegalStateException} naming the key and the two meanings.
 	 */
@@ -611,6 +635,7 @@ public final class NodeOwnership {
 		checkHeadOfficeLink(env, headOffice);
 		isRfidSet(env);
 		isWarrantySet(env);
+		isEventLogSet(env);
 		isCommunicationSet(env);
 		if (headOffice) {
 			checkWholeSeconds(env, OFFLINE_AFTER_KEY);

@@ -224,4 +224,10 @@ public class AppConfigDTO {
 	 * "Commandes centrale" and the /store-order API exist. False everywhere else; read as false when missing.
 	 */
 	private boolean storeOrdersEnabled;
+
+	/**
+	 * 3.4.0: true on a store with eventlog.enabled=true (the event log is written); false everywhere else, a head office
+	 * included. Read as false by the frontend when missing (an older backend).
+	 */
+	private boolean eventLogEnabled;
 }

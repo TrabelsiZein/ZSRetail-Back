@@ -58,6 +58,9 @@ public class ApplicationModeService {
 	/** 3.3.0: a store with storeorders.enabled=true, its orders to the head office (NodeOwnership.isStoreOrdersEnabledSet). */
 	private boolean storeOrdersEnabled;
 
+	/** 3.4.0: a store with eventlog.enabled=true (NodeOwnership.isEventLogSet); false on a head office. */
+	private boolean eventLogEnabled;
+
 	/** 3.1.1: a head office with headoffice.storeorders.post=ERP (NodeOwnership.isStoreOrdersByErpSet); false on a store. */
 	private boolean storeOrdersByErp;
 
@@ -88,6 +91,7 @@ public class ApplicationModeService {
 		supplyNone = NodeOwnership.isSupplyNoneSet(environment);
 		rfidEnabled = NodeOwnership.isRfidSet(environment);
 		warrantyEnabled = NodeOwnership.isWarrantySet(environment);
+		eventLogEnabled = NodeOwnership.isEventLogSet(environment);
 		storeOrdersEnabled = NodeOwnership.isStoreOrdersEnabledSet(environment); // after the ownership: it reads the supply
 		storeOrdersByErp = NodeOwnership.isStoreOrdersByErpSet(environment);
 		storeOrders = NodeOwnership.isStoreOrdersSet(environment);
@@ -137,6 +141,11 @@ public class ApplicationModeService {
 	 */
 	public boolean isStoreOrdersEnabled() {
 		return storeOrdersEnabled;
+	}
+
+	/** 3.4.0: true on a store with eventlog.enabled=true, the event log is written (EventLog). */
+	public boolean isEventLogEnabled() {
+		return eventLogEnabled;
 	}
 
 	/** 3.3.0: communication.enabled=true. */

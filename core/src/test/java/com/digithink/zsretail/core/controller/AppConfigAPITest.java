@@ -60,12 +60,13 @@ class AppConfigAPITest {
 	 * its Catégories and Sections pages (itemCategories, itemSections); then step B's till actions registry (tillActions);
 	 * then 3.1.1 store orders (storeOrdersPost), the POS screen's catalogue shown when it opens (posCatalogueVisible) and
 	 * the head office's points de stock (headOfficeStockPoints); then 3.3.0 the communication module (communication) and
-	 * the Warranties page (warrantyEnabled), then the store orders switch (storeOrdersEnabled). */
+	 * the Warranties page (warrantyEnabled), then the store orders switch (storeOrdersEnabled); then 3.4.0 the event log
+	 * (eventLogEnabled). */
 	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
 			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock", "supplySource",
 			"allowDecimalQuantity", "taxStampActive", "posAmountsThreeDecimals", "rfidEnabled", "cashierClosingTicket",
 			"navItems", "itemCategories", "itemSections", "tillActions", "storeOrdersPost", "posCatalogueVisible",
-			"headOfficeStockPoints", "communication", "warrantyEnabled", "storeOrdersEnabled");
+			"headOfficeStockPoints", "communication", "warrantyEnabled", "storeOrdersEnabled", "eventLogEnabled");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";
@@ -334,6 +335,7 @@ class AppConfigAPITest {
 		assertEquals("false", erp.get("rfidEnabled").toString()); // RFID step 2: no rfid.enabled line
 		assertEquals("false", erp.get("warrantyEnabled").toString()); // 3.3.0: no warranty.enabled line
 		assertEquals("false", erp.get("storeOrdersEnabled").toString()); // 3.3.0: no storeorders.enabled line
+		assertEquals("false", erp.get("eventLogEnabled").toString()); // 3.4.0: no eventlog.enabled line
 		assertEquals("false", erp.get("headOfficeStockPoints").toString()); // 3.1.1: a store (ErpAbilityBeansTest: every shape)
 	}
 
