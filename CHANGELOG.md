@@ -38,6 +38,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   group's numbers, one JDBC batch inserts it. 404 when off, 400 above 100 events, 503 when not stored.
 - Event log, step 5: two codes the till may send, `CART_LEFT_AT_LOGOUT` and `CART_LOST_ON_RELOAD` (both Notable); the
   gestures themselves are the front's (`ZSRetail-Front` CHANGELOG).
+- Event log, step 5b: `PROMO_CODE_ADDED`, `PROMO_CODE_REMOVED` and `CART_CUSTOMER_CHANGED` (Notable), codes the till may
+  send.
 
 ### Enhancements
 - Event log: `LOGIN_REFUSED` is Notable; from the 5th refused login in a row on one login or from one address (a run

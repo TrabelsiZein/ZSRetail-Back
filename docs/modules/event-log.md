@@ -291,6 +291,8 @@ after the gesture: a scan, online or offline, waits for nothing.
 | `SESSION_TICKET_PRINTED` (Step) | `SessionDetailsModal.printReport` (X / Z of a session), the till's closing ticket | the session |
 | `CART_LEFT_AT_LOGOUT` (Notable, new) | every logout (`Navbar`, `UserDropdown`, `LicenseExpired`, `OpenSession`, after a closing) | lines, amount; the cart is not emptied (the gap kept for later) |
 | `CART_LOST_ON_RELOAD` (Notable, new) | `main.js`, when the app opens | lines, amount, started at; a pending ticket it came from stays pending |
+| `PROMO_CODE_ADDED` / `PROMO_CODE_REMOVED` (Notable, step 5b) | `applyPromoCode`, `removePromoCode` (`ItemSelection` and `Payment`) | the code, the cart's total before → after |
+| `CART_CUSTOMER_CHANGED` (Notable, step 5b) | the till when it finds the customer changed with lines in the cart (it prices them again), and `Payment.onCustomerChange` | old → new customer (names read in the background), the cart's total before → after |
 
 **The cart's ID** (`src/libs/till-cart.js`, localStorage `zsrCart`).
 
@@ -307,9 +309,12 @@ after the gesture: a scan, online or offline, waits for nothing.
 **The logout.** `tillLogout()`, first in every logout: `CART_LEFT_AT_LOGOUT` when the cart has lines, then
 `POST /logout` with the leaving user's token, read before it is removed, never waited for.
 
+**The customer (step 5b).** The till prices the cart again when it comes back from the customers page: the event takes
+the total then and again 2.5 s later, keeps the gesture's time, and reads the two names with a silent GET. The same
+change seen twice for one cart (the payment page, then the till) is told once.
+
 **Not logged (decided or for later).**
 
-- A promo code added or taken off, and a customer chosen, which reprices the cart.
 - The split payment of a table ticket: the server writes its `SALE_VALIDATED`.
 - The price passes of the cart (promotions worked out again), which are no gesture.
 

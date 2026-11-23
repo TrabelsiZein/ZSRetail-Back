@@ -24,6 +24,12 @@ public enum EventCode {
 	CART_LEFT_AT_LOGOUT(EventSubject.CART, NOTABLE),
 	/** Step 5, sent by the till when it opens again: a cart with lines lost with a page reload (scan + refresh). */
 	CART_LOST_ON_RELOAD(EventSubject.CART, NOTABLE),
+	/** Step 5b, sent by the till: a promo code added to the cart (the cart total before -> after). */
+	PROMO_CODE_ADDED(EventSubject.CART, NOTABLE),
+	/** Step 5b, sent by the till: a promo code taken off the cart. */
+	PROMO_CODE_REMOVED(EventSubject.CART, NOTABLE),
+	/** Step 5b, sent by the till: the cart's customer chosen or changed (old -> new, the total before -> after). */
+	CART_CUSTOMER_CHANGED(EventSubject.CART, NOTABLE),
 
 	// ── Tickets ──
 	PENDING_SAVED(EventSubject.TICKET, STEP),
@@ -129,7 +135,8 @@ public enum EventCode {
 	 */
 	public static final java.util.Set<EventCode> FROM_TILL = java.util.Collections.unmodifiableSet(java.util.EnumSet.of(
 			CART_LINE_ADDED, CART_QTY_RAISED, CART_QTY_LOWERED, CART_LINE_DELETED, CART_CLEARED, LINE_DISCOUNT,
-			CART_DISCOUNT, CART_LEFT_AT_LOGOUT, CART_LOST_ON_RELOAD, PENDING_TAKEN_BACK, RECEIPT_REPRINTED,
+			CART_DISCOUNT, CART_LEFT_AT_LOGOUT, CART_LOST_ON_RELOAD, PROMO_CODE_ADDED, PROMO_CODE_REMOVED,
+			CART_CUSTOMER_CHANGED, PENDING_TAKEN_BACK, RECEIPT_REPRINTED,
 			RETURN_VOUCHER_REPRINTED, TICKET_X_PRINTED,
 			TICKET_Z_PRINTED, SESSION_TICKET_PRINTED, EVENTLOG_EVENTS_DROPPED));
 
