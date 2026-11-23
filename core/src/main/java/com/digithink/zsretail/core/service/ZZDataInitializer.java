@@ -365,7 +365,8 @@ public class ZZDataInitializer {
 			"read:admin-headoffice-vendors", // step 7A: the head office as a warehouse (without an ERP)
 			"read:admin-headoffice-purchases",
 			"read:admin-headoffice-purchase-new",
-			"read:admin-headoffice-vendor-balance",
+			// 3.3.0: read:admin-headoffice-vendor-balance gone with the page Vendor balance (a role that has it keeps the
+			// row, nothing reads it; db/3.3.0/update.sql removes it)
 			"read:admin-headoffice-purchase-invoices",
 			"read:admin-headoffice-stock",
 			"read:admin-headoffice-stock-movements",
@@ -492,7 +493,7 @@ public class ZZDataInitializer {
 			"read:admin-sales-discounts", "read:admin-promotions", "read:admin-payment-methods",
 			"write:admin-payment-methods", "read:admin-general-setup", "read:admin-sales", "read:admin-returns",
 			"read:admin-statistics", "read:admin-purchases", "read:purchase-history", "read:purchase-new",
-			"write:purchase-new", "read:vendor-balance", "read:admin-purchase-invoices", "read:admin-warranty",
+			"write:purchase-new", "read:admin-purchase-invoices", "read:admin-warranty",
 			"write:admin-warranty", "read:admin-erp-jobs", "read:admin-erp-communications", "read:admin-invoices",
 			"read:admin-badge-scan-history", "read:admin-loyalty-members", "write:admin-loyalty-members",
 			"read:admin-loyalty-programs", "write:admin-loyalty-programs", "read:admin-loyalty-transactions",
@@ -512,7 +513,7 @@ public class ZZDataInitializer {
 					"read:admin-promotions", "read:admin-customers", "write:admin-customers", "delete:admin-customers",
 					"read:admin-vendors", "write:admin-vendors", "read:admin-sales", "read:admin-returns",
 					"read:admin-statistics", "read:admin-purchases", "read:purchase-history", "read:purchase-new",
-					"write:purchase-new", "read:vendor-balance", "read:admin-purchase-invoices", "read:admin-warranty",
+					"write:purchase-new", "read:admin-purchase-invoices", "read:admin-warranty",
 					"write:admin-warranty", "read:admin-badge-scan-history", "read:admin-loyalty-members",
 					"write:admin-loyalty-members", "read:admin-loyalty-programs", "write:admin-loyalty-programs",
 					"read:admin-loyalty-transactions", "read:admin-loyalty-member-functions",

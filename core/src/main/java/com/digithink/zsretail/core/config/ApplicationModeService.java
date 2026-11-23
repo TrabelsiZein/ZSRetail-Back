@@ -52,6 +52,9 @@ public class ApplicationModeService {
 	/** RFID step 2: a store with rfid.enabled=true (NodeOwnership.isRfidSet); false on a head office. */
 	private boolean rfidEnabled;
 
+	/** 3.3.0: a store with warranty.enabled=true (NodeOwnership.isWarrantySet); false on a head office. */
+	private boolean warrantyEnabled;
+
 	/** 3.1.1: a head office with headoffice.storeorders.post=ERP (NodeOwnership.isStoreOrdersByErpSet); false on a store. */
 	private boolean storeOrdersByErp;
 
@@ -81,6 +84,7 @@ public class ApplicationModeService {
 		supplyFromErpSource = NodeOwnership.isSupplyFromErpSourceSet(environment);
 		supplyNone = NodeOwnership.isSupplyNoneSet(environment);
 		rfidEnabled = NodeOwnership.isRfidSet(environment);
+		warrantyEnabled = NodeOwnership.isWarrantySet(environment);
 		storeOrdersByErp = NodeOwnership.isStoreOrdersByErpSet(environment);
 		storeOrders = NodeOwnership.isStoreOrdersSet(environment);
 		communicationEnabled = NodeOwnership.isCommunicationSet(environment);
@@ -116,6 +120,11 @@ public class ApplicationModeService {
 	/** RFID step 2: true on a store with rfid.enabled=true, the RFID beans exist (Installation.RFID). */
 	public boolean isRfidEnabled() {
 		return rfidEnabled;
+	}
+
+	/** 3.3.0: true on a store with warranty.enabled=true, the Warranties page and the /warranty API exist. */
+	public boolean isWarrantyEnabled() {
+		return warrantyEnabled;
 	}
 
 	/** 3.3.0: communication.enabled=true. */

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.SalesLine;
 import com.digithink.zsretail.store.model.Warranty;
@@ -24,6 +25,10 @@ import com.digithink.zsretail.store.service.WarrantyService;
 
 import lombok.extern.log4j.Log4j2;
 
+/**
+ * The Warranties page of a store: tickets' warranties registered by hand. 3.3.0: only on a store with
+ * warranty.enabled=true; otherwise every endpoint answers 404 {error} (the table and its rows stay).
+ */
 @RestController
 @RequestMapping("warranty")
 @Log4j2
@@ -32,11 +37,27 @@ public class WarrantyAPI {
 	@Autowired
 	private WarrantyService warrantyService;
 
+	@Autowired
+	private ApplicationModeService applicationModeService;
+
+	/** 3.3.0: the refusal of a store without warranty.enabled=true; null when the Warranties page exists. */
+	ResponseEntity<?> refusedWhenOff() {
+		if (applicationModeService.isWarrantyEnabled()) {
+			return null;
+		}
+		return ResponseEntity.status(HttpStatus.NOT_FOUND)
+				.body(Map.of("error", "Warranties are off on this store (warranty.enabled=true turns them on)."));
+	}
+
 	/**
 	 * Get ticket details by ticket number (for warranty registration). Returns sale and lines; optionally existing warranties for this ticket.
 	 */
 	@GetMapping("/ticket-details")
 	public ResponseEntity<?> getTicketDetails(@RequestParam String ticketNumber) {
+		ResponseEntity<?> off = refusedWhenOff();
+		if (off != null) {
+			return off;
+		}
 		try {
 			log.info("WarrantyAPI::getTicketDetails: ticketNumber={}", ticketNumber);
 			SalesHeader salesHeader = warrantyService.findSalesHeaderByTicketNumber(ticketNumber)
@@ -76,6 +97,10 @@ public class WarrantyAPI {
 	 */
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody Map<String, Object> body) {
+		ResponseEntity<?> off = refusedWhenOff();
+		if (off != null) {
+			return off;
+		}
 		try {
 			Long salesLineId = body.get("salesLineId") != null ? Long.valueOf(body.get("salesLineId").toString()) : null;
 			if (salesLineId == null) {
@@ -109,6 +134,10 @@ public class WarrantyAPI {
 	@GetMapping
 	public ResponseEntity<?> list(@RequestParam(required = false) String ticketNumber,
 			@RequestParam(required = false) String status) {
+		ResponseEntity<?> off = refusedWhenOff();
+		if (off != null) {
+			return off;
+		}
 		try {
 			List<Warranty> list = ticketNumber != null && !ticketNumber.trim().isEmpty()
 					? warrantyService.findByTicketNumber(ticketNumber.trim())
@@ -143,6 +172,10 @@ public class WarrantyAPI {
 
 	@GetMapping("/{id}")
 	public ResponseEntity<?> getById(@PathVariable Long id) {
+		ResponseEntity<?> off = refusedWhenOff();
+		if (off != null) {
+			return off;
+		}
 		return warrantyService.findById(id)
 				.map(ResponseEntity::ok)
 				.orElse(ResponseEntity.notFound().build());
@@ -153,6 +186,10 @@ public class WarrantyAPI {
 	 */
 	@PatchMapping("/{id}/use")
 	public ResponseEntity<?> markAsUsed(@PathVariable Long id) {
+		ResponseEntity<?> off = refusedWhenOff();
+		if (off != null) {
+			return off;
+		}
 		try {
 			Warranty w = warrantyService.markAsUsed(id);
 			return ResponseEntity.ok(w);

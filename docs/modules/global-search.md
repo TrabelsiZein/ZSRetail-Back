@@ -79,7 +79,6 @@ const searchProps = {
       "vendors": "Vendors",
       "purchaseHistory": "Purchase History",
       "newPurchase": "New Purchase",
-      "vendorBalance": "Vendor Balance",
       "purchaseInvoices": "Purchase Invoices",
       "ticketsHistory": "Tickets History",
       "invoices": "Invoices",

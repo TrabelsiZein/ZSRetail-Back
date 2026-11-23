@@ -29,6 +29,7 @@ repositories.
 machines of every store) · `cash-sessions` (3.1.0: the
 session tickets X and Z) · `store-orders` (3.1.1: the orders of a store to its head office, "Commandes centrale") ·
 `bulk-sale` (3.1.2: "vente en vrac", the item flag and the quick quantities; the till step to come) ·
+`warranties` (3.3.0: the optional Warranties page, `warranty.enabled`) ·
 `communication` (3.3.0: messages to loyalty members by WhatsApp, SMS and email; steps 1 to 8d) · `communication-setup`
 (3.3.0: the installer's guide: the switches, each channel's lines with an example, what to get from each provider, the
 real-test checklist, what the screens mean)

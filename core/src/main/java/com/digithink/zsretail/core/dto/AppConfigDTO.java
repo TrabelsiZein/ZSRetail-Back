@@ -212,4 +212,10 @@ public class AppConfigDTO {
 	 * ["SMS"]; empty when the module is off). Read as off by the frontend when missing (an older backend).
 	 */
 	private CommunicationConfigDTO communication;
+
+	/**
+	 * 3.3.0: true on a store with warranty.enabled=true (the Warranties page and the /warranty API exist); false
+	 * everywhere else, a head office included. Read as false by the frontend when missing (an older backend).
+	 */
+	private boolean warrantyEnabled;
 }

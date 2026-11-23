@@ -30,7 +30,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.dto.ProcessPurchaseRequestDTO;
 import com.digithink.zsretail.core.dto.SetPurchasePaidRequestDTO;
-import com.digithink.zsretail.core.dto.VendorBalanceSummaryDTO;
 import com.digithink.zsretail.core.model.PurchaseHeader;
 import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
@@ -108,26 +107,6 @@ public class PurchaseHeaderAPI extends _BaseController<PurchaseHeader, Long, Pur
 	public ResponseEntity<?> deleteById(@PathVariable Long id) {
 		ResponseEntity<?> refusal = refused(CatalogueEditGuard::purchase);
 		return refusal != null ? refusal : super.deleteById(id);
-	}
-
-	/**
-	 * Vendor balance / AP summary: per vendor total purchased, total paid, unpaid. Optional date range. Not available with an ERP.
-	 */
-	@GetMapping("/vendor-balance")
-	public ResponseEntity<?> getVendorBalance(
-			@RequestParam(required = false) String dateFrom,
-			@RequestParam(required = false) String dateTo) {
-		if (applicationModeService.isSupplyFromErp()) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body(createErrorResponse("Vendor balance report is not available with an ERP."));
-		}
-		try {
-			java.util.List<VendorBalanceSummaryDTO> list = service.getVendorBalanceSummary(dateFrom, dateTo);
-			return ResponseEntity.ok(list);
-		} catch (Exception e) {
-			log.error("PurchaseHeaderAPI::getVendorBalance:error: " + e.getMessage(), e);
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(createErrorResponse(getDetailedMessage(e)));
-		}
 	}
 
 	/**

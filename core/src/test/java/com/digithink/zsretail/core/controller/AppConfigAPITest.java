@@ -59,12 +59,13 @@ class AppConfigAPITest {
 	 * RFID step 2 (rfidEnabled); then 3.1.0 cashierClosingTicket and the NAV items page of item variants (navItems), then
 	 * its Catégories and Sections pages (itemCategories, itemSections); then step B's till actions registry (tillActions);
 	 * then 3.1.1 store orders (storeOrdersPost), the POS screen's catalogue shown when it opens (posCatalogueVisible) and
-	 * the head office's points de stock (headOfficeStockPoints); then 3.3.0 the communication module (communication). */
+	 * the head office's points de stock (headOfficeStockPoints); then 3.3.0 the communication module (communication) and
+	 * the Warranties page (warrantyEnabled). */
 	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
 			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock", "supplySource",
 			"allowDecimalQuantity", "taxStampActive", "posAmountsThreeDecimals", "rfidEnabled", "cashierClosingTicket",
 			"navItems", "itemCategories", "itemSections", "tillActions", "storeOrdersPost", "posCatalogueVisible",
-			"headOfficeStockPoints", "communication");
+			"headOfficeStockPoints", "communication", "warrantyEnabled");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";
@@ -331,6 +332,7 @@ class AppConfigAPITest {
 		assertEquals("true", erp.get("posCatalogueVisible").toString()); // 3.1.1: POS_CATALOGUE_VISIBLE, any case
 		assertFalse(new AppConfigDTO().isPosCatalogueVisible()); // the row absent (a head office): the ticket alone
 		assertEquals("false", erp.get("rfidEnabled").toString()); // RFID step 2: no rfid.enabled line
+		assertEquals("false", erp.get("warrantyEnabled").toString()); // 3.3.0: no warranty.enabled line
 		assertEquals("false", erp.get("headOfficeStockPoints").toString()); // 3.1.1: a store (ErpAbilityBeansTest: every shape)
 	}
 

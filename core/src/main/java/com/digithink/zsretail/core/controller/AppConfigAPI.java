@@ -186,7 +186,8 @@ public class AppConfigAPI {
 				applicationModeService.getStoreOrdersPost(), // 3.1.1: ERP, MANUAL or null (a store: always null)
 				"true".equalsIgnoreCase(generalSetupService.findValueByCode(POS_CATALOGUE_VISIBLE)), // 3.1.1
 				applicationModeService.isHeadOfficeStockPoints(), // 3.1.1: the points de stock pages and filters
-				communication() // 3.3.0, communication step 4
+				communication(), // 3.3.0, communication step 4
+				applicationModeService.isWarrantyEnabled() // 3.3.0: warranty.enabled
 		));
 	}
 

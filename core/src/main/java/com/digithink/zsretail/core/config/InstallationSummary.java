@@ -54,6 +54,9 @@ public class InstallationSummary {
 		if (NodeOwnership.isRfidSet(env)) {
 			line.add("RFID on");
 		}
+		if (NodeOwnership.isWarrantySet(env)) {
+			line.add("warranties on"); // 3.3.0: off says nothing, so the line stays as before
+		}
 		if (NodeOwnership.isCommunicationSet(env)) {
 			line.add("communication on"); // 3.3.0: off says nothing, so the line stays as in 3.2.0
 		}

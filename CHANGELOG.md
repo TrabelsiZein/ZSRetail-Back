@@ -9,6 +9,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 ### Before deployment
 - A database at 3.2.0: `db/3.3.0/update.sql`, then the 3.3.0 WAR (`AppVersionGuard`). The script stops, changing
   nothing, while APP_VERSION is not 3.2.0 or 3.3.0; it may run again. Same script on a store and a head office.
+- The Warranties page is off by default: a store that registers warranties needs `warranty.enabled=true` in its
+  file (the script prints "Warranties exist: add warranty.enabled=true to this store's file." when its `warranty`
+  table has rows). An installation already at 3.3.0 needs no script for this change: the new WARs and front suffice.
 
 ### Features
 - Communication module, step 1 (`docs/modules/communication.md`): the switch and the two tables, nothing else (no job,
@@ -155,6 +158,18 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Communication, step 8e: one WARN per refused template until it clears (not one per sale); a pause going on with a
   provider's wait of less than a minute logs at INFO, not a WARN every cycle. The 403 of the Communication API carries
   a code (COMM_FORBIDDEN). Removed: GET /communication/rules/{id} and /templates/{id} (never called).
+- The Warranties page is optional, off by default (`warranty.enabled`, a store only; `docs/modules/warranties.md`):
+  off, every `/warranty` endpoint answers 404 {error} and `GET /config` `warrantyEnabled` is false (the frontend shows
+  no menu entry, tile, search entry or Roles line); the `warranty` table and its rows stay. On: as 3.2.0. The startup
+  summary says "warranties on". The ADMIN and RESPONSIBLE roles keep their warranty permissions.
+
+### Removed
+- The page Vendor balance (store and head office), back end: `GET /purchase-header/vendor-balance`,
+  `VendorBalanceSummaryDTO`, `PurchaseHeaderRepository.getVendorBalanceSummary`, `PurchaseHeaderService`'s method; the
+  permissions `read:vendor-balance` (ADMIN and RESPONSIBLE of a new store, `AppRoleAPI`'s list) and
+  `read:admin-headoffice-vendor-balance` (head office ADMIN) are no longer given. ZS Retail handles no payments or
+  finance. Vendors, purchases (their paid amount included) and purchase invoices are unchanged. A role row left with one
+  of them is harmless (nothing reads it, the Roles page neither shows nor counts it); `update.sql` deletes it.
 
 ### Fixes
 - Communication, step 8d: the default WhatsApp API version is v26.0, the newest on Meta's versions page; step 8c had
@@ -178,6 +193,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `comm_message.send_ref` (varchar(40), our reference given to the provider as {messageId}). Step 8c:
   `comm_template.provider_language`, `provider_parameter_format`, `provider_problem`, `provider_problem_at`;
   `comm_campaign.provider_template`, `stop_reason`; `comm_message.provider_params` (nvarchar(max)), all nullable.
+  13) the permissions `read:vendor-balance` and `read:admin-headoffice-vendor-balance` deleted from
+  `app_role_permission` (every database); 14) a store whose `warranty` table has rows prints "Warranties exist: add
+  warranty.enabled=true to this store's file." (nothing changed). Both may run again.
 
 ### Config
 - `communication.enabled` (store and head office): `true` turns the module on; absent, empty or `false` (core's
@@ -211,6 +229,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `.connect-timeout-seconds` (10), `.read-timeout-seconds` (30), `.channel-codes`, `.retry-codes`, `.message-codes`,
   `.template-codes` (empty: Meta error codes added to a family); `communication.whatsapp.provider` accepts `meta`. No
   customer file names them.
+- `warranty.enabled` (a store only): `true` keeps the Warranties page; absent or `false` (the store type file says
+  `false`): off. Any other value stops the start, and `true` on a head office too (as `rfid.enabled`). Written `true`
+  in the dev, rehearsal and happyness-from-scratch store files (and the local ones); commented in
+  `configs/machine-model.properties`. No customer file names it.
 
 ## 3.2.0 — in progress (branch `release/3.2.0`)
 

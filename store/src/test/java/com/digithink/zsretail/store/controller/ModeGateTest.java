@@ -126,8 +126,6 @@ class ModeGateTest {
 		eachErp(mode -> () -> {
 			PurchaseHeaderAPI purchases = new PurchaseHeaderAPI();
 			set(purchases, PurchaseHeaderAPI.class, "applicationModeService", mode);
-			refused("vendor balance", purchases.getVendorBalance(null, null),
-					"Vendor balance report is not available with an ERP");
 			refused("purchase history", purchases.getHistory(0, 10, null, null, null, null, null),
 					"Purchase history is not available with an ERP");
 			refused("purchase details", purchases.getDetails(1L), "Purchase details are not available with an ERP");

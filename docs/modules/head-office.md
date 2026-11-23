@@ -256,12 +256,12 @@ Labels in `en`, `fr`, `ar` (`admin.catalogueNetwork.*`, `admin.holink.catalogue.
 ### Step 7A pages (frontend): head office warehouse
 Frontend commit 6208e7b, on `feature/ho-step-7a`. Head office without an ERP only.
 
-**Supply pages.** A menu group Supply holds seven twins of the store pages: Vendors, Purchase history, New purchase, Vendor balance, Purchase invoices, Stock report, Stock movements.
-- Routes `admin-headoffice-vendors`, `-purchases`, `-purchase-new`, `-vendor-balance`, `-purchase-invoices`, `-stock`, `-stock-movements`, under `/headoffice/supply/...`. The permission of each is `read:<route name>`. There are 32 head office permissions, the same list as `ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS`.
+**Supply pages.** A menu group Supply holds seven twins of the store pages: Vendors, Purchase history, New purchase, Vendor balance, Purchase invoices, Stock report, Stock movements (3.3.0: Vendor balance removed, its route and permission gone; six twins).
+- Routes `admin-headoffice-vendors`, `-purchases`, `-purchase-new`, `-vendor-balance`, `-purchase-invoices`, `-stock`, `-stock-movements`, under `/headoffice/supply/...`. The permission of each is `read:<route name>`. There are 32 head office permissions, the same list as `ZZDataInitializer.HEAD_OFFICE_ADMIN_PERMISSIONS` (3.3.0: `-vendor-balance` and its permission removed with the page).
 - Every route carries `meta.standaloneOnly`. The router guard sends them home when `/config` gives `standalone: false`, and the menu hides them then (`STANDALONE_ONLY`).
 - The later guard steps read `twinOf`, so the store's "without an ERP only" rule for purchases and vendors applies to the twins as well.
 
-**Links.** The pages link to each other by route name: vendors → vendor balance, and purchase history ↔ new purchase. All three targets have a twin, so no link falls back to the head office home.
+**Links.** The pages link to each other by route name: purchase history ↔ new purchase (3.3.0: the vendors → vendor balance link went with the page). Both targets have a twin, so no link falls back to the head office home.
 
 **Head office checks.** None of these pages needs a cashier session, a till or a location. The step 6 purchase-right check is off on a head office, so every write action is shown there.
 
@@ -1237,7 +1237,7 @@ A head office **without an ERP** buys from its suppliers and keeps its own stock
 - **No CATALOGUE change from stock or cost** (checked in step 7A): a purchase writes the item's last costs with `itemRepository.save` (no catalogue hook), the stock moves with the native updates of `ItemRepository` (no hook), a stock adjustment goes through `ItemService.adjustStock` (no item save) and a BL validation through `StockService` (task 7A.2). None records a change, so no store pulls the item again; the item copy carries no stock and no cost anyway. Only a save through `ItemService.save` records one: an edit on the Items page (whatever field changed, cost and minimum stock included) and an image upload (`ItemImageController`); the stores then pull that one item and write nothing (`unchanged`). Proved by `HeadOfficeWarehouseTest`.
 - The Items page sends the whole item, `stockQuantity` included (shown read-only there). Since step 7A `ItemAPI.update` keeps the stored stock, as it keeps the last costs: an edit made while the stock moves no longer writes back the quantity the page loaded (head office and store alike, `ItemStockAdjustmentTest.editKeepsStoredStock`).
 
-Page permissions, one per head office route (seeded on a head office ADMIN at each start; frontend routes `standaloneOnly`, twins of the store pages): `read:admin-headoffice-vendors`, `-purchases` (history), `-purchase-new`, `-vendor-balance`, `-purchase-invoices`, `-stock` (stock report), `-stock-movements` (32 head office permissions).
+Page permissions, one per head office route (seeded on a head office ADMIN at each start; frontend routes `standaloneOnly`, twins of the store pages): `read:admin-headoffice-vendors`, `-purchases` (history), `-purchase-new`, `-purchase-invoices`, `-stock` (stock report), `-stock-movements` (3.3.0: `-vendor-balance` removed with its page; a role that has it keeps the row, nothing reads it, and `db/3.3.0/update.sql` deletes it).
 
 ### Head office without stock (`headoffice.stock.enabled`, backend)
 A head office that is only a consolidation layer (Happyness: catalogue, BLs, supply prices and supply invoices; its stock lives elsewhere) keeps no stock and makes no purchases. Key `headoffice.stock.enabled` in the "What this installation is" block of `application-headoffice.properties`: `true` (default, the warehouse above) or `false`. Frontend: see "Head office without stock: the pages" below.
@@ -1290,7 +1290,7 @@ Frontend commit d5cb48e. Getter `appConfig/headOfficeKeepsStock`: `false` only o
 
 | Part | Without stock |
 |---|---|
-| Routes Vendors, Purchase history, New purchase, Vendor balance, Purchase invoices, Stock report, Stock movements | `meta.headOfficeStock: true` (`router/headoffice-routes.js`). Hidden from the menu, the small-screen menu and the search (`headOfficeMenu()`); a typed URL goes to the head office home (router guard, after the `withoutErp` step); the Roles page neither lists nor counts their permissions (`headOfficePermissionGroups()`; a role keeps them) |
+| Routes Vendors, Purchase history, New purchase, Purchase invoices, Stock report, Stock movements (Vendor balance until 3.2.0) | `meta.headOfficeStock: true` (`router/headoffice-routes.js`). Hidden from the menu, the small-screen menu and the search (`headOfficeMenu()`); a typed URL goes to the head office home (router guard, after the `withoutErp` step); the Roles page neither lists nor counts their permissions (`headOfficePermissionGroups()`; a role keeps them) |
 | Items page (`ItemManagement.vue`) | No stock and last direct cost columns (with the low stock badge), no "Adjust stock" action, no Stock card (stock, minimum stock) and no Purchase costs card. The cost price stays |
 | BL page (`Deliveries.vue`) | No head office stock column, no "above stock" warning or highlight, no `GET /item/{id}` when a line is added; the validation confirmation leaves out "the goods leave the head office stock" (`confirmValidateNoStock`) |
 | Network stock (`NetworkStock.vue`) | No head office column, the stores' columns stay; subtitle and "below zero" help speak of the stores only (`subtitleNoStock`, `belowZeroHelpNoStock`) |

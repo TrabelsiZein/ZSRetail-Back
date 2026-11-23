@@ -95,6 +95,11 @@ import com.digithink.zsretail.support.Installations;
  * <p>
  * 3.3.0, communication module step 8e: the three provider lines have no default any more
  * (communication.&lt;channel&gt;.provider empty instead of test): "keys 120", three values per configuration changed.
+ * <p>
+ * 3.3.0, the Warranties page optional: the record gained warranty.enabled (the store type file says false; the dev,
+ * rehearsal and happyness-from-scratch store files say true, to keep the page): "keys 121" and one line per
+ * configuration, true on those nine stores, false on the other stores, (none) on a head office; every other line
+ * unchanged.
  */
 class ConfigurationKeysProofTest {
 

@@ -1,5 +1,5 @@
 -- ============================================================
--- Version 3.3.0 (in progress) — communication module: comm_event, comm_message (step 1), comm_state (step 2), comm_template, comm_rule (step 3), comm_campaign (step 7), comm_channel_state (step 8a part 2), comm_message.send_ref (step 8b), WhatsApp columns (step 8c)
+-- Version 3.3.0 (in progress) — communication module: comm_event, comm_message (step 1), comm_state (step 2), comm_template, comm_rule (step 3), comm_campaign (step 7), comm_channel_state (step 8a part 2), comm_message.send_ref (step 8b), WhatsApp columns (step 8c), the Vendor balance permission removed and the warranties notice (13, 14)
 -- ============================================================
 -- Deployment order (a database at 3.2.0; CHANGELOG.md, 3.3.0, "Before deployment"):
 --   1) Bring the database to 3.2.0 first (db/3.2.0/update.sql). This script stops, without changing anything, while
@@ -12,7 +12,7 @@
 -- Re-runnable: each statement is guarded and changes nothing the second time. The tables are created in the form
 -- Hibernate gives them (the constraints and indexes named as in the entities), so the start finds them whole; on a
 -- database without them Hibernate would create them at the first start too. They stay empty while
--- communication.enabled is not true (docs/modules/communication.md). Steps 2, 3, 5, 7, 8a, 8a part 2, 8b and 8c added 1b and 3 to 12: run
+-- communication.enabled is not true (docs/modules/communication.md). Steps 2, 3, 5, 7, 8a, 8a part 2, 8b and 8c added 1b and 3 to 12, the Vendor balance and Warranties change 13 and 14: run
 -- the script again on a database that ran an earlier version of it.
 
 SET QUOTED_IDENTIFIER ON;
@@ -194,6 +194,22 @@ IF COL_LENGTH(N'comm_campaign', N'stop_reason') IS NULL
 	ALTER TABLE comm_campaign ADD stop_reason nvarchar(1000) NULL;
 IF COL_LENGTH(N'comm_message', N'provider_params') IS NULL
 	ALTER TABLE comm_message ADD provider_params nvarchar(max) NULL;
+GO
+
+-- 13) The page Vendor balance is gone (a store and a head office): its permission leaves the roles that have it. A row
+-- left behind is harmless (no page reads it, the Roles page neither shows nor counts it); this only tidies. Every
+-- database.
+IF OBJECT_ID(N'app_role_permission', N'U') IS NOT NULL
+	DELETE FROM app_role_permission
+	WHERE permission_key IN ('read:vendor-balance', 'read:admin-headoffice-vendor-balance');
+GO
+
+-- 14) The Warranties page is off by default since 3.3.0 (warranty.enabled, a store only): a store that has warranties
+-- keeps its page only with the line in its file. Nothing is changed (the table and its rows stay). A store only (it has
+-- the warranty table).
+IF OBJECT_ID(N'warranty', N'U') IS NOT NULL
+	IF EXISTS (SELECT 1 FROM warranty)
+		PRINT 'Warranties exist: add warranty.enabled=true to this store''s file.';
 GO
 
 UPDATE APP_VERSION SET version = '3.3.0';

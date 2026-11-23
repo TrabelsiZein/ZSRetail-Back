@@ -1,4 +1,4 @@
-keys 120
+keys 121
 == configs/customers/erp-prod.properties
 profiles=store
 app.upload.dir=C:/uploads/pos-images
@@ -120,6 +120,7 @@ spring.jpa.properties.hibernate.format_sql=true
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=false
 zsretail.machine-file.loaded=<repo>/configs/customers/erp-prod.properties
 == configs/customers/happyness-headoffice.properties
 profiles=headoffice
@@ -242,6 +243,7 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=headoffice
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=(none)
 zsretail.machine-file.loaded=<repo>/configs/customers/happyness-headoffice.properties
 == configs/customers/parafendri-store.properties
 profiles=store
@@ -364,6 +366,7 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=false
 zsretail.machine-file.loaded=<repo>/configs/customers/parafendri-store.properties
 == configs/customers/store-prod.properties
 profiles=store
@@ -486,6 +489,7 @@ spring.jpa.properties.hibernate.format_sql=true
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=false
 zsretail.machine-file.loaded=<repo>/configs/customers/store-prod.properties
 == configs/customers/zen-headoffice.properties
 profiles=headoffice
@@ -608,6 +612,7 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=headoffice
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=(none)
 zsretail.machine-file.loaded=<repo>/configs/customers/zen-headoffice.properties
 == configs/customers/zen-store.properties
 profiles=store
@@ -730,6 +735,7 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=false
 zsretail.machine-file.loaded=<repo>/configs/customers/zen-store.properties
 == configs/dev/headoffice-erp.properties
 profiles=headoffice
@@ -852,6 +858,7 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=headoffice
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=(none)
 zsretail.machine-file.loaded=<repo>/configs/dev/headoffice-erp.properties
 == configs/dev/headoffice.properties
 profiles=headoffice
@@ -974,6 +981,7 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=headoffice
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=(none)
 zsretail.machine-file.loaded=<repo>/configs/dev/headoffice.properties
 == configs/dev/store-a-erp.properties
 profiles=store
@@ -1096,6 +1104,7 @@ spring.jpa.properties.hibernate.format_sql=true
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=true
 zsretail.machine-file.loaded=<repo>/configs/dev/store-a-erp.properties
 == configs/dev/store-a.properties
 profiles=store
@@ -1218,6 +1227,7 @@ spring.jpa.properties.hibernate.format_sql=true
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=true
 zsretail.machine-file.loaded=<repo>/configs/dev/store-a.properties
 == configs/dev/store-b.properties
 profiles=store
@@ -1340,6 +1350,7 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=true
 zsretail.machine-file.loaded=<repo>/configs/dev/store-b.properties
 == configs/dev/store-c.properties
 profiles=store
@@ -1462,6 +1473,7 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=true
 zsretail.machine-file.loaded=<repo>/configs/dev/store-c.properties
 == configs/dev/store-test-nav.properties
 profiles=store
@@ -1584,6 +1596,7 @@ spring.jpa.properties.hibernate.format_sql=true
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=true
 zsretail.machine-file.loaded=<repo>/configs/dev/store-test-nav.properties
 == configs/happyness-from-scratch/headoffice.properties
 profiles=headoffice
@@ -1706,6 +1719,7 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=headoffice
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=(none)
 zsretail.machine-file.loaded=<repo>/configs/happyness-from-scratch/headoffice.properties
 == configs/happyness-from-scratch/store-1.properties
 profiles=store
@@ -1828,6 +1842,7 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=true
 zsretail.machine-file.loaded=<repo>/configs/happyness-from-scratch/store-1.properties
 == configs/happyness-from-scratch/store-2.properties
 profiles=store
@@ -1950,6 +1965,7 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=true
 zsretail.machine-file.loaded=<repo>/configs/happyness-from-scratch/store-2.properties
 == configs/rehearsal/headoffice.properties
 profiles=headoffice
@@ -2072,6 +2088,7 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=headoffice
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=(none)
 zsretail.machine-file.loaded=<repo>/configs/rehearsal/headoffice.properties
 == configs/rehearsal/store-1.properties
 profiles=store
@@ -2194,6 +2211,7 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=true
 zsretail.machine-file.loaded=<repo>/configs/rehearsal/store-1.properties
 == configs/rehearsal/store-2.properties
 profiles=store
@@ -2316,6 +2334,7 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=true
 zsretail.machine-file.loaded=<repo>/configs/rehearsal/store-2.properties
 == no outside file, store
 profiles=store
@@ -2438,6 +2457,7 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=store
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=false
 zsretail.machine-file.loaded=(none)
 == no outside file, headoffice
 profiles=headoffice
@@ -2560,4 +2580,5 @@ spring.jpa.properties.hibernate.format_sql=(none)
 spring.profiles.active=headoffice
 spring.servlet.multipart.max-file-size=20MB
 spring.servlet.multipart.max-request-size=20MB
+warranty.enabled=(none)
 zsretail.machine-file.loaded=(none)

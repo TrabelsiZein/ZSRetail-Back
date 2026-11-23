@@ -69,6 +69,9 @@ import com.digithink.zsretail.erp.api.ErpAbility;
  * RFID (RFID step 2): {@code rfid.enabled}, true or false (false when absent); any other value stops the startup, and
  * true on a head office too ({@link #isRfidSet}).
  * <p>
+ * Warranties (3.3.0): {@code warranty.enabled}, the Warranties page of a store, as rfid.enabled: true or false (false
+ * when absent); any other value stops the startup, and true on a head office too ({@link #isWarrantySet}).
+ * <p>
  * Communication (3.3.0, step 1): {@code communication.enabled}, true or false; absent or blank is false (the module does
  * nothing, as 3.2.0); any other value is one WARN and the module off since step 8e ({@link #isCommunicationSet}). A store
  * and a head office alike.
@@ -106,6 +109,11 @@ public final class NodeOwnership {
 	 * true on a head office.
 	 */
 	static final String RFID_KEY = "rfid.enabled";
+	/**
+	 * 3.3.0: a store that registers warranties, the Warranties page and the /warranty API (true) or not (false, the
+	 * default, stated in the store type file). Never true on a head office.
+	 */
+	static final String WARRANTY_KEY = "warranty.enabled";
 	/** 3.3.0: the communication module is on (true) or off (false, absent or blank: the default). */
 	public static final String COMMUNICATION_KEY = "communication.enabled";
 
@@ -293,6 +301,41 @@ public final class NodeOwnership {
 		}
 		throw new IllegalStateException("Invalid value '" + raw + "' for property " + RFID_KEY
 				+ ": true (this store reads RFID tags) or false (no RFID)");
+	}
+
+	/**
+	 * 3.3.0: true on a store with warranty.enabled=true, the Warranties page and the /warranty API exist. Throws like the
+	 * startup on a value other than true or false, and on true on a head office (as rfid.enabled).
+	 */
+	public static boolean isWarrantySet(PropertyResolver env) {
+		if (!warrantyEnabled(env)) {
+			return false;
+		}
+		if (nodeTypeOf(env) == NodeType.HEAD_OFFICE) {
+			throw new IllegalStateException("Invalid value '" + env.getProperty(WARRANTY_KEY) + "' for property "
+					+ WARRANTY_KEY + ": a head office registers no warranties (they belong to a store). Remove the line.");
+		}
+		return true;
+	}
+
+	/**
+	 * warranty.enabled, trimmed and case-insensitive: false when absent. Any value other than true or false (blank
+	 * included) throws {@link IllegalStateException} naming the key.
+	 */
+	private static boolean warrantyEnabled(PropertyResolver env) {
+		if (!env.containsProperty(WARRANTY_KEY)) {
+			return false;
+		}
+		String raw = env.getProperty(WARRANTY_KEY);
+		String value = raw == null ? "" : raw.trim();
+		if ("true".equalsIgnoreCase(value)) {
+			return true;
+		}
+		if ("false".equalsIgnoreCase(value)) {
+			return false;
+		}
+		throw new IllegalStateException("Invalid value '" + raw + "' for property " + WARRANTY_KEY
+				+ ": true (this store registers warranties) or false (no Warranties page)");
 	}
 
 	/**
@@ -514,6 +557,7 @@ public final class NodeOwnership {
 		boolean headOffice = nodeType == NodeType.HEAD_OFFICE;
 		checkHeadOfficeLink(env, headOffice);
 		isRfidSet(env);
+		isWarrantySet(env);
 		isCommunicationSet(env);
 		if (headOffice) {
 			checkWholeSeconds(env, OFFLINE_AFTER_KEY);

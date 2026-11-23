@@ -163,7 +163,7 @@ class HeadOfficeStockKeyTest {
 			+ " any method; every other path goes on")
 	void filterPaths() throws Exception {
 		String[][] refused = { { "GET", "/purchase-header" }, { "POST", "/purchase-header" },
-				{ "GET", "/purchase-header/history" }, { "GET", "/purchase-header/vendor-balance" },
+				{ "GET", "/purchase-header/history" },
 				{ "POST", "/purchase-header/process-purchase" }, { "PUT", "/purchase-header/7" },
 				{ "DELETE", "/purchase-header/7" }, { "PATCH", "/purchase-header/7/set-paid" }, { "GET", "/vendor" },
 				{ "GET", "/vendor/" }, { "GET", "/vendor/3" }, { "GET", "/vendor/admin/paginated" }, { "POST", "/vendor" },

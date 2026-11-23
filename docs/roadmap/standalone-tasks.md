@@ -23,7 +23,7 @@ This plan breaks down standalone-version needs into small, actionable tasks. Ord
 |---|------|------|
 | 2.1 | **Purchase → stock** | Covered in 1.3. |
 | 2.2 | **Paid status on purchase** – Add optional `paidAmount` and/or `paidDate` (or status “Paid”/“Unpaid”) on PurchaseHeader. | Backend: entity + migration/ddl, API to set paid. |
-| 2.3 | **Vendor balance / AP summary** – Simple report or screen: per vendor, total purchased (and optionally total paid, unpaid). | Backend: query; Frontend: simple table or report page. |
+| 2.3 | **Vendor balance / AP summary** (removed in 3.3.0: ZS Retail handles no payments or finance) – Simple report or screen: per vendor, total purchased (and optionally total paid, unpaid). | Backend: query; Frontend: simple table or report page. |
 | 2.4 | **Purchase report by period** – List or export purchases in a date range (e.g. CSV). | Backend: endpoint; Frontend: filters + export button. |
 
 ---
@@ -142,7 +142,7 @@ This plan breaks down standalone-version needs into small, actionable tasks. Ord
 
 4. **Purchasing**
    - 2.2 Paid status  
-   - 2.3 Vendor balance  
+   - 2.3 Vendor balance (removed in 3.3.0)  
    - 2.4 Purchase report
 
 5. **Cleanup & hardening**
