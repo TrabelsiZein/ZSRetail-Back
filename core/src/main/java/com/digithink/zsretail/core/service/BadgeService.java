@@ -48,6 +48,10 @@ public class BadgeService {
 	@Autowired
 	private CashierSessionRepository cashierSessionRepository;
 
+	/** 3.4.0, event log step 3: TILL_RIGHT_USED (badge passes only) and TILL_RIGHT_REFUSED (a scan refused). */
+	@Autowired(required = false)
+	private com.digithink.zsretail.core.eventlog.service.AccessEvents accessEvents;
+
 	/**
 	 * Find user by badge code
 	 * Validates expiration and revocation
@@ -216,6 +220,7 @@ public class BadgeService {
 		} catch (Exception e) {
 			log.error("Error logging a till pass ({}): {}", grantedBy, e.getMessage(), e);
 		}
+		if (accessEvents != null && grantedBy == GrantedBy.BADGE) accessEvents.badgeUsed(actor, owner, action, sessionId); // 3.4.0
 	}
 
 	/**
@@ -345,6 +350,10 @@ public class BadgeService {
 			badgeScanLogRepository.save(log);
 		} catch (Exception e) {
 			log.error("Error logging badge scan: {}", e.getMessage(), e);
+		}
+		if (accessEvents != null) { // 3.4.0, event log: a scan's pass (the customer list) or its refusal
+			if (result.isSuccess()) accessEvents.badgeUsed(scannedBy, result.getScannedUser(), result.getPermission(), sessionId);
+			else accessEvents.badgeRefused(scannedBy, result.getScannedUser(), result.getPermission(), result.getFailureReason(), sessionId);
 		}
 	}
 

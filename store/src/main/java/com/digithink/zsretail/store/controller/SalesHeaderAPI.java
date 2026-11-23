@@ -41,6 +41,10 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 	/** 3.1.2: the right to see the unit costs of the ticket lines (the admin ticket detail). */
 	public static final String MARGINS_PERMISSION = "read:admin-margins";
 
+	/** 3.4.0, event log step 3: a request refused 403 TILL_RIGHT_REQUIRED writes TILL_RIGHT_REFUSED. */
+	@Autowired(required = false)
+	private com.digithink.zsretail.store.eventlog.TillEvents tillEvents;
+
 	@Autowired
 	private CurrentUserProvider currentUserProvider;
 
@@ -167,6 +171,7 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 
 		} catch (TillRightRequiredException e) {
 			log.warn("SalesHeaderAPI::processSale:till right required: " + e.getMessage());
+			if (tillEvents != null) tillEvents.tillRightRefused(e, "Vente");
 			return e.response();
 		} catch (IllegalArgumentException e) {
 			log.error("SalesHeaderAPI::processSale:validation error: " + e.getMessage(), e);
@@ -224,6 +229,7 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 
 		} catch (TillRightRequiredException e) {
 			log.warn("SalesHeaderAPI::savePendingSale:till right required: " + e.getMessage());
+			if (tillEvents != null) tillEvents.tillRightRefused(e, "Mise en attente");
 			return e.response();
 		} catch (IllegalArgumentException e) {
 			log.error("SalesHeaderAPI::savePendingSale:validation error: " + e.getMessage(), e);
@@ -401,6 +407,7 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			return ResponseEntity.ok(updatedSale);
 		} catch (TillRightRequiredException e) {
 			log.warn("SalesHeaderAPI::updatePendingSale:till right required: " + e.getMessage());
+			if (tillEvents != null) tillEvents.tillRightRefused(e, "Ticket en attente mis à jour");
 			return e.response();
 		} catch (IllegalStateException e) {
 			log.warn("SalesHeaderAPI::updatePendingSale:conflict: " + e.getMessage());
@@ -477,6 +484,7 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 
 		} catch (TillRightRequiredException e) {
 			log.warn("SalesHeaderAPI::completePendingSale:till right required: " + e.getMessage());
+			if (tillEvents != null) tillEvents.tillRightRefused(e, "Ticket en attente encaissé");
 			return e.response();
 		} catch (IllegalArgumentException e) {
 			log.error("SalesHeaderAPI::completePendingSale:validation error: " + e.getMessage(), e);

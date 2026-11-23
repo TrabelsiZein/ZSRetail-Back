@@ -5,6 +5,7 @@ import java.security.Principal;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
@@ -18,6 +19,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.eventlog.service.AccessEvents;
 
 @Configuration
 @Order(1)
@@ -37,6 +39,11 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 	@Autowired
 	private ApplicationModeService applicationModeService;
 
+	/** 3.4.0, event log step 3: the login events. Lazy: resolved at the first login, never a cycle at the start. */
+	@Autowired
+	@Lazy
+	private AccessEvents accessEvents;
+
 	@Autowired
 	@Override
 	protected void configure(AuthenticationManagerBuilder auth) throws Exception {
@@ -45,7 +52,9 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
 	@Override
 	protected void configure(HttpSecurity http) throws Exception {
-		http.csrf().disable().headers().frameOptions().sameOrigin().and().sessionManagement()
+		// 3.4.0, event log step 3: no default LogoutFilter (it answered /logout with a redirect): POST /logout is
+		// LogoutAPI, which writes the LOGOUT event
+		http.csrf().disable().logout().disable().headers().frameOptions().sameOrigin().and().sessionManagement()
 				.sessionCreationPolicy(SessionCreationPolicy.STATELESS).and().authorizeRequests()
 				.antMatchers("/sse-endpoint/**", "/login/**", "/config", "/company-info",
 						"/license/**",
@@ -54,7 +63,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 						// Image serving is public (browser loads directly, no auth header)
 						"/item-image/**")
 				.permitAll().anyRequest().authenticated().and()
-				.addFilter(new JWTAuthenticationFilter(authenticationManagerBean(), applicationModeService))
+				.addFilter(new JWTAuthenticationFilter(authenticationManagerBean(), applicationModeService, accessEvents))
 				.addFilterBefore(new JWTAuthorizationFilter(), UsernamePasswordAuthenticationFilter.class);
 
 		// License filter runs after JWT auth so we have the authenticated user context when needed

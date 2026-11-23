@@ -85,6 +85,8 @@ class TillRightsEndToEndTest {
 	private final Map<Long, CashierSession> openSessions = new HashMap<>(); // by user id
 	private UserAccount logged;
 	private MockMvc mvc;
+	/** 3.4.0, event log step 3: the events of the badge and of the refused requests. */
+	private final com.digithink.zsretail.core.support.InMemoryEventLog events = new com.digithink.zsretail.core.support.InMemoryEventLog();
 
 	private final AppRole adminRole = role("ADMIN", BadgePermission.values());
 	private final UserAccount admin = user(1, "admin", adminRole);
@@ -224,6 +226,17 @@ class TillRightsEndToEndTest {
 		CashierSessionAPI sessionAPI = new CashierSessionAPI();
 		set(sessionAPI, _BaseController.class, "service", sessions);
 		set(sessionAPI, CashierSessionAPI.class, "currentUserProvider", currentUser);
+
+		// 3.4.0, event log step 3: the real AccessEvents and TillEvents over the in-memory event log
+		com.digithink.zsretail.core.eventlog.service.AccessEvents access = new com.digithink.zsretail.core.eventlog.service.AccessEvents(
+				events.eventLog(), login -> null);
+		com.digithink.zsretail.store.eventlog.TillEvents till = new com.digithink.zsretail.store.eventlog.TillEvents(
+				events.eventLog());
+		set(badgeService, BadgeService.class, "accessEvents", access);
+		set(badgeAPI, BadgeAPI.class, "accessEvents", access);
+		set(salesAPI, SalesHeaderAPI.class, "tillEvents", till);
+		set(returnAPI, ReturnHeaderAPI.class, "tillEvents", till);
+		set(sessionAPI, CashierSessionAPI.class, "tillEvents", till);
 
 		mvc = MockMvcBuilders.standaloneSetup(badgeAPI, salesAPI, returnAPI, sessionAPI).build();
 	}
@@ -502,6 +515,76 @@ class TillRightsEndToEndTest {
 		assertEquals(200, send("/badge/pass", pass).getStatus());
 		assertEquals(GrantedBy.ROLE, lastRow().getGrantedBy());
 		assertEquals(7L, lastRow().getSessionId());
+	}
+
+	@Test
+	@DisplayName("3.4.0, event log step 3: a badge pass writes TILL_RIGHT_USED (never a role pass), a scan refused and a"
+			+ " request refused 403 write TILL_RIGHT_REFUSED with the case and why; no badge code in any column")
+	void events() throws Exception {
+		logged = cashier;
+		cashier.setFullName("Amine K.");
+		responsible.setFullName("Sarra B.");
+		events.logged(cashier);
+
+		// A scan refused: an unknown badge (its code is never written)
+		Map<String, Object> unknown = new HashMap<>();
+		unknown.put("badgeCode", "SECRET-4242");
+		unknown.put("permission", LINE.name());
+		assertEquals(400, send("/badge/scan", unknown).getStatus());
+		com.digithink.zsretail.core.eventlog.model.EventLogEntry scanRefused = events.only("TILL_RIGHT_REFUSED");
+		assertEquals("Badge refusé au scan pour « Appliquer une remise sur la ligne » : badge inconnu.",
+				scanRefused.getDetails());
+		assertEquals("BADGE_NOT_EXISTS", scanRefused.getNewValue());
+		assertEquals("cashier", scanRefused.getUserLogin());
+		assertEquals(30, scanRefused.getImportance());
+
+		// A badge pass: the grant used by the sale
+		String grant = scan(responsible, LINE);
+		assertEquals(1, events.rows.size(), "the scan of a checked action writes nothing until a request uses it");
+		assertEquals(200, request(LINE, grant).getStatus());
+		com.digithink.zsretail.core.eventlog.model.EventLogEntry used = events.only("TILL_RIGHT_USED");
+		assertEquals("APPLY_LINE_DISCOUNT", used.getSubjectId());
+		assertEquals("responsible", used.getAuthorisedByLogin());
+		assertEquals("cashier", used.getUserLogin());
+		assertEquals(Long.valueOf(7), used.getSessionId());
+		assertEquals("Droit « Appliquer une remise sur la ligne » ouvert par le badge de Sarra B., pour Amine K.",
+				used.getDetails());
+
+		// The same grant again: the request refused 403, its event says why, nobody authorised it
+		assertRefused(request(LINE, grant), LINE, "GRANT_USED");
+		com.digithink.zsretail.core.eventlog.model.EventLogEntry refused = events.rows.get(events.rows.size() - 1);
+		assertEquals("TILL_RIGHT_REFUSED", refused.getCode());
+		assertEquals("GRANT_USED", refused.getNewValue());
+		assertEquals("Refusé à la requête (Vente) : droit « Appliquer une remise sur la ligne » (ligne 1),"
+				+ " autorisation de badge déjà utilisée.", refused.getDetails());
+		assertNull(refused.getAuthorisedById());
+		assertEquals("cashier", refused.getUserLogin());
+
+		// The customer list: its scan is the pass
+		scan(responsible, CUSTOMERS);
+		assertEquals(2, events.codes().stream().filter("TILL_RIGHT_USED"::equals).count());
+
+		// POST /badge/pass refused: the role lost the right
+		Map<String, Object> pass = new HashMap<>();
+		pass.put("action", RETURN.name());
+		assertEquals(403, send("/badge/pass", pass).getStatus());
+		com.digithink.zsretail.core.eventlog.model.EventLogEntry rolePass = events.rows.get(events.rows.size() - 1);
+		assertEquals("TILL_RIGHT_REFUSED", rolePass.getCode());
+		assertEquals("ROLE_WITHOUT_RIGHT", rolePass.getNewValue());
+
+		// A pass on the user's own role: badge_scan_log keeps it, the event log does not
+		int before = events.rows.size();
+		logged = admin;
+		assertEquals(200, request(LINE, null).getStatus());
+		assertEquals(GrantedBy.ROLE, lastRow().getGrantedBy());
+		assertEquals(before, events.rows.size());
+
+		for (com.digithink.zsretail.core.eventlog.model.EventLogEntry row : events.rows) {
+			for (String text : java.util.Arrays.asList(row.getSubjectId(), row.getSubjectLabel(), row.getOldValue(),
+					row.getNewValue(), row.getDetails())) {
+				assertTrue(text == null || !text.contains("SECRET-4242") && !text.contains("B-responsible"), text);
+			}
+		}
 	}
 
 	private static void set(Object target, Class<?> declaringClass, String fieldName, Object value) throws Exception {

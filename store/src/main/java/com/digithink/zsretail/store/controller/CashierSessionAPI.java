@@ -123,6 +123,10 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 				"The Sessions page needs the right \"Sessions et écarts de caisse\" (" + SESSIONS_PERMISSION + ")"));
 	}
 
+	/** 3.4.0, event log step 3: a request refused 403 TILL_RIGHT_REQUIRED writes TILL_RIGHT_REFUSED. */
+	@Autowired(required = false)
+	private com.digithink.zsretail.store.eventlog.TillEvents tillEvents;
+
 	@Autowired
 	private CurrentUserProvider currentUserProvider;
 
@@ -370,6 +374,7 @@ public class CashierSessionAPI extends _BaseController<CashierSession, Long, Cas
 			return ResponseEntity.ok(java.util.Map.of("session", closedSession, "sessionCloseTicket", ticketData));
 		} catch (TillRightRequiredException e) {
 			log.warn("CashierSessionAPI::closeSession:till right required: " + e.getMessage());
+			if (tillEvents != null) tillEvents.tillRightRefused(e, "Clôture de session");
 			return e.response();
 		} catch (CashDiscrepancyException e) {
 			log.warn("CashierSessionAPI::closeSession:cash discrepancy detected: " + e.getMessage());

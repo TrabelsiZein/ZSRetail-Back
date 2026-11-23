@@ -43,6 +43,10 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnHeaderService> {
 
+	/** 3.4.0, event log step 3: a request refused 403 TILL_RIGHT_REQUIRED writes TILL_RIGHT_REFUSED. */
+	@Autowired(required = false)
+	private com.digithink.zsretail.store.eventlog.TillEvents tillEvents;
+
 	@Autowired
 	private CurrentUserProvider currentUserProvider;
 
@@ -465,6 +469,7 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 
 		} catch (TillRightRequiredException e) {
 			log.warn("ReturnHeaderAPI::processReturn:till right required: " + e.getMessage());
+			if (tillEvents != null) tillEvents.tillRightRefused(e, "Retour");
 			return e.response();
 		} catch (IllegalArgumentException e) {
 			log.error("ReturnHeaderAPI::processReturn:validation error: " + e.getMessage(), e);

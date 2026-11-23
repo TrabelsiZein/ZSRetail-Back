@@ -118,6 +118,9 @@ list of its own (labels: i18n `pos.badge.permissions.<code lower case>`).
   (the server's, never the till's), success or the refusal reason.
 - A successful scan of an action checked on its request writes no row; its pass is logged when the request uses the
   grant (a scan whose action never happens leaves no pass). The customer list's scan is its pass.
+- 3.4.0, with the event log on (`docs/modules/event-log.md`, "Step 3"): each badge pass also writes `TILL_RIGHT_USED`,
+  and each refused scan, each request refused 403 `TILL_RIGHT_REQUIRED` and each refused `POST /badge/pass` writes
+  `TILL_RIGHT_REFUSED`. A pass on the role's own right writes no event. `badge_scan_log` is written as before.
 - The Badge scan history page (`read:admin-badge-scan-history`, else 403): flat rows (`BadgeScanLogDTO`, never a badge
   code), filters by badge code, user, action, success, `grantedBy` and dates; an "Accordé par" column; CSV export. The
   statistics (`/badge/scan-statistics`, the tiles Total / Accordés / Refusés / taux) count every row of the period, ROLE

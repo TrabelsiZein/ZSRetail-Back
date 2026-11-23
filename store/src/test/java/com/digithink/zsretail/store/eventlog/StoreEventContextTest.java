@@ -26,8 +26,8 @@ import com.digithink.zsretail.core.model.enumeration.BadgePermission;
 /**
  * 3.4.0, event log step 2: what a store's event finds by itself. The badge's owner from the grants the request used
  * (TillRightsGuard keeps them: TillRequestGrants), the first one, the others named; none outside a request or after a
- * pass by the user's own role. The user's open session and its number; the POS machine at the request's address, else
- * the session's. A value the caller gave is never replaced.
+ * pass by the user's own role. The user's open session and its number; the POS machine at the request's address (step 3:
+ * none from a PC that is no POS machine, never the session's). A value the caller gave is never replaced.
  */
 class StoreEventContextTest {
 
@@ -45,8 +45,8 @@ class StoreEventContextTest {
 	StoreEventContext context() {
 		return new StoreEventContext(id -> id.equals(9L) ? Optional.of(other) : id.equals(3L) ? Optional.of(open)
 				: Optional.empty(), userId -> userId.equals(7L) ? Optional.of(open) : Optional.empty(),
-				address -> "192.168.1.21".equals(address) ? Optional.of(till1) : Optional.empty(),
-				sessionId -> sessionId.equals(9L) ? Optional.of(till2) : Optional.empty());
+				address -> "192.168.1.21".equals(address) ? Optional.of(till1)
+						: "192.168.1.22".equals(address) ? Optional.of(till2) : Optional.empty());
 	}
 
 	@Test
@@ -95,14 +95,30 @@ class StoreEventContextTest {
 	}
 
 	@Test
-	@DisplayName("A session given (its number found); an address of no POS machine: the session's machine")
-	void givenSessionMachineOfTheSession() {
+	@DisplayName("Step 3: a session given (its number found); a PC of no POS machine (the back office): no machine, the"
+			+ " address kept (never the session's till)")
+	void givenSessionBackOfficeNoMachine() {
 		request("10.0.0.5"); // the back office's PC
 		log.contexts.add(context());
 		log.eventLog().write(NewEvent.of(EventCode.PAYMENT_CHANGED).session(9L, null));
 		EventLogEntry row = log.rows.get(0);
 		assertEquals(Long.valueOf(9), row.getSessionId());
 		assertEquals("SESSION261122004", row.getSessionNumber());
+		assertNull(row.getPosMachineId());
+		assertNull(row.getPosMachineName());
+		assertEquals("10.0.0.5", row.getClientAddress());
+	}
+
+	@Test
+	@DisplayName("Step 3: a refusal is never authorised by the grants the request used before it")
+	void refusalNotAuthorised() {
+		request("192.168.1.22");
+		TillRequestGrants.keep(grant(1L, "karim", "Karim", BadgePermission.APPLY_LINE_DISCOUNT));
+		log.contexts.add(context());
+		log.eventLog().writeNow(NewEvent.of(EventCode.TILL_RIGHT_REFUSED).details("Refusé."));
+		EventLogEntry row = log.only("TILL_RIGHT_REFUSED");
+		assertNull(row.getAuthorisedById());
+		assertEquals("Refusé.", row.getDetails());
 		assertEquals("Caisse 2", row.getPosMachineName());
 	}
 

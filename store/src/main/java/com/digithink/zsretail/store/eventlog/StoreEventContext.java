@@ -8,6 +8,7 @@ import java.util.function.Function;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import com.digithink.zsretail.core.eventlog.EventCode;
 import com.digithink.zsretail.core.eventlog.model.EventLogEntry;
 import com.digithink.zsretail.core.eventlog.service.EventLogContext;
 import com.digithink.zsretail.core.model.CashierSession;
@@ -23,9 +24,11 @@ import com.digithink.zsretail.store.posmachine.service.SessionPosMachineService;
  * <ul>
  * <li>At the gesture (memory only): the badge's owner, from the grants the request used (TillRequestGrants); more than one
  * owner: the first, the others named in the details.</li>
- * <li>In the event's own transaction: the session (the user's open session), its number, the POS machine (the one at the
- * request's address, else the session's) and its name.</li>
+ * <li>In the event's own transaction: the session (the user's open session), its number, the POS machine registered at
+ * the request's address and its name. Step 3: a request from a PC that is no registered POS machine (the back office)
+ * leaves the machine empty, its address kept (no more the session's till).</li>
  * </ul>
+ * A refusal (TILL_RIGHT_REFUSED) is never "authorised by": the grants the request used before it are not its own.
  */
 @Component
 public class StoreEventContext implements EventLogContext {
@@ -33,7 +36,6 @@ public class StoreEventContext implements EventLogContext {
 	private final Function<Long, Optional<CashierSession>> sessionById;
 	private final Function<Long, Optional<CashierSession>> openSessionOfUser;
 	private final Function<String, Optional<PosMachine>> machineAt;
-	private final Function<Long, Optional<PosMachine>> machineOfSession;
 
 	@Autowired
 	public StoreEventContext(CashierSessionRepository sessions, UserAccountRepository users,
@@ -41,22 +43,21 @@ public class StoreEventContext implements EventLogContext {
 		this(sessions::findById,
 				userId -> users.findById(userId)
 						.flatMap(user -> sessions.findByCashierAndStatus(user, SessionStatus.OPENED)),
-				sessionMachines::machineAt, sessionMachines::machineOf);
+				sessionMachines::machineAt);
 	}
 
 	/** With the lookups given: used by the tests. */
 	public StoreEventContext(Function<Long, Optional<CashierSession>> sessionById,
-			Function<Long, Optional<CashierSession>> openSessionOfUser, Function<String, Optional<PosMachine>> machineAt,
-			Function<Long, Optional<PosMachine>> machineOfSession) {
+			Function<Long, Optional<CashierSession>> openSessionOfUser, Function<String, Optional<PosMachine>> machineAt) {
 		this.sessionById = sessionById;
 		this.openSessionOfUser = openSessionOfUser;
 		this.machineAt = machineAt;
-		this.machineOfSession = machineOfSession;
 	}
 
 	@Override
 	public void atCall(EventLogEntry entry) {
-		if (entry.getAuthorisedById() != null || entry.getAuthorisedByLogin() != null) {
+		if (entry.getAuthorisedById() != null || entry.getAuthorisedByLogin() != null
+				|| EventCode.TILL_RIGHT_REFUSED.name().equals(entry.getCode())) {
 			return;
 		}
 		List<TillRequestGrants.Owner> used = TillRequestGrants.used();
@@ -91,13 +92,8 @@ public class StoreEventContext implements EventLogContext {
 		if (entry.getSessionId() != null && entry.getSessionNumber() == null) {
 			sessionById.apply(entry.getSessionId()).ifPresent(session -> entry.setSessionNumber(session.getSessionNumber()));
 		}
-		if (entry.getPosMachineId() == null && entry.getPosMachineName() == null) {
-			Optional<PosMachine> machine = entry.getClientAddress() == null ? Optional.empty()
-					: machineAt.apply(entry.getClientAddress());
-			if (!machine.isPresent() && entry.getSessionId() != null) {
-				machine = machineOfSession.apply(entry.getSessionId());
-			}
-			machine.ifPresent(found -> {
+		if (entry.getPosMachineId() == null && entry.getPosMachineName() == null && entry.getClientAddress() != null) {
+			machineAt.apply(entry.getClientAddress()).ifPresent(found -> {
 				entry.setPosMachineId(found.getId());
 				entry.setPosMachineName(found.getName());
 			});

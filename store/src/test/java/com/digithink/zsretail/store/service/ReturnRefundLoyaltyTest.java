@@ -236,7 +236,7 @@ class ReturnRefundLoyaltyTest {
 	void returnEvent() throws Exception {
 		com.digithink.zsretail.core.support.InMemoryEventLog log = new com.digithink.zsretail.core.support.InMemoryEventLog();
 		log.contexts.add(new com.digithink.zsretail.store.eventlog.StoreEventContext(id -> Optional.empty(),
-				id -> Optional.empty(), address -> Optional.empty(), id -> Optional.empty()));
+				id -> Optional.empty(), address -> Optional.empty()));
 		inject(returns, ReturnHeaderService.class, "tillEvents",
 				new com.digithink.zsretail.store.eventlog.TillEvents(log.eventLog()));
 		org.springframework.web.context.request.RequestContextHolder.setRequestAttributes(

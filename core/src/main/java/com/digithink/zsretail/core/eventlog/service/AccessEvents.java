@@ -1,0 +1,257 @@
+package com.digithink.zsretail.core.eventlog.service;
+
+import java.util.function.Function;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.AccountExpiredException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.CredentialsExpiredException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
+import org.springframework.stereotype.Component;
+
+import com.digithink.zsretail.core.eventlog.EventCode;
+import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.model.enumeration.BadgePermission;
+import com.digithink.zsretail.core.repository.UserAccountRepository;
+
+import lombok.extern.log4j.Log4j2;
+
+/**
+ * 3.4.0, event log step 3: the logins, the logout and the badge (docs/modules/event-log.md, "Step 3"). One call beside
+ * what already happens (the login filter, POST /logout, BadgeService's badge_scan_log rows, the store's 403
+ * TILL_RIGHT_REQUIRED). Each method says what happened in French, for a store manager, and never throws: a mistake here
+ * costs the event, never the login or the scan. Off, nothing is built and nothing is read.
+ * <ul>
+ * <li>A refused login names the user only when the login typed is an existing user's (his login as stored, never the
+ * text typed): a password typed in the login field never lands in the log. Otherwise the event says "Identifiant
+ * inconnu" and keeps the request's address.</li>
+ * <li>A badge's code is never written: the badge is named by its owner.</li>
+ * </ul>
+ */
+@Component
+@Log4j2
+public class AccessEvents {
+
+	/** What a refused login with a login that is nobody's shows in place of the text typed. */
+	public static final String UNKNOWN_LOGIN = "Identifiant inconnu";
+
+	private final EventLog eventLog;
+	private final Function<String, UserAccount> userByLogin;
+
+	@Autowired
+	public AccessEvents(EventLog eventLog, UserAccountRepository users) {
+		this(eventLog, login -> users.findByUsername(login).orElse(null));
+	}
+
+	/** With the lookup given: used by the tests. */
+	public AccessEvents(EventLog eventLog, Function<String, UserAccount> userByLogin) {
+		this.eventLog = eventLog;
+		this.userByLogin = userByLogin;
+	}
+
+	/** The module is on: a caller asks before reading something only the event needs. */
+	public boolean isOn() {
+		return eventLog.isOn();
+	}
+
+	// ─── Logins ──────────────────────────────────────────────────────
+
+	/** A login answered with a token. */
+	public void loginOk(UserAccount user, String address) {
+		run("LOGIN_OK", () -> eventLog.writeNow(NewEvent.of(EventCode.LOGIN_OK).subject(user.getId(), user.getUsername())
+				.user(user).from(address).details(sentence("Connexion de " + who(user) + role(user) + from(address)))));
+	}
+
+	/**
+	 * A login refused (wrong password, unknown login, account disabled). The login typed is looked up: an existing
+	 * user's login names him (as stored), anything else is "Identifiant inconnu"; the text typed is never kept.
+	 */
+	public void loginRefused(String typedLogin, Exception failure, String address) {
+		run("LOGIN_REFUSED", () -> {
+			UserAccount known = known(typedLogin);
+			NewEvent event = NewEvent.of(EventCode.LOGIN_REFUSED).from(address);
+			if (known == null) {
+				event.subject(null, UNKNOWN_LOGIN).user(null, null, null, null)
+						.details("Connexion refusée : identifiant inconnu" + from(address) + ".");
+			} else {
+				event.subject(known.getId(), known.getUsername()).user(known).details(
+						"Connexion refusée pour " + who(known) + " : " + reason(failure) + from(address) + ".");
+			}
+			eventLog.writeNow(event);
+		});
+	}
+
+	/** POST /logout: the logged user leaves (the token stays valid until it expires). */
+	public void logout(UserAccount user) {
+		run("LOGOUT", () -> eventLog.writeNow(NewEvent.of(EventCode.LOGOUT).subject(user.getId(), user.getUsername())
+				.user(user).details(sentence("Déconnexion de " + who(user)))));
+	}
+
+	// ─── Badges ──────────────────────────────────────────────────────
+
+	/**
+	 * A badge opened a till action (grantedBy BADGE): at the scan for the customer list, when the request uses the
+	 * scan's grant for the others. Written after the scan's or the request's transaction commits.
+	 */
+	public void badgeUsed(UserAccount scannedBy, UserAccount owner, BadgePermission action, Long sessionId) {
+		run("TILL_RIGHT_USED", () -> {
+			NewEvent event = NewEvent.of(EventCode.TILL_RIGHT_USED).subject(name(action), actionLabel(action))
+					.authorisedBy(owner).session(sessionId, null)
+					.details(sentence("Droit « " + actionLabel(action) + " » ouvert par le badge de " + who(owner)
+							+ (scannedBy != null ? ", pour " + who(scannedBy) : "")));
+			if (scannedBy != null) {
+				event.user(scannedBy);
+			}
+			eventLog.write(event);
+		});
+	}
+
+	/** A badge refused at the scan (unknown, revoked, expired, owner disabled, owner's role without the right). */
+	public void badgeRefused(UserAccount scannedBy, UserAccount owner, BadgePermission action, String failureReason,
+			Long sessionId) {
+		run("TILL_RIGHT_REFUSED", () -> {
+			NewEvent event = NewEvent.of(EventCode.TILL_RIGHT_REFUSED).subject(name(action), actionLabel(action))
+					.change(null, failureReason).session(sessionId, null)
+					.details("Badge refusé au scan pour « " + actionLabel(action) + " » : "
+							+ scanRefusal(failureReason, owner) + ".");
+			if (scannedBy != null) {
+				event.user(scannedBy);
+			}
+			eventLog.writeNow(event);
+		});
+	}
+
+	/**
+	 * POST /badge/pass refused (403 TILL_RIGHT_REQUIRED): the till believed the role held the right, the server says it
+	 * does not (the role changed since the login).
+	 */
+	public void rolePassRefused(UserAccount actor, BadgePermission action) {
+		run("TILL_RIGHT_REFUSED", () -> {
+			NewEvent event = NewEvent.of(EventCode.TILL_RIGHT_REFUSED).subject(name(action), actionLabel(action))
+					.change(null, "ROLE_WITHOUT_RIGHT")
+					.details("Refusé à la requête (passage sur le droit du rôle) : le rôle de "
+							+ (actor != null ? who(actor) : "l'utilisateur") + " n'a pas le droit « "
+							+ actionLabel(action) + " » (changé depuis la connexion). Un badge est demandé.");
+			if (actor != null) {
+				event.user(actor);
+			}
+			eventLog.writeNow(event);
+		});
+	}
+
+	// ─── Texts ───────────────────────────────────────────────────────
+
+	/** The till actions in French, as the till's badge popup names them. */
+	public static String actionLabel(BadgePermission action) {
+		if (action == null) {
+			return "—";
+		}
+		switch (action) {
+			case CONSULT_CUSTOMER_LIST:
+				return "Consulter la liste des clients";
+			case MAKE_RETURN:
+				return "Effectuer un retour";
+			case APPLY_LINE_DISCOUNT:
+				return "Appliquer une remise sur la ligne";
+			case APPLY_TOTAL_DISCOUNT:
+				return "Appliquer une remise sur le total";
+			case CLOSE_SESSION_WITH_DISCREPANCY:
+				return "Fermer la session avec écart";
+			case CASH_MOVEMENT:
+				return "Mouvement de caisse";
+			default:
+				return action.name();
+		}
+	}
+
+	/** The user's name as a person reads it: the full name, else the login. */
+	public static String who(UserAccount user) {
+		if (user == null) {
+			return "—";
+		}
+		return user.getFullName() != null && !user.getFullName().trim().isEmpty() ? user.getFullName().trim()
+				: user.getUsername();
+	}
+
+	private UserAccount known(String typedLogin) {
+		if (typedLogin == null || typedLogin.trim().isEmpty()) {
+			return null;
+		}
+		try {
+			return userByLogin.apply(typedLogin);
+		} catch (RuntimeException e) {
+			return null; // not read: the login is treated as unknown, its text never kept
+		}
+	}
+
+	static String reason(Exception failure) {
+		if (failure instanceof BadCredentialsException) {
+			return "mot de passe incorrect";
+		}
+		if (failure instanceof DisabledException) {
+			return "compte désactivé";
+		}
+		if (failure instanceof LockedException) {
+			return "compte verrouillé";
+		}
+		if (failure instanceof AccountExpiredException || failure instanceof CredentialsExpiredException) {
+			return "compte expiré";
+		}
+		return "erreur du serveur à la connexion (" + (failure != null ? failure.getClass().getSimpleName() : "—") + ")";
+	}
+
+	static String scanRefusal(String failureReason, UserAccount owner) {
+		String of = owner != null ? " de " + who(owner) : "";
+		if (failureReason == null) {
+			return "refusé";
+		}
+		switch (failureReason) {
+			case "BADGE_NOT_EXISTS":
+				return "badge inconnu";
+			case "BADGE_REVOKED":
+				return "badge" + of + " révoqué";
+			case "BADGE_EXPIRED":
+				return "badge" + of + " expiré";
+			case "BADGE_OWNER_INACTIVE":
+				return "badge" + of + ", compte désactivé";
+			case "BADGE_NO_ACCESS":
+				return "le rôle" + of + " n'a pas ce droit";
+			default:
+				return failureReason + of;
+		}
+	}
+
+	/** Ends the text with one period (a name may end with one: "Amine K."). */
+	static String sentence(String text) {
+		return text.endsWith(".") ? text : text + ".";
+	}
+
+	private static String role(UserAccount user) {
+		if (user.getAppRole() == null) {
+			return "";
+		}
+		String label = user.getAppRole().getLabel() != null ? user.getAppRole().getLabel() : user.getAppRole().getName();
+		return label != null ? " (" + label + ")" : "";
+	}
+
+	private static String from(String address) {
+		return address != null && !address.isEmpty() ? ", depuis " + address : "";
+	}
+
+	private static String name(BadgePermission action) {
+		return action != null ? action.name() : null;
+	}
+
+	/** Runs one event's making: nothing at all when the module is off; a mistake (a missing value) is one WARN. */
+	private void run(String what, Runnable making) {
+		try {
+			if (!eventLog.isOn()) {
+				return;
+			}
+			making.run();
+		} catch (RuntimeException e) {
+			log.warn("Event log: {} not made ({})", what, e.toString());
+		}
+	}
+}

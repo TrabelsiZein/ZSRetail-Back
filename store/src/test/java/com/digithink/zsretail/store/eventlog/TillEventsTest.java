@@ -220,6 +220,53 @@ class TillEventsTest {
 	}
 
 	@Test
+	@DisplayName("Step 3: a session opened while the drawer's previous one is not verified: SESSION_OPENED_PREVIOUS_UNVERIFIED"
+			+ " (Notable), previous → new session, the previous cashier named")
+	void openedPreviousUnverified() {
+		CashierSession previous = new CashierSession();
+		previous.setId(2L);
+		previous.setSessionNumber("SESSION261122003");
+		previous.setCashier(user(8L, "nour", "Nour S.", "POS_USER"));
+		events.sessionOpenedPreviousUnverified(session, previous);
+		EventLogEntry row = log.only("SESSION_OPENED_PREVIOUS_UNVERIFIED");
+		assertEquals(EventImportance.NOTABLE, row.getImportance());
+		assertEquals("SESSION", row.getSubjectType());
+		assertEquals("SESSION261122003", row.getOldValue());
+		assertEquals("SESSION261123001", row.getNewValue());
+		assertEquals(Long.valueOf(3), row.getSessionId());
+		assertEquals("Session SESSION261123001 ouverte alors que la session précédente du tiroir, SESSION261122003"
+				+ " (Nour S.), est clôturée mais pas encore vérifiée par un responsable.", row.getDetails());
+	}
+
+	@Test
+	@DisplayName("Step 3: a request refused 403 TILL_RIGHT_REQUIRED: TILL_RIGHT_REFUSED (Alert), the action, the gesture,"
+			+ " the line (from 1) and why")
+	void tillRightRefused() {
+		events.tillRightRefused(new com.digithink.zsretail.store.exception.TillRightRequiredException(
+				com.digithink.zsretail.core.model.enumeration.BadgePermission.MAKE_RETURN,
+				com.digithink.zsretail.store.exception.TillRightRequiredException.Reason.GRANT_EXPIRED, null), "Retour");
+		events.tillRightRefused(new com.digithink.zsretail.store.exception.TillRightRequiredException(
+				com.digithink.zsretail.core.model.enumeration.BadgePermission.APPLY_TOTAL_DISCOUNT,
+				com.digithink.zsretail.store.exception.TillRightRequiredException.Reason.NO_GRANT, null), "Mise en attente");
+		EventLogEntry expired = log.rows.get(0);
+		assertEquals("TILL_RIGHT_REFUSED", expired.getCode());
+		assertEquals(EventImportance.ALERT, expired.getImportance());
+		assertEquals("TILL_RIGHT", expired.getSubjectType());
+		assertEquals("MAKE_RETURN", expired.getSubjectId());
+		assertEquals("Effectuer un retour", expired.getSubjectLabel());
+		assertEquals("GRANT_EXPIRED", expired.getNewValue());
+		assertEquals("amira", expired.getUserLogin());
+		assertEquals("Refusé à la requête (Retour) : droit « Effectuer un retour », autorisation de badge expirée.",
+				expired.getDetails());
+		assertEquals("Refusé à la requête (Mise en attente) : droit « Appliquer une remise sur le total », le rôle n'a pas"
+				+ " ce droit et aucun badge n'accompagnait la requête.", log.rows.get(1).getDetails());
+		for (com.digithink.zsretail.store.exception.TillRightRequiredException.Reason reason
+				: com.digithink.zsretail.store.exception.TillRightRequiredException.Reason.values()) {
+			assertTrue(!TillEvents.reason(reason).equals(reason.name()), reason.name() + " has its French text");
+		}
+	}
+
+	@Test
 	@DisplayName("Off: nothing; a value missing (no ticket) costs the event, never the gesture")
 	void offAndMistakes() {
 		log.on = false;

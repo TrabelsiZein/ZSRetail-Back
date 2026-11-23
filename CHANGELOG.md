@@ -12,8 +12,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 
 ### Features
 - Event log ("Journal des événements"), step 1 (`docs/modules/event-log.md`): the switch, the tables, the catalogue
-  of events and the helper `EventLog`. Nothing calls it yet except the start (`EVENTLOG_STARTED`, an Alert, at each
-  start with the module on). Off, the application behaves as 3.3.0.
+  of events and the helper `EventLog`. Nothing calls it yet except the start (`EVENTLOG_STARTED`, Notable since step
+  2, at each start with the module on). Off, the application behaves as 3.3.0.
 - Event log, step 2: the server's till events, one call at the end of each gesture (`TillEvents`): `SALE_VALIDATED`
   (a sale, a pending ticket completed, the part of a table ticket paid apart), `PENDING_SAVED` (saved, saved again),
   `PENDING_DELETED`, `PAYMENT_CHANGED`, `RETURN_DONE`, `CASH_MOVEMENT`, `SESSION_OPENED` and `SESSION_OPENING_GAP`,
@@ -21,8 +21,19 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   Each has a French text for a store manager. The user, the badge's owner (the grants `TillRightsGuard` used in the
   request), the session and the POS machine are filled by themselves (`StoreEventContext`). Nothing changes for the
   gestures; off, nothing is made.
+- Event log, step 3: the badge and the logins (`AccessEvents`, core). `LOGIN_OK`; `LOGIN_REFUSED`, naming the user
+  only when the login typed is an existing user's, else "Identifiant inconnu" and the address (the text typed is never
+  written); `LOGOUT` through the new `POST /logout` (204, writes only the event); `TILL_RIGHT_USED` for a badge pass
+  (never a pass on the role's own right); `TILL_RIGHT_REFUSED` for a refused scan, a request refused 403
+  `TILL_RIGHT_REQUIRED` (sale, pending, return, close, cash movement) and a refused `POST /badge/pass`, the details
+  saying which case and why. `SESSION_OPENED_PREVIOUS_UNVERIFIED` (Notable): a session opened while its drawer's
+  previous one is not verified. A badge's code is never written; `badge_scan_log` is written as before.
 
 ### Enhancements
+- Event log: a request from a PC that is no registered POS machine (the back office) has no POS machine on its event,
+  its address kept (was the session's till).
+- Spring's default `LogoutFilter` is off (it answered `/logout` with a redirect; nothing used it): `/logout` is now
+  `POST /logout`.
 - `POST /sales-header/process-sale`, `save-pending`, `update-pending/{id}`, `complete-pending/{id}`: optional `cartId`
   (the cart's UUID, sent by the till from event log step 5), kept on the events only.
 - Event log: `EVENTLOG_STARTED` is Notable, not an Alert (a store restarts every morning).

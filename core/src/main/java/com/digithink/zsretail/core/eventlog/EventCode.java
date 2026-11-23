@@ -42,6 +42,8 @@ public enum EventCode {
 	// ── Sessions and the store's day ──
 	SESSION_OPENED(EventSubject.SESSION, STEP),
 	SESSION_OPENING_GAP(EventSubject.SESSION, NOTABLE),
+	/** Step 3: opened while the previous session of its drawer is closed but not verified. */
+	SESSION_OPENED_PREVIOUS_UNVERIFIED(EventSubject.SESSION, NOTABLE),
 	SESSION_CLOSED(EventSubject.SESSION, STEP),
 	SESSION_CLOSED_WITH_DIFFERENCE(EventSubject.SESSION, ALERT),
 	SESSION_VERIFIED(EventSubject.SESSION, NOTABLE),
@@ -58,7 +60,7 @@ public enum EventCode {
 	// ── Logins ──
 	LOGIN_OK(EventSubject.LOGIN, STEP),
 	LOGIN_REFUSED(EventSubject.LOGIN, ALERT),
-	/** Sent by the browser: the API has no logout. */
+	/** Step 3: POST /logout, which only writes this event (the token stays valid until it expires). */
 	LOGOUT(EventSubject.LOGIN, STEP),
 
 	// ── Users, roles, badges ──

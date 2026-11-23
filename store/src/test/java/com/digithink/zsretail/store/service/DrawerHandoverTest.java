@@ -502,6 +502,33 @@ class DrawerHandoverTest {
 	}
 
 	@Test
+	@DisplayName("3.4.0, event log step 3: the opening over an unverified previous session writes"
+			+ " SESSION_OPENED_PREVIOUS_UNVERIFIED; refused (setting on), it writes none; a verified previous one, none")
+	void unverifiedPreviousEvent() throws Exception {
+		com.digithink.zsretail.core.support.InMemoryEventLog log = new com.digithink.zsretail.core.support.InMemoryEventLog()
+				.logged(amira);
+		inject(service, CashierSessionService.class, "tillEvents",
+				new com.digithink.zsretail.store.eventlog.TillEvents(log.eventLog()));
+		rfid.drawerOwner = DrawerOwner.CASHIER;
+		CashierSession previous = closed(amira, 10, null); // closed, not verified
+		settings.put(VERIFY_PREVIOUS, "true");
+		assertThrows(com.digithink.zsretail.store.posmachine.DrawerRuleException.class,
+				() -> service.openSession(amira, 50.0, null));
+		assertTrue(log.rows.isEmpty(), "refused: no event");
+
+		settings.put(VERIFY_PREVIOUS, "false");
+		CashierSession next = service.openSession(amira, 50.0, null);
+		com.digithink.zsretail.core.eventlog.model.EventLogEntry row = log.only("SESSION_OPENED_PREVIOUS_UNVERIFIED");
+		assertEquals(next.getId(), row.getSessionId());
+		assertEquals(previous.getSessionNumber(), row.getOldValue());
+		assertTrue(row.getDetails().contains("la session précédente du tiroir, " + previous.getSessionNumber()),
+				row.getDetails());
+
+		service.openSession(sami, 30.0, null); // no previous session of his drawer
+		assertEquals(1, log.codes().stream().filter("SESSION_OPENED_PREVIOUS_UNVERIFIED"::equals).count());
+	}
+
+	@Test
 	@DisplayName("Step A, setting on: refused (409 code PREVIOUS_SESSION_NOT_VERIFIED naming the session); opened once it"
 			+ " is verified")
 	void unverifiedPreviousSettingOn() throws Exception {

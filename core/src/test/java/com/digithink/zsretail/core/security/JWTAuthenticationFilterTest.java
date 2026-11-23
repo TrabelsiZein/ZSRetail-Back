@@ -140,6 +140,51 @@ class JWTAuthenticationFilterTest {
 		}
 	}
 
+	@Test
+	@DisplayName("3.4.0, event log step 3: a login writes LOGIN_OK after its answer; a refused one LOGIN_REFUSED, its 403"
+			+ " answer unchanged; the text typed of an unknown login is never written")
+	void loginEvents() throws Exception {
+		com.digithink.zsretail.core.support.InMemoryEventLog log = new com.digithink.zsretail.core.support.InMemoryEventLog();
+		UserAccount cashier = cashier();
+		cashier.setId(3L);
+		com.digithink.zsretail.core.eventlog.service.AccessEvents events = new com.digithink.zsretail.core.eventlog.service.AccessEvents(
+				log.eventLog(), login -> "cashier".equals(login) ? cashier : null);
+		org.springframework.security.authentication.AuthenticationManager refusing = authentication -> {
+			throw new org.springframework.security.authentication.BadCredentialsException("Bad credentials");
+		};
+		JWTAuthenticationFilter filter = new JWTAuthenticationFilter(refusing, mode(new MockEnvironment(), true), events);
+
+		MockHttpServletRequest ok = new MockHttpServletRequest("POST", "/login");
+		ok.setRemoteAddr("192.168.1.21");
+		MockHttpServletResponse okAnswer = new MockHttpServletResponse();
+		filter.successfulAuthentication(ok, okAnswer, new MockFilterChain(), new UsernamePasswordAuthenticationToken(cashier, null));
+		assertEquals(200, okAnswer.getStatus());
+		com.digithink.zsretail.core.eventlog.model.EventLogEntry loggedIn = log.only("LOGIN_OK");
+		assertEquals("cashier", loggedIn.getUserLogin());
+		assertEquals("192.168.1.21", loggedIn.getClientAddress());
+
+		for (String typed : Arrays.asList("cashier", "Secret!Pass")) {
+			MockHttpServletRequest refused = new MockHttpServletRequest("POST", "/login");
+			refused.addHeader("username", typed);
+			refused.addHeader("password", "wrong");
+			refused.setRemoteAddr("192.168.1.30");
+			MockHttpServletResponse answer = new MockHttpServletResponse();
+			assertNull(filter.attemptAuthentication(refused, answer));
+			assertEquals(403, answer.getStatus());
+			JSONObject body = new JSONObject(answer.getContentAsString());
+			assertEquals("Incorrect login or password", body.getString("msg"), "the answer never says which");
+		}
+		assertEquals(Arrays.asList("LOGIN_OK", "LOGIN_REFUSED", "LOGIN_REFUSED"), log.codes());
+		assertEquals("cashier", log.rows.get(1).getUserLogin());
+		assertEquals("Connexion refusée pour cashier user : mot de passe incorrect, depuis 192.168.1.30.",
+				log.rows.get(1).getDetails());
+		com.digithink.zsretail.core.eventlog.model.EventLogEntry unknown = log.rows.get(2);
+		assertNull(unknown.getUserLogin());
+		assertEquals(com.digithink.zsretail.core.eventlog.service.AccessEvents.UNKNOWN_LOGIN, unknown.getSubjectLabel());
+		assertEquals("192.168.1.30", unknown.getClientAddress());
+		assertFalse(unknown.getDetails().contains("Secret"), unknown.getDetails());
+	}
+
 	private static void inject(Object target, String fieldName, Object value) throws Exception {
 		Field field = ApplicationModeService.class.getDeclaredField(fieldName);
 		field.setAccessible(true);

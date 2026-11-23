@@ -18,6 +18,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.digithink.zsretail.core.config.ApplicationModeService;
+import com.digithink.zsretail.core.eventlog.service.AccessEvents;
 import com.digithink.zsretail.core.model.UserAccount;
 
 import lombok.AllArgsConstructor;
@@ -31,6 +32,12 @@ public class JWTAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 
 	private final AuthenticationManager authenticationManager;
 	private final ApplicationModeService applicationModeService;
+	/** 3.4.0, event log step 3: LOGIN_OK and LOGIN_REFUSED (null: none written). */
+	private final AccessEvents accessEvents;
+
+	JWTAuthenticationFilter(AuthenticationManager authenticationManager, ApplicationModeService applicationModeService) {
+		this(authenticationManager, applicationModeService, null);
+	}
 
 	@Override
 	public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response)
@@ -49,6 +56,7 @@ public class JWTAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 			} catch (IOException e1) {
 				log.error("Error during authentication response writing", e1);
 			}
+			if (accessEvents != null) accessEvents.loginRefused(request.getHeader("username"), e, request.getRemoteAddr());
 			return null;
 		}
 	}
@@ -102,6 +110,7 @@ public class JWTAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 		response.setCharacterEncoding("UTF-8");
 		response.getWriter().write(authRep.toString());
 		response.getWriter().flush();
+		if (accessEvents != null) accessEvents.loginOk(user, request.getRemoteAddr());
 	}
 
 	/** The isPosRole the login response sends to the frontend: the user's AppRole flag, false without an AppRole. */

@@ -11,6 +11,8 @@ The build is in small steps.
 - **Step 1 (done): the foundation.** The switch, the two tables, the catalogue, the helper and the start event.
 - **Step 2 (done): the server's till events.** One call at the end of each gesture's service method; see "Step 2"
   below. No screen has changed.
+- **Step 3 (done): the badge and the logins.** One line beside what already happens (the login filter, `POST /logout`,
+  `badge_scan_log`, the 403 `TILL_RIGHT_REQUIRED`); see "Step 3" below. No screen has changed.
 
 ## The switch: `eventlog.enabled`
 
@@ -127,7 +129,9 @@ text. A mistake in the making (a missing value) is one WARN and costs the event,
   one line in `useGrant` and in `checkCashMovement`). The event names the first owner; the others are named in the
   details ("Autorisé aussi par : …"). A pass by the user's own role keeps nothing: nobody authorised it.
 - **The session**: the user's open session, and its number when only the id is given.
-- **The POS machine**: the one registered at the request's address, else the session's.
+- **The POS machine**: the one registered at the request's address. A request from a PC that is no registered POS
+  machine (the back office) leaves the machine empty and keeps the address (step 3: no more the session's till).
+- A refusal (`TILL_RIGHT_REFUSED`) is never "authorised by": the grants the request used before it are not its own.
 
 **`cartId`.** `ProcessSaleRequestDTO.cartId` is optional; the till sends it from step 5. It is kept on the sale and
 pending events.
@@ -144,7 +148,56 @@ pending events.
 | `SESSION_CLOSED` (Step) / `SESSION_CLOSED_WITH_DIFFERENCE` (Alert) | `closeSessionWithCashCount` | session | expected → counted cash; the difference (counted − expected) as the amount, above 0.01 whatever `ENABLE_CASH_DISCREPANCY_CHECK` says |
 | `SESSION_VERIFIED` (Notable) | `verifySession` | session | the cashier's count → the responsible's; the drawer's withdrawal; the responsible as the user |
 
-A gesture refused (an exception before its end) writes none of these: the refusals come with step 3.
+A gesture refused (an exception before its end) writes none of these. A refusal of a till right is step 3's
+`TILL_RIGHT_REFUSED`.
+
+## Step 3: the badge and the logins
+
+**`AccessEvents` (core, `core.eventlog.service`)** builds these events and their French texts. It never throws, and
+when the module is off it builds nothing and reads nothing. A badge's code is never written: the badge is named by its
+owner.
+
+| Event | Where | Values |
+|---|---|---|
+| `LOGIN_OK` (Step) | `JWTAuthenticationFilter.successfulAuthentication`, after the answer is sent | the user, his role, the address |
+| `LOGIN_REFUSED` (Alert) | `JWTAuthenticationFilter.attemptAuthentication`, its catch (the refusal never reaches `unsuccessfulAuthentication`: the filter answers the 403 itself) | see below |
+| `LOGOUT` (Step) | `POST /logout` (`LogoutAPI`, core): it only writes the event, 204. The till calls it from step 5. | the user |
+| `TILL_RIGHT_USED` (Step) | `BadgeService.logPass` for a badge pass (the request used the scan's grant), and `logBadgeScan` for a successful scan of the customer list. A pass on the user's own role writes none (`badge_scan_log` still keeps it). | the action; the badge's owner as the authoriser; the user who scanned; the session |
+| `SESSION_OPENED_PREVIOUS_UNVERIFIED` (Notable) | `CashierSessionService.openSession`, when the drawer's previous session is closed but not verified (allowed when `VERIFY_PREVIOUS_SESSION_BEFORE_OPENING` is off) | previous → new session; the previous cashier in the text |
+
+`TILL_RIGHT_REFUSED` (Alert) has three cases. Its new value is the reason's code, and the details say which case and
+why:
+
+| Case | Where | Reason codes |
+|---|---|---|
+| Scan refused | `BadgeService.logBadgeScan` | `BADGE_NOT_EXISTS`, `BADGE_REVOKED`, `BADGE_EXPIRED`, `BADGE_OWNER_INACTIVE`, `BADGE_NO_ACCESS` (the owner is named, an unknown badge is not) |
+| Request refused 403 `TILL_RIGHT_REQUIRED` | the catch of each endpoint: process-sale ("Vente"), save-pending, update-pending, complete-pending, process-return, close, cash-movement. Written at once, because the request's transaction has rolled back. | `NO_GRANT`, `GRANT_UNKNOWN`, `GRANT_USED`, `GRANT_EXPIRED`, `GRANT_OTHER_SESSION`, `GRANT_OTHER_ACTION`; the line (from 1) of a line discount |
+| `POST /badge/pass` refused | `BadgeAPI.rolePass` | `ROLE_WITHOUT_RIGHT` (the role changed since the login) |
+
+The till asks for the badge before it sends the request, so a 403 is not the normal path: it means the role changed,
+the grant expired or was used, or the request did not come from the till.
+
+**A refused login and the login typed.**
+
+- The login typed is looked up. It names a user only when it is an existing user's login: his id and his login as
+  stored (never the text typed), and the reason (wrong password, account disabled, server error).
+- Anything else is written as "Identifiant inconnu" with the request's address. No column holds the text typed, so a
+  password typed in the login field never lands in the log.
+- The answer to the till is unchanged ("Incorrect login or password" in both cases).
+- Several refusals in a row give one event each: each is numbered and kept. A run on one login or from one address is
+  found by the login or address filter (step 6).
+
+**Logout.** `SecurityConfig` turns off Spring's default `LogoutFilter`, which answered `/logout` with a redirect to
+`/login?logout`. Nothing used it. `POST /logout` needs a logged user, as any endpoint outside `permitAll`. The API is
+stateless: the token stays valid until it expires and the browser drops it.
+
+**Wiring.**
+
+- The filter gets `AccessEvents` through a `@Lazy` field of `SecurityConfig`, so it is resolved at the first login and
+  the security setup never needs the repositories at the start.
+- `BadgeService`, `BadgeAPI` and the store's controllers take theirs with `@Autowired(required = false)`, so a test
+  that builds them without it writes none.
+- `badge_scan_log` is still written exactly as before; CashWatch reads it.
 
 ## Tests
 
@@ -164,12 +217,21 @@ A gesture refused (an exception before its end) writes none of these: the refusa
     `DrawerHandoverTest.events` (verification, opening, gap), `ReturnRefundLoyaltyTest.returnEvent` (the badge's owner).
   - `PAYMENT_CHANGED` has no test on the real service (none exists for `changePaymentMethod`): its text and values are
     in `TillEventsTest`.
+- Step 3:
+  - `AccessEventsTest`: the logins (a known user, an unknown login whose text is in no column, a failing lookup), the
+    logout, the badge used and refused (each reason), the role pass refused, off (nothing read).
+  - `JWTAuthenticationFilterTest.loginEvents`: the real filter, the 403 answer unchanged.
+  - `LogoutAPITest`: 204 and LOGOUT; off; the user not read.
+  - `TillRightsEndToEndTest.events`: over HTTP, a refused scan, a badge pass, the same grant again (403, the line,
+    `GRANT_USED`), the customer list, `/badge/pass` refused, a role pass writing none, and no badge code in any column.
+  - `TillEventsTest`: `SESSION_OPENED_PREVIOUS_UNVERIFIED` and `TILL_RIGHT_REFUSED` (each reason in French).
+  - `DrawerHandoverTest.unverifiedPreviousEvent`: the real opening, refused (none) and allowed (one).
+  - `StoreEventContextTest`: no machine from a back-office PC; a refusal not authorised.
 
 ## Next steps
 
 | Step | What |
 |---|---|
-| 3 | Badge and logins. |
 | 4 | The batch endpoint and the till's queue. |
 | 5 | The till's gestures. |
 | 6 | The Journal page. |

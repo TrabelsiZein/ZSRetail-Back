@@ -50,6 +50,10 @@ public class BadgeAPI {
 	@Autowired
 	private TillGrantService tillGrantService;
 
+	/** 3.4.0, event log step 3: POST /badge/pass refused writes TILL_RIGHT_REFUSED. */
+	@Autowired(required = false)
+	private com.digithink.zsretail.core.eventlog.service.AccessEvents accessEvents;
+
 	/** Step S (3.1.0): the permission of the Badge scan history page, required by the three history reads below. */
 	static final String SCAN_HISTORY_PERMISSION = "read:admin-badge-scan-history";
 
@@ -145,6 +149,7 @@ public class BadgeAPI {
 				Map<String, Object> refused = new HashMap<>();
 				refused.put("error", TILL_RIGHT_REQUIRED);
 				refused.put("action", action.name());
+				if (accessEvents != null) accessEvents.rolePassRefused(actor, action); // 3.4.0, event log step 3
 				return ResponseEntity.status(HttpStatus.FORBIDDEN).body(refused);
 			}
 			badgeService.logRolePass(actor, action);

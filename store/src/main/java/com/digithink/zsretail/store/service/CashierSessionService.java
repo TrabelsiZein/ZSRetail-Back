@@ -200,6 +200,7 @@ public class CashierSessionService extends _BaseService<CashierSession, Long> {
 			unverifiedPrevious.ifPresent(previous -> drawerHandoverService.recordUnverified(saved, previous));
 		}
 		if (tillEvents != null) tillEvents.sessionOpened(saved, opening);
+		if (tillEvents != null && unverifiedPrevious.isPresent()) tillEvents.sessionOpenedPreviousUnverified(saved, unverifiedPrevious.get());
 		return saved;
 	}
 

@@ -27,6 +27,10 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class CashMovementAPI {
 
+	/** 3.4.0, event log step 3: a request refused 403 TILL_RIGHT_REQUIRED writes TILL_RIGHT_REFUSED. */
+	@Autowired(required = false)
+	private com.digithink.zsretail.store.eventlog.TillEvents tillEvents;
+
 	@Autowired
 	private CashMovementService service;
 
@@ -39,6 +43,7 @@ public class CashMovementAPI {
 			return ResponseEntity.ok(service.record(currentUserProvider.getCurrentUser(), request));
 		} catch (TillRightRequiredException e) {
 			log.warn("CashMovementAPI::record: till right required: {}", e.getMessage());
+			if (tillEvents != null) tillEvents.tillRightRefused(e, "Mouvement de caisse");
 			return e.response();
 		} catch (CashMovementException e) {
 			log.info("CashMovementAPI::record refused: {}", e.getMessage());

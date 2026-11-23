@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.core.eventlog.EventCode;
+import com.digithink.zsretail.core.eventlog.service.AccessEvents;
 import com.digithink.zsretail.core.eventlog.service.EventLog;
 import com.digithink.zsretail.core.eventlog.service.NewEvent;
 import com.digithink.zsretail.core.model.CashierSession;
@@ -16,11 +17,13 @@ import com.digithink.zsretail.core.model.PaymentMethod;
 import com.digithink.zsretail.core.model.ReturnHeader;
 import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.model.enumeration.BadgePermission;
 import com.digithink.zsretail.core.model.enumeration.GrantedBy;
 import com.digithink.zsretail.core.model.enumeration.ReturnType;
 import com.digithink.zsretail.store.cashmovement.model.CashMovement;
 import com.digithink.zsretail.store.cashmovement.model.ClosingWithdrawal;
 import com.digithink.zsretail.store.cashmovement.model.OpeningFloat;
+import com.digithink.zsretail.store.exception.TillRightRequiredException;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -213,6 +216,63 @@ public class TillEvents {
 			}
 			eventLog.write(event);
 		});
+	}
+
+	/**
+	 * Step 3: a session opened while the previous session of its drawer is closed but not verified (allowed when
+	 * VERIFY_PREVIOUS_SESSION_BEFORE_OPENING is off; refused, so no event, when it is on).
+	 */
+	public void sessionOpenedPreviousUnverified(CashierSession session, CashierSession previous) {
+		run("SESSION_OPENED_PREVIOUS_UNVERIFIED", () -> {
+			String cashier = previous.getCashier() != null ? AccessEvents.who(previous.getCashier()) : null;
+			eventLog.write(sessionEvent(EventCode.SESSION_OPENED_PREVIOUS_UNVERIFIED, session)
+					.change(previous.getSessionNumber(), session.getSessionNumber())
+					.details("Session " + session.getSessionNumber() + " ouverte alors que la session précédente du tiroir, "
+							+ previous.getSessionNumber() + (cashier != null ? " (" + cashier + ")" : "")
+							+ ", est clôturée mais pas encore vérifiée par un responsable."));
+		});
+	}
+
+	// ─── Till rights refused at the request ──────────────────────────
+
+	/**
+	 * Step 3: a request refused 403 TILL_RIGHT_REQUIRED (the role does not hold the right and no valid grant came with
+	 * it). Written at once: the request's transaction has rolled back.
+	 * @param gesture what the request did, e.g. "Vente"
+	 */
+	public void tillRightRefused(TillRightRequiredException refusal, String gesture) {
+		run("TILL_RIGHT_REFUSED", () -> {
+			BadgePermission action = refusal.getAction();
+			eventLog.writeNow(NewEvent.of(EventCode.TILL_RIGHT_REFUSED)
+					.subject(action != null ? action.name() : null, AccessEvents.actionLabel(action))
+					.change(null, refusal.getReason() != null ? refusal.getReason().name() : null)
+					.details("Refusé à la requête (" + gesture + ") : droit « " + AccessEvents.actionLabel(action) + " »"
+							+ (refusal.getLineIndex() != null ? " (ligne " + (refusal.getLineIndex() + 1) + ")" : "")
+							+ ", " + reason(refusal.getReason()) + "."));
+		});
+	}
+
+	/** Why no grant counted, in French (TillRightRequiredException.Reason). */
+	static String reason(TillRightRequiredException.Reason reason) {
+		if (reason == null) {
+			return "refusé";
+		}
+		switch (reason) {
+			case NO_GRANT:
+				return "le rôle n'a pas ce droit et aucun badge n'accompagnait la requête";
+			case GRANT_UNKNOWN:
+				return "autorisation de badge inconnue";
+			case GRANT_USED:
+				return "autorisation de badge déjà utilisée";
+			case GRANT_EXPIRED:
+				return "autorisation de badge expirée";
+			case GRANT_OTHER_SESSION:
+				return "autorisation de badge d'une autre session";
+			case GRANT_OTHER_ACTION:
+				return "autorisation de badge donnée pour une autre action";
+			default:
+				return reason.name();
+		}
 	}
 
 	// ─── Texts ───────────────────────────────────────────────────────
