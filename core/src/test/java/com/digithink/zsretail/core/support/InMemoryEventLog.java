@@ -70,8 +70,15 @@ public final class InMemoryEventLog {
 			if ("save".equals(method)) {
 				EventLogEntry entry = (EventLogEntry) args[0];
 				entry.setId((long) rows.size() + 1);
+				if (rows.stream().anyMatch(row -> row.getEventUuid().equals(entry.getEventUuid()))) {
+					throw new org.springframework.dao.DataIntegrityViolationException("uk_event_log_uuid");
+				}
 				rows.add(entry);
 				return entry;
+			}
+			if ("storedUuids".equals(method)) {
+				java.util.Collection<?> asked = (java.util.Collection<?>) args[0];
+				return rows.stream().map(EventLogEntry::getEventUuid).filter(asked::contains).collect(Collectors.toList());
 			}
 			throw new UnsupportedOperationException(method);
 		});
@@ -86,6 +93,14 @@ public final class InMemoryEventLog {
 						return 0;
 					}
 					numbers.put(importance, numbers.get(importance) + 1);
+					return 1;
+				}
+				case "reserve": {
+					Integer importance = (Integer) args[0];
+					if (!numbers.containsKey(importance)) {
+						return 0;
+					}
+					numbers.put(importance, numbers.get(importance) + (Long) args[1]);
 					return 1;
 				}
 				case "lastValue":

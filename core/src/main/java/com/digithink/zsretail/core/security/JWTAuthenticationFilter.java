@@ -10,6 +10,7 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.json.JSONObject;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.InternalAuthenticationServiceException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
@@ -46,7 +47,13 @@ public class JWTAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 			return authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(
 					request.getHeader("username"), request.getHeader("password")));
 		} catch (Exception e) {
-			log.error("Error in login attempt authentication: " + request.getHeader("username"), e);
+			// 3.4.0: never the login typed (it may be a password typed in the wrong field): a refusal is one line with
+			// its kind and the address; only a server failure keeps its stack trace
+			if (e instanceof AuthenticationException && !(e instanceof InternalAuthenticationServiceException)) {
+				log.warn("Login refused ({}) from {}", e.getClass().getSimpleName(), request.getRemoteAddr());
+			} else {
+				log.error("Login failed on a server error from {}", request.getRemoteAddr(), e);
+			}
 			JSONObject authRep = new JSONObject();
 			authRep.put("code", 403);
 			authRep.put("msg", "Incorrect login or password");

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Method;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -58,14 +59,14 @@ class AccessEventsTest {
 	}
 
 	@Test
-	@DisplayName("LOGIN_REFUSED (Alert) of an existing user: him (as stored), the reason, the address")
+	@DisplayName("LOGIN_REFUSED (Notable since step 4) of an existing user: him (as stored), the reason, the address")
 	void refusedKnownUser() {
 		events.loginRefused("amine", new BadCredentialsException("Bad credentials"), "192.168.1.21");
 		events.loginRefused("amine", new DisabledException("User is disabled"), "192.168.1.21");
 		events.loginRefused("amine", new InternalAuthenticationServiceException("db"), null);
 		EventLogEntry wrong = log.rows.get(0);
 		assertEquals("LOGIN_REFUSED", wrong.getCode());
-		assertEquals(EventImportance.ALERT, wrong.getImportance());
+		assertEquals(EventImportance.NOTABLE, wrong.getImportance());
 		assertEquals(Long.valueOf(7), wrong.getUserId());
 		assertEquals("amine", wrong.getSubjectLabel());
 		assertEquals("Connexion refusée pour Amine K. : mot de passe incorrect, depuis 192.168.1.21.", wrong.getDetails());
@@ -102,6 +103,47 @@ class AccessEventsTest {
 				}
 			}
 		}
+	}
+
+	@Test
+	@DisplayName("Step 4: the 5th refusal in a row on one login is LOGIN_REFUSED_REPEATED (Alert), each one after it too;"
+			+ " a successful login ends the run")
+	void repeatedOnLogin() {
+		LocalDateTime[] now = { LocalDateTime.of(2026, 11, 23, 10, 2, 0) };
+		AccessEvents counted = new AccessEvents(log.eventLog(), users::get, () -> now[0]);
+		for (int i = 1; i <= 6; i++) {
+			now[0] = now[0].plusSeconds(20);
+			counted.loginRefused("amine", new BadCredentialsException("x"), "192.168.1." + i); // another PC each time
+		}
+		assertEquals(java.util.Arrays.asList("LOGIN_REFUSED", "LOGIN_REFUSED", "LOGIN_REFUSED", "LOGIN_REFUSED",
+				"LOGIN_REFUSED_REPEATED", "LOGIN_REFUSED_REPEATED"), log.codes());
+		EventLogEntry fifth = log.rows.get(4);
+		assertEquals(EventImportance.ALERT, fifth.getImportance());
+		assertEquals(5.0, fifth.getAmount());
+		assertEquals("amine", fifth.getUserLogin());
+		assertEquals("Connexion refusée pour Amine K. : mot de passe incorrect, depuis 192.168.1.5. 5e refus de suite pour"
+				+ " cet identifiant depuis 10:02:20.", fifth.getDetails());
+		counted.loginOk(amine, "192.168.1.9");
+		counted.loginRefused("amine", new BadCredentialsException("x"), "192.168.1.10");
+		assertEquals("LOGIN_REFUSED", log.rows.get(log.rows.size() - 1).getCode(), "the run ended at the login");
+	}
+
+	@Test
+	@DisplayName("Step 4: unknown logins from one address add up (5th: Alert); 15 minutes without a refusal end the run")
+	void repeatedFromAddress() {
+		LocalDateTime[] now = { LocalDateTime.of(2026, 11, 23, 22, 0, 0) };
+		AccessEvents counted = new AccessEvents(log.eventLog(), users::get, () -> now[0]);
+		for (int i = 1; i <= 5; i++) {
+			now[0] = now[0].plusMinutes(1);
+			counted.loginRefused("guess" + i, new BadCredentialsException("x"), "10.0.0.66");
+		}
+		EventLogEntry fifth = log.rows.get(4);
+		assertEquals("LOGIN_REFUSED_REPEATED", fifth.getCode());
+		assertEquals(AccessEvents.UNKNOWN_LOGIN, fifth.getSubjectLabel());
+		assertTrue(fifth.getDetails().endsWith("5e refus de suite depuis cette adresse depuis 22:01:00."), fifth.getDetails());
+		now[0] = now[0].plusMinutes(16);
+		counted.loginRefused("guess6", new BadCredentialsException("x"), "10.0.0.66");
+		assertEquals("LOGIN_REFUSED", log.rows.get(5).getCode(), "a new run");
 	}
 
 	@Test

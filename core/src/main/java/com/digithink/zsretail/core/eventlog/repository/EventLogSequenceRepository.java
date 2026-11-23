@@ -16,6 +16,14 @@ public interface EventLogSequenceRepository extends JpaRepository<EventLogSequen
 	@Query("update EventLogSequence s set s.lastValue = s.lastValue + 1 where s.importance = :importance")
 	int increment(@Param("importance") int importance);
 
+	/**
+	 * Step 4: reserves {@code count} numbers of an importance at once (a till's group of events): adds them to the row,
+	 * locked until the transaction ends; the group takes last - count + 1 .. last. 0 when it has no row yet.
+	 */
+	@Modifying(flushAutomatically = true)
+	@Query("update EventLogSequence s set s.lastValue = s.lastValue + :count where s.importance = :importance")
+	int reserve(@Param("importance") int importance, @Param("count") long count);
+
 	/** The importance's last number (as written by this transaction); empty when it has no row. */
 	@Query("select s.lastValue from EventLogSequence s where s.importance = :importance")
 	List<Long> lastValue(@Param("importance") int importance);

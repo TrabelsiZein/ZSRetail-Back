@@ -59,7 +59,10 @@ public enum EventCode {
 
 	// ── Logins ──
 	LOGIN_OK(EventSubject.LOGIN, STEP),
-	LOGIN_REFUSED(EventSubject.LOGIN, ALERT),
+	/** Step 4 (Zein): Notable, a typo at the morning login is not an Alert. */
+	LOGIN_REFUSED(EventSubject.LOGIN, NOTABLE),
+	/** Step 4: the 5th refused login in a row on one login or from one address (and each one after it). */
+	LOGIN_REFUSED_REPEATED(EventSubject.LOGIN, ALERT),
 	/** Step 3: POST /logout, which only writes this event (the token stays valid until it expires). */
 	LOGOUT(EventSubject.LOGIN, STEP),
 
@@ -108,10 +111,22 @@ public enum EventCode {
 	 */
 	EVENTLOG_STARTED(EventSubject.EVENT_LOG, NOTABLE),
 	EVENTLOG_SETTINGS_CHANGED(EventSubject.EVENT_LOG, ALERT),
-	EVENTLOG_CLEANUP(EventSubject.EVENT_LOG, ALERT);
+	EVENTLOG_CLEANUP(EventSubject.EVENT_LOG, ALERT),
+	/** Step 4, sent by the till: its queue was full, events were dropped (how many, from when to when). */
+	EVENTLOG_EVENTS_DROPPED(EventSubject.EVENT_LOG, ALERT);
 
 	/** The longest code the table holds (event_log.code). */
 	public static final int CODE_LENGTH = 60;
+
+	/**
+	 * Step 4: the only codes the till may send (POST /event-log/batch): the cart, the discount gestures, a pending ticket
+	 * taken back, the reprints, the tickets X / Z and the session tickets, and its own queue's losses. Anything else is
+	 * refused, a money event above all: the server writes those itself.
+	 */
+	public static final java.util.Set<EventCode> FROM_TILL = java.util.Collections.unmodifiableSet(java.util.EnumSet.of(
+			CART_LINE_ADDED, CART_QTY_RAISED, CART_QTY_LOWERED, CART_LINE_DELETED, CART_CLEARED, LINE_DISCOUNT,
+			CART_DISCOUNT, PENDING_TAKEN_BACK, RECEIPT_REPRINTED, RETURN_VOUCHER_REPRINTED, TICKET_X_PRINTED,
+			TICKET_Z_PRINTED, SESSION_TICKET_PRINTED, EVENTLOG_EVENTS_DROPPED));
 
 	private final EventSubject subject;
 	private final int importance;

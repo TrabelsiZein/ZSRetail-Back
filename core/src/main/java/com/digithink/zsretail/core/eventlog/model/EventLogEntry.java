@@ -36,7 +36,8 @@ import lombok.NoArgsConstructor;
 				@Index(name = "ix_event_log_subject", columnList = "subject_type, subject_id"),
 				@Index(name = "ix_event_log_session", columnList = "session_id"),
 				@Index(name = "ix_event_log_user", columnList = "user_id, event_at"),
-				@Index(name = "ix_event_log_sequence", columnList = "importance, sequence_no") })
+				@Index(name = "ix_event_log_sequence", columnList = "importance, sequence_no"),
+				@Index(name = "ix_event_log_install", columnList = "install_id, machine_sequence_no") })
 @Data
 @NoArgsConstructor
 public class EventLogEntry {
@@ -51,6 +52,7 @@ public class EventLogEntry {
 	public static final int ADDRESS_LENGTH = 45;
 	public static final int VALUE_LENGTH = 1000;
 	public static final int DETAILS_LENGTH = 2000;
+	public static final int DOUBT_LENGTH = 200;
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -162,9 +164,29 @@ public class EventLogEntry {
 	@Column(name = "client_address", length = ADDRESS_LENGTH)
 	private String clientAddress;
 
-	/** The till's own number of its events (per POS machine): a hole shows events the till never sent. */
+	/**
+	 * The till's own number of its events, per install (install_id): a hole within one install shows events the till
+	 * never sent.
+	 */
 	@Column(name = "machine_sequence_no")
 	private Long machineSequenceNo;
+
+	/**
+	 * Step 4: the browser that made a till event (a UUID kept in its localStorage, with its own numbering). A cleared
+	 * browser is a new install whose numbers start again at 1, not a hole.
+	 */
+	@Nationalized
+	@Column(name = "install_id", length = UUID_LENGTH)
+	private String installId;
+
+	/**
+	 * Step 4: what the server could not confirm of what the till said, codes separated by commas
+	 * (SESSION_OF_ANOTHER_USER, SESSION_UNKNOWN, USER_UNKNOWN, MACHINE_UNKNOWN); null when nothing. Never a reason to
+	 * refuse the event: a doubtful event is better than a lost one.
+	 */
+	@Nationalized
+	@Column(name = "doubt", length = DOUBT_LENGTH)
+	private String doubt;
 
 	@Nationalized
 	@Column(name = "old_value", length = VALUE_LENGTH)

@@ -189,8 +189,20 @@ public class AppConfigAPI {
 				communication(), // 3.3.0, communication step 4
 				applicationModeService.isWarrantyEnabled(), // 3.3.0: warranty.enabled
 				applicationModeService.isStoreOrdersEnabled(), // 3.3.0: storeorders.enabled
-				applicationModeService.isEventLogEnabled() // 3.4.0: eventlog.enabled
+				applicationModeService.isEventLogEnabled(), // 3.4.0: eventlog.enabled
+				eventLogTillCodes() // 3.4.0, event log step 4
 		));
+	}
+
+	/** 3.4.0, event log step 4: the codes the till may send and their importance; none when the module is off. */
+	java.util.Map<String, Integer> eventLogTillCodes() {
+		java.util.Map<String, Integer> codes = new java.util.TreeMap<>();
+		if (applicationModeService.isEventLogEnabled()) {
+			for (com.digithink.zsretail.core.eventlog.EventCode code : com.digithink.zsretail.core.eventlog.EventCode.FROM_TILL) {
+				codes.put(code.name(), code.getImportance());
+			}
+		}
+		return codes;
 	}
 
 	/** 3.3.0, communication step 4: on or off, sent here or not, the channels switched on (none when off). */

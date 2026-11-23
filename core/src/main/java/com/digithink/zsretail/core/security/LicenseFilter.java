@@ -41,7 +41,10 @@ public class LicenseFilter extends OncePerRequestFilter {
             "/v3/api-docs",
             "/swagger-ui",
             "/thymeleaf",
-            "/sse-endpoint"
+            "/sse-endpoint",
+            // 3.4.0, event log step 4: the till's queue and the logout are written with the licence expired too
+            "/event-log/batch",
+            "/logout"
     );
 
     @Override

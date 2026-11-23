@@ -185,6 +185,43 @@ class JWTAuthenticationFilterTest {
 		assertFalse(unknown.getDetails().contains("Secret"), unknown.getDetails());
 	}
 
+	@Test
+	@DisplayName("3.4.0, event log step 4: a refused login never writes the login typed in the server log (it may be a"
+			+ " password typed in the wrong field): one WARN with its kind and the address")
+	void logWithoutLogin() throws Exception {
+		// Log4j2's API is bridged to SLF4J (log4j-to-slf4j): the lines end in Logback
+		ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory
+				.getLogger(JWTAuthenticationFilter.class);
+		ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> capture = new ch.qos.logback.core.read.ListAppender<>();
+		capture.start();
+		logger.addAppender(capture);
+		ch.qos.logback.classic.Level before = logger.getLevel();
+		logger.setLevel(ch.qos.logback.classic.Level.ALL);
+		try {
+			org.springframework.security.authentication.AuthenticationManager refusing = authentication -> {
+				throw new org.springframework.security.authentication.BadCredentialsException("Bad credentials");
+			};
+			JWTAuthenticationFilter filter = new JWTAuthenticationFilter(refusing, mode(new MockEnvironment(), true));
+			MockHttpServletRequest refused = new MockHttpServletRequest("POST", "/login");
+			refused.addHeader("username", "MonMotDePasse!2026");
+			refused.addHeader("password", "x");
+			refused.setRemoteAddr("192.168.1.30");
+			filter.attemptAuthentication(refused, new MockHttpServletResponse());
+		} finally {
+			logger.detachAppender(capture);
+			logger.setLevel(before);
+		}
+		java.util.List<String> lines = new java.util.ArrayList<>();
+		for (ch.qos.logback.classic.spi.ILoggingEvent event : capture.list) {
+			lines.add(event.getLevel() + " " + event.getFormattedMessage()
+					+ (event.getThrowableProxy() != null ? " " + event.getThrowableProxy().getMessage() : ""));
+		}
+		assertTrue(lines.contains("WARN Login refused (BadCredentialsException) from 192.168.1.30"), lines.toString());
+		for (String line : lines) {
+			assertFalse(line.contains("MonMotDePasse"), line);
+		}
+	}
+
 	private static void inject(Object target, String fieldName, Object value) throws Exception {
 		Field field = ApplicationModeService.class.getDeclaredField(fieldName);
 		field.setAccessible(true);

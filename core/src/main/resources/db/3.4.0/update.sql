@@ -1,5 +1,6 @@
 -- ============================================================
--- Version 3.4.0 (in progress) — event log ("Journal des événements"): event_log, event_log_sequence (step 1)
+-- Version 3.4.0 (in progress) — event log ("Journal des événements"): event_log, event_log_sequence (step 1);
+-- event_log.install_id and doubt (step 4)
 -- ============================================================
 -- Deployment order (a database at 3.3.0; CHANGELOG.md, 3.4.0, "Before deployment"):
 --   1) Bring the database to 3.3.0 first (db/3.3.0/update.sql). This script stops, without changing anything, while
@@ -68,6 +69,20 @@ INSERT INTO event_log_sequence (importance, last_value)
 SELECT seeded.importance, 0
 FROM (VALUES (10), (20), (30)) AS seeded (importance)
 WHERE NOT EXISTS (SELECT 1 FROM event_log_sequence s WHERE s.importance = seeded.importance);
+GO
+
+-- 3) Event log step 4, the till's events (POST /event-log/batch): install_id, the browser that made the event (its own
+-- numbering, machine_sequence_no: a hole within one install is an event never sent; a cleared browser is a new install,
+-- not a hole); doubt, what the server could not confirm of what the till said (e.g. SESSION_OF_ANOTHER_USER), null
+-- when nothing. ix_event_log_install finds the holes of an install. Every database.
+IF COL_LENGTH(N'event_log', N'install_id') IS NULL
+	ALTER TABLE event_log ADD install_id nvarchar(36);
+GO
+IF COL_LENGTH(N'event_log', N'doubt') IS NULL
+	ALTER TABLE event_log ADD doubt nvarchar(200);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'ix_event_log_install' AND object_id = OBJECT_ID(N'event_log'))
+	CREATE INDEX ix_event_log_install ON event_log (install_id, machine_sequence_no);
 GO
 
 UPDATE APP_VERSION SET version = '3.4.0';

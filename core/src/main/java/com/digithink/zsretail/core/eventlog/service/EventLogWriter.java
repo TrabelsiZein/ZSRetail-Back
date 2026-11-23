@@ -1,10 +1,14 @@
 package com.digithink.zsretail.core.eventlog.service;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -33,19 +37,28 @@ public class EventLogWriter {
 	private final EventLogEntryRepository entries;
 	private final EventLogSequenceRepository sequences;
 	private final TransactionOperations transactions;
+	/** Step 4: a group's rows in one insert (EventLogBatchInsert; row by row in the tests). */
+	private final Consumer<List<EventLogEntry>> batchInsert;
 
 	@Autowired
 	public EventLogWriter(EventLogEntryRepository entries, EventLogSequenceRepository sequences,
-			PlatformTransactionManager transactionManager) {
-		this(entries, sequences, ownTransaction(transactionManager));
+			PlatformTransactionManager transactionManager, JdbcTemplate jdbc) {
+		this(entries, sequences, ownTransaction(transactionManager), new EventLogBatchInsert(jdbc));
 	}
 
-	/** With given transactions: used by the tests. */
+	/** With given transactions: used by the tests (a group is saved row by row). */
 	public EventLogWriter(EventLogEntryRepository entries, EventLogSequenceRepository sequences,
 			TransactionOperations transactions) {
+		this(entries, sequences, transactions, group -> group.forEach(entries::save));
+	}
+
+	/** With given transactions and group insert: used by the tests. */
+	public EventLogWriter(EventLogEntryRepository entries, EventLogSequenceRepository sequences,
+			TransactionOperations transactions, Consumer<List<EventLogEntry>> batchInsert) {
 		this.entries = entries;
 		this.sequences = sequences;
 		this.transactions = transactions;
+		this.batchInsert = batchInsert;
 	}
 
 	private static TransactionTemplate ownTransaction(PlatformTransactionManager transactionManager) {
@@ -85,6 +98,41 @@ public class EventLogWriter {
 		}
 		entry.setSequenceNo(next(entry.getImportance()));
 		return entries.save(entry);
+	}
+
+	/**
+	 * Step 4: a till's group of events, numbered and inserted in one own transaction: one counter update per importance
+	 * reserves the group's numbers (in the group's order), then one batch insert. All or nothing: a failure (a UUID
+	 * stored meanwhile, a first row created at once by another writer) gives the numbers back and throws; the caller
+	 * tries again once.
+	 */
+	public void insertAll(List<EventLogEntry> group) {
+		if (group.isEmpty()) {
+			return;
+		}
+		transactions.execute(status -> {
+			Map<Integer, List<EventLogEntry>> byImportance = new LinkedHashMap<>();
+			for (EventLogEntry entry : group) {
+				byImportance.computeIfAbsent(entry.getImportance(), importance -> new ArrayList<>()).add(entry);
+			}
+			for (Map.Entry<Integer, List<EventLogEntry>> same : byImportance.entrySet()) {
+				long number = reserve(same.getKey(), same.getValue().size()) - same.getValue().size() + 1;
+				for (EventLogEntry entry : same.getValue()) {
+					entry.setSequenceNo(number++);
+				}
+			}
+			batchInsert.accept(group);
+			return null;
+		});
+	}
+
+	/** Reserves {@code count} numbers of an importance; the last one (its row created at count when it has none). */
+	private long reserve(int importance, long count) {
+		if (sequences.reserve(importance, count) == 0) {
+			sequences.saveAndFlush(new EventLogSequence(importance, count));
+			return count;
+		}
+		return sequences.lastValue(importance).get(0);
 	}
 
 	/** The next number of an importance; its row is created at 1 when it has none (db/3.4.0/update.sql creates them). */

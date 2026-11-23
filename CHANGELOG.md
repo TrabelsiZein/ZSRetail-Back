@@ -28,8 +28,20 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `TILL_RIGHT_REQUIRED` (sale, pending, return, close, cash movement) and a refused `POST /badge/pass`, the details
   saying which case and why. `SESSION_OPENED_PREVIOUS_UNVERIFIED` (Notable): a session opened while its drawer's
   previous one is not verified. A badge's code is never written; `badge_scan_log` is written as before.
+- Event log, step 4: `POST /event-log/batch` (a store), the till's events in groups (`TillEventBatch`). Only the codes
+  the till may send (`EventCode.FROM_TILL`: the cart, the discount gestures, a pending ticket taken back, the reprints,
+  the tickets X / Z and the session tickets, `EVENTLOG_EVENTS_DROPPED`); any other, a money event above all, is refused
+  and answered so the till drops it. A UUID sent again is answered as stored. The user (by id or login), the session
+  and the machine the till says are kept; what the server cannot confirm (another user's session, an unknown user,
+  session or machine, an unreadable till time) is marked in the new column `doubt` and in the details, never refused.
+  The sender, the address and the server's clock are the server's. One counter update per importance reserves the
+  group's numbers, one JDBC batch inserts it. 404 when off, 400 above 100 events, 503 when not stored.
 
 ### Enhancements
+- Event log: `LOGIN_REFUSED` is Notable; from the 5th refused login in a row on one login or from one address (a run
+  ends at a successful login or after 15 minutes without a refusal), `LOGIN_REFUSED_REPEATED` (Alert).
+- `GET /config` `eventLogTillCodes`: the codes the till may send and their importance (empty when the event log is off).
+- `LicenseFilter` lets `/event-log/batch` and `/logout` pass with the licence expired, as `/login`.
 - Event log: a request from a PC that is no registered POS machine (the back office) has no POS machine on its event,
   its address kept (was the session's till).
 - Spring's default `LogoutFilter` is off (it answered `/logout` with a redirect; nothing used it): `/logout` is now
@@ -38,10 +50,18 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   (the cart's UUID, sent by the till from event log step 5), kept on the events only.
 - Event log: `EVENTLOG_STARTED` is Notable, not an Alert (a store restarts every morning).
 
+### Fixes
+- `backend.log` no longer writes the login typed at a refused login (it may be a password typed in the wrong field): one
+  WARN with the kind of refusal and the address; only a server failure keeps its stack trace. "User not found" no longer
+  names the login.
+
 ### DB script
 - `db/3.4.0/update.sql` 1-2: `event_log` (one row per event, never updated; unique `event_uuid`; indexes by date,
   subject, session, user, importance + number) and `event_log_sequence` (the last number of each importance, rows 10,
   20 and 30 seeded at 0). Every database.
+- `db/3.4.0/update.sql` 3: `event_log.install_id` (the browser that made a till event) and `event_log.doubt`, index
+  `ix_event_log_install` (install_id, machine_sequence_no). Every database; a database where the script ran before
+  runs it again (each statement guarded).
 
 ### Config
 - `eventlog.enabled` (a store only): `false` by default and in the store type file, strictly true/false. Absent is

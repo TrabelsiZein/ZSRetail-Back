@@ -229,7 +229,7 @@ public class EventLog {
 				: null;
 	}
 
-	static String cut(String text, int length) {
+	public static String cut(String text, int length) {
 		return text == null || text.length() <= length ? text : text.substring(0, length);
 	}
 }

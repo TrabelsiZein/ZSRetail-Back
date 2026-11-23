@@ -13,6 +13,8 @@ The build is in small steps.
   below. No screen has changed.
 - **Step 3 (done): the badge and the logins.** One line beside what already happens (the login filter, `POST /logout`,
   `badge_scan_log`, the 403 `TILL_RIGHT_REQUIRED`); see "Step 3" below. No screen has changed.
+- **Step 4 (done): the till's queue and `POST /event-log/batch`.** The front keeps its events in localStorage and sends
+  them in groups; no gesture is logged yet (step 5). See "Step 4" below.
 
 ## The switch: `eventlog.enabled`
 
@@ -48,7 +50,8 @@ Built as `warranty.enabled` (`NodeOwnership.isEventLogSet`):
 | `user_id`, `user_login`, `user_name`, `user_role` | Who did it. |
 | `authorised_by_id` / `_login` / `_name` | The owner of the badge that allowed it. Empty when nobody's badge was needed. |
 | `sent_by_id`, `sent_by_login` | Till events only: the user whose login sent them. |
-| `client_address`, `machine_sequence_no` | The request's address; the till's own number of its events (a hole shows events never sent). |
+| `client_address`, `machine_sequence_no`, `install_id` | The request's address; the till's own number of its events, per browser install (a hole within one install shows events never sent; step 4). |
+| `doubt` | Step 4: what the server could not confirm of a till event's claims (codes, comma separated); null when nothing. |
 | `old_value`, `new_value`, `amount`, `details` | Before and after, an amount, one free text. |
 | `imported` | A row copied from `badge_scan_log` (step 7). |
 
@@ -160,7 +163,7 @@ owner.
 | Event | Where | Values |
 |---|---|---|
 | `LOGIN_OK` (Step) | `JWTAuthenticationFilter.successfulAuthentication`, after the answer is sent | the user, his role, the address |
-| `LOGIN_REFUSED` (Alert) | `JWTAuthenticationFilter.attemptAuthentication`, its catch (the refusal never reaches `unsuccessfulAuthentication`: the filter answers the 403 itself) | see below |
+| `LOGIN_REFUSED` (Notable since step 4), `LOGIN_REFUSED_REPEATED` (Alert) | `JWTAuthenticationFilter.attemptAuthentication`, its catch (the refusal never reaches `unsuccessfulAuthentication`: the filter answers the 403 itself) | see below |
 | `LOGOUT` (Step) | `POST /logout` (`LogoutAPI`, core): it only writes the event, 204. The till calls it from step 5. | the user |
 | `TILL_RIGHT_USED` (Step) | `BadgeService.logPass` for a badge pass (the request used the scan's grant), and `logBadgeScan` for a successful scan of the customer list. A pass on the user's own role writes none (`badge_scan_log` still keeps it). | the action; the badge's owner as the authoriser; the user who scanned; the session |
 | `SESSION_OPENED_PREVIOUS_UNVERIFIED` (Notable) | `CashierSessionService.openSession`, when the drawer's previous session is closed but not verified (allowed when `VERIFY_PREVIOUS_SESSION_BEFORE_OPENING` is off) | previous → new session; the previous cashier in the text |
@@ -184,8 +187,14 @@ the grant expired or was used, or the request did not come from the till.
 - Anything else is written as "Identifiant inconnu" with the request's address. No column holds the text typed, so a
   password typed in the login field never lands in the log.
 - The answer to the till is unchanged ("Incorrect login or password" in both cases).
-- Several refusals in a row give one event each: each is numbered and kept. A run on one login or from one address is
-  found by the login or address filter (step 6).
+- Step 4: one refusal is Notable. From the 5th refusal in a row on one existing user's login, or from one address, the
+  event is `LOGIN_REFUSED_REPEATED` (Alert), the count as the amount, and the details say the run ("5e refus de suite
+  pour cet identifiant depuis 10:02:20"). A run ends at a successful login of that login or from that address, or after
+  15 minutes without a refusal: a typo a day never adds up. The counter is in memory (`LoginTries`, bounded at 10,000
+  runs), lost at a restart. The grouping on the page comes with step 6.
+- Step 4: `backend.log` never writes the login typed either. A refusal is one WARN line, its kind and the address
+  ("Login refused (BadCredentialsException) from 192.168.1.30"); only a server failure keeps its stack trace.
+  `UserDetailsServiceImpl`'s "User not found" no longer names the login. Account lockout is not in this module.
 
 **Logout.** `SecurityConfig` turns off Spring's default `LogoutFilter`, which answered `/logout` with a redirect to
 `/login?logout`. Nothing used it. `POST /logout` needs a logged user, as any endpoint outside `permitAll`. The API is
@@ -198,6 +207,65 @@ stateless: the token stays valid until it expires and the browser drops it.
 - `BadgeService`, `BadgeAPI` and the store's controllers take theirs with `@Autowired(required = false)`, so a test
   that builds them without it writes none.
 - `badge_scan_log` is still written exactly as before; CashWatch reads it.
+
+## Step 4: the till's queue and the batch endpoint
+
+**The front (`ZSRetail-Front`).**
+
+- `logEvent(code, fields)` (`src/services/eventLog.js`) is the one call of a gesture, from step 5. It returns at once and
+  never throws: it writes one small localStorage key and sends nothing.
+- Nothing is queued when `GET /config` `eventLogEnabled` is false, or for a code not in `eventLogTillCodes`.
+- The user (his login: the till's `userData` has no id), the open session and the till's clock come by themselves. The
+  gesture says the rest.
+- The queue (`src/libs/event-queue.js`):
+  - one key per event, `zsrEvent:<importance>:<time>:<uuid>`, so adding never rewrites the queue and two tabs never
+    overwrite each other;
+  - the install (`zsrEventInstall`): the browser's UUID and its own count. A cleared browser is a new install;
+  - none of these keys is removed at the logout.
+- Full at 5,000 events, the oldest Step event goes, then the oldest Notable one, never an Alert. One
+  `EVENTLOG_EVENTS_DROPPED` (Alert) waits in the queue with the count and the first and last time lost; it grows while
+  it waits, and a new one starts once it is sent. A browser storage that refuses (its quota) drops one event and tries
+  once more.
+- The sender starts once in `main.js`. Every 5 s, when someone is logged in and the browser is online, the oldest 50
+  (Alerts first) go to `POST /event-log/batch`. It also sends when the network comes back and when the app is opened
+  again.
+- The sender uses its own axios instance, so no error popup, no token refresh and no logout. A failure waits twice as
+  long each time, up to a minute. A 404 (off on the server) stops it until the app is opened again.
+
+**The server (store, `store.eventlog`: `EventLogBatchAPI`, `TillEventBatch`).**
+
+- `POST /event-log/batch` `{installId, events: [{uuid, code, at, seq, userId | userLogin, sessionId, posMachineId,
+  cartId, subjectId, subjectLabel, oldValue, newValue, amount, details}]}`.
+- The answers:
+  - 404 when the module is off;
+  - 400 above 100 events;
+  - 200 `{stored, duplicates, refused: [{uuid, reason}]}`: the till drops all three;
+  - 503 when the database refused the group: the till keeps it.
+- A logged user is needed. The licence is not: `LicenseFilter` lets `/event-log/batch` and `/logout` pass, as `/login`.
+- **Codes.** Only `EventCode.FROM_TILL` is accepted: the cart events, the discount gestures, `PENDING_TAKEN_BACK`, the
+  reprints, the tickets X / Z, the session tickets and `EVENTLOG_EVENTS_DROPPED`.
+  - Any other code is refused `NOT_FROM_TILL` (a money event above all), an unknown one `UNKNOWN_CODE`, a missing UUID
+    `NO_UUID`; each refusal is one WARN in `backend.log`.
+  - The importance and the subject type come from the catalogue.
+- **Duplicates.** A UUID stored already, or twice in the group, is answered as a duplicate, as stored.
+- **Claims.** The user, the session and the machine the till sends are kept.
+  - The user is claimed by id, else by login (any case), else he is the sender.
+  - The machine, when not claimed, is the one registered at the request's address.
+  - What the server cannot confirm goes in `doubt` and in the details ("À vérifier : …"), and the event is stored all
+    the same:
+    - `SESSION_OF_ANOTHER_USER`: the session is not the user's;
+    - `USER_UNKNOWN`, `SESSION_UNKNOWN`, `MACHINE_UNKNOWN`;
+    - `FRONT_TIME_INVALID`: the till's clock could not be read.
+- **The server's own values.** `sent_by` is the logged user who sent the group (after a logout, another user may send a
+  colleague's events), with the request's address and the server's clock beside the till's.
+- **Writing.**
+  - The group is sorted by the till's numbers.
+  - `EventLogWriter.insertAll` runs in its own transaction: one counter update per importance reserves the group's
+    numbers (`reserve`), then one JDBC batch insert (`EventLogBatchInsert`).
+  - A UUID stored meanwhile (the same group sent twice at once) rolls it back: it is tried again once without it.
+- **`GET /config` `eventLogTillCodes`**: `{code: importance}` of `FROM_TILL`, empty when off.
+- **`db/3.4.0/update.sql` 3**: `event_log.install_id`, `event_log.doubt` and `ix_event_log_install` (install, number:
+  the holes).
 
 ## Tests
 
@@ -227,12 +295,25 @@ stateless: the token stays valid until it expires and the browser drops it.
   - `TillEventsTest`: `SESSION_OPENED_PREVIOUS_UNVERIFIED` and `TILL_RIGHT_REFUSED` (each reason in French).
   - `DrawerHandoverTest.unverifiedPreviousEvent`: the real opening, refused (none) and allowed (one).
   - `StoreEventContextTest`: no machine from a back-office PC; a refusal not authorised.
+- Step 4:
+  - `TillEventBatchTest`: a group stored (importance, subject, clocks, claims, sender, numbers consecutive per
+    importance after the server's), duplicates (stored and twice in the group), refused codes (money, unknown, no
+    UUID), the catalogue `FROM_TILL` (no money code), the doubts (another user's session, unknown user, session,
+    machine, an unreadable clock), the user by login, no claims (the sender, the machine at the address), a group sent
+    twice at once, the endpoint (404, 400, 200, 503).
+  - `EventLogTableTest.batch`: `reserve` and `storedUuids` as written, the batch SQL on the table Hibernate makes
+    (every column, nulls included).
+  - `AccessEventsTest`: Notable, the 5th in a row on one login and from one address, a login or 15 minutes ending
+    the run.
+  - `JWTAuthenticationFilterTest.logWithoutLogin`: the server log of a refused login holds no login typed.
+  - `AppConfigAPITest`: `eventLogTillCodes`.
+  - Front: `node tools/event-queue-check.mjs` (order, numbers, install, cap and drop event, Alerts kept, quota, group,
+    answer).
 
 ## Next steps
 
 | Step | What |
 |---|---|
-| 4 | The batch endpoint and the till's queue. |
 | 5 | The till's gestures. |
 | 6 | The Journal page. |
 | 7 | The old badge scans copied in. |

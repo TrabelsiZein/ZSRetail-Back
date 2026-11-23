@@ -1,6 +1,9 @@
 package com.digithink.zsretail.core.eventlog.service;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AccountExpiredException;
@@ -36,8 +39,13 @@ public class AccessEvents {
 	/** What a refused login with a login that is nobody's shows in place of the text typed. */
 	public static final String UNKNOWN_LOGIN = "Identifiant inconnu";
 
+	private static final DateTimeFormatter HOUR = DateTimeFormatter.ofPattern("HH:mm:ss");
+
 	private final EventLog eventLog;
 	private final Function<String, UserAccount> userByLogin;
+	private final Supplier<LocalDateTime> clock;
+	/** Step 4: the refused logins in a row (one login, one address), in memory. */
+	private final LoginTries tries = new LoginTries();
 
 	@Autowired
 	public AccessEvents(EventLog eventLog, UserAccountRepository users) {
@@ -46,8 +54,14 @@ public class AccessEvents {
 
 	/** With the lookup given: used by the tests. */
 	public AccessEvents(EventLog eventLog, Function<String, UserAccount> userByLogin) {
+		this(eventLog, userByLogin, LocalDateTime::now);
+	}
+
+	/** With the lookup and the clock given: used by the tests. */
+	public AccessEvents(EventLog eventLog, Function<String, UserAccount> userByLogin, Supplier<LocalDateTime> clock) {
 		this.eventLog = eventLog;
 		this.userByLogin = userByLogin;
+		this.clock = clock;
 	}
 
 	/** The module is on: a caller asks before reading something only the event needs. */
@@ -59,26 +73,41 @@ public class AccessEvents {
 
 	/** A login answered with a token. */
 	public void loginOk(UserAccount user, String address) {
-		run("LOGIN_OK", () -> eventLog.writeNow(NewEvent.of(EventCode.LOGIN_OK).subject(user.getId(), user.getUsername())
-				.user(user).from(address).details(sentence("Connexion de " + who(user) + role(user) + from(address)))));
+		run("LOGIN_OK", () -> {
+			tries.succeeded(LoginTries.loginKey(user.getId()), LoginTries.addressKey(address));
+			eventLog.writeNow(NewEvent.of(EventCode.LOGIN_OK).subject(user.getId(), user.getUsername()).user(user)
+					.from(address).details(sentence("Connexion de " + who(user) + role(user) + from(address))));
+		});
 	}
 
 	/**
 	 * A login refused (wrong password, unknown login, account disabled). The login typed is looked up: an existing
-	 * user's login names him (as stored), anything else is "Identifiant inconnu"; the text typed is never kept.
+	 * user's login names him (as stored), anything else is "Identifiant inconnu"; the text typed is never kept. Step 4:
+	 * Notable; from the {@link LoginTries#ALERT_FROM}th refusal in a row on one login or from one address,
+	 * LOGIN_REFUSED_REPEATED (Alert), the run said in the details.
 	 */
 	public void loginRefused(String typedLogin, Exception failure, String address) {
 		run("LOGIN_REFUSED", () -> {
 			UserAccount known = known(typedLogin);
-			NewEvent event = NewEvent.of(EventCode.LOGIN_REFUSED).from(address);
+			LoginTries.Run run = tries.refused(known != null ? LoginTries.loginKey(known.getId()) : null,
+					LoginTries.addressKey(address), clock.get());
+			boolean repeated = run != null && run.count >= LoginTries.ALERT_FROM;
+			NewEvent event = NewEvent.of(repeated ? EventCode.LOGIN_REFUSED_REPEATED : EventCode.LOGIN_REFUSED)
+					.from(address);
+			String text;
 			if (known == null) {
-				event.subject(null, UNKNOWN_LOGIN).user(null, null, null, null)
-						.details("Connexion refusée : identifiant inconnu" + from(address) + ".");
+				event.subject(null, UNKNOWN_LOGIN).user(null, null, null, null);
+				text = "Connexion refusée : identifiant inconnu" + from(address) + ".";
 			} else {
-				event.subject(known.getId(), known.getUsername()).user(known).details(
-						"Connexion refusée pour " + who(known) + " : " + reason(failure) + from(address) + ".");
+				event.subject(known.getId(), known.getUsername()).user(known);
+				text = "Connexion refusée pour " + who(known) + " : " + reason(failure) + from(address) + ".";
 			}
-			eventLog.writeNow(event);
+			if (repeated) {
+				event.amount((double) run.count);
+				text += " " + run.count + "e refus de suite " + (run.onLogin() ? "pour cet identifiant" : "depuis cette adresse")
+						+ " depuis " + run.first.format(HOUR) + ".";
+			}
+			eventLog.writeNow(event.details(text));
 		});
 	}
 
@@ -223,7 +252,7 @@ public class AccessEvents {
 	}
 
 	/** Ends the text with one period (a name may end with one: "Amine K."). */
-	static String sentence(String text) {
+	public static String sentence(String text) {
 		return text.endsWith(".") ? text : text + ".";
 	}
 

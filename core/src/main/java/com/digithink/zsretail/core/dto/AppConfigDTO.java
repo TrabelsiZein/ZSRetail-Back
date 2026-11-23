@@ -230,4 +230,11 @@ public class AppConfigDTO {
 	 * included. Read as false by the frontend when missing (an older backend).
 	 */
 	private boolean eventLogEnabled;
+
+	/**
+	 * 3.4.0, event log step 4: the codes the till may send (POST /event-log/batch) and their importance (10, 20, 30),
+	 * from the server's catalogue: the till's queue, when full, drops the Step events first and never an Alert. Empty
+	 * when the module is off.
+	 */
+	private java.util.Map<String, Integer> eventLogTillCodes;
 }

@@ -144,4 +144,84 @@ class EventLogTableTest {
 			assertEquals("Ticket n° 12 — قسيمة", entry.getSubjectLabel());
 		}
 	}
+
+	@Test
+	@DisplayName("Step 4: reserve adds a group's count at once; storedUuids finds the UUIDs stored; the batch SQL writes"
+			+ " every column, nulls included, as Hibernate reads them (install_id, doubt)")
+	void batch() throws Exception {
+		try (Session session = sessions.openSession()) {
+			session.beginTransaction();
+			session.persist(new EventLogSequence(EventImportance.NOTABLE, 7));
+			session.flush();
+			assertEquals(1, session.createQuery(jpql("reserve")).setParameter("importance", EventImportance.NOTABLE)
+					.setParameter("count", 3L).executeUpdate());
+			assertEquals(10L, lastValue(session, EventImportance.NOTABLE).get(0));
+			assertEquals(0, session.createQuery(jpql("reserve")).setParameter("importance", EventImportance.ALERT)
+					.setParameter("count", 3L).executeUpdate(), "no row: 0");
+
+			EventLogEntry full = entry("c0000000-0000-4000-8000-000000000003", 8);
+			full.setImportance(EventImportance.NOTABLE);
+			full.setCode(EventCode.CART_LINE_DELETED.name());
+			full.setSubjectType(EventSubject.CART.name());
+			full.setSubjectId("12");
+			full.setFrontAt(LocalDateTime.of(2026, 11, 23, 9, 59, 58));
+			full.setPosMachineId(1L);
+			full.setPosMachineName("Caisse 1");
+			full.setSessionId(3L);
+			full.setSessionNumber("SESSION261123001");
+			full.setCartId("d0000000-0000-4000-8000-000000000004");
+			full.setUserId(7L);
+			full.setUserLogin("amine");
+			full.setUserName("Amine K.");
+			full.setUserRole("POS_USER");
+			full.setSentById(2L);
+			full.setSentByLogin("sarra");
+			full.setClientAddress("192.168.1.21");
+			full.setMachineSequenceNo(41L);
+			full.setInstallId("e0000000-0000-4000-8000-000000000005");
+			full.setDoubt("SESSION_OF_ANOTHER_USER");
+			full.setOldValue("2");
+			full.setNewValue("0");
+			full.setAmount(12.5);
+			full.setDetails("Ligne supprimée — سطر");
+			EventLogEntry bare = entry("c0000000-0000-4000-8000-000000000006", 9);
+			session.doWork(connection -> {
+				try (java.sql.PreparedStatement ps = connection.prepareStatement(
+						com.digithink.zsretail.core.eventlog.service.EventLogBatchInsert.SQL)) {
+					for (EventLogEntry row : java.util.Arrays.asList(full, bare)) {
+						com.digithink.zsretail.core.eventlog.service.EventLogBatchInsert.bind(ps, row);
+						ps.addBatch();
+					}
+					assertEquals(2, ps.executeBatch().length);
+				}
+			});
+			String storedQuery = null;
+			for (Method m : com.digithink.zsretail.core.eventlog.repository.EventLogEntryRepository.class.getMethods()) {
+				if (m.getName().equals("storedUuids")) {
+					storedQuery = m.getAnnotation(Query.class).value();
+				}
+			}
+			assertEquals(java.util.Arrays.asList("c0000000-0000-4000-8000-000000000003"),
+					session.createQuery(storedQuery).setParameter("uuids", java.util.Arrays.asList(
+							"c0000000-0000-4000-8000-000000000003", "f0000000-0000-4000-8000-000000000009"))
+							.getResultList());
+			EventLogEntry read = session.createQuery("from EventLogEntry where eventUuid = :u", EventLogEntry.class)
+					.setParameter("u", full.getEventUuid()).getSingleResult();
+			session.refresh(read);
+			assertEquals("e0000000-0000-4000-8000-000000000005", read.getInstallId());
+			assertEquals("SESSION_OF_ANOTHER_USER", read.getDoubt());
+			assertEquals(Long.valueOf(41), read.getMachineSequenceNo());
+			assertEquals(Long.valueOf(8), read.getSequenceNo());
+			assertEquals(LocalDateTime.of(2026, 11, 23, 9, 59, 58), read.getFrontAt());
+			assertEquals("Ligne supprimée — سطر", read.getDetails());
+			assertEquals(12.5, read.getAmount());
+			assertEquals("sarra", read.getSentByLogin());
+			EventLogEntry readBare = session.createQuery("from EventLogEntry where eventUuid = :u", EventLogEntry.class)
+					.setParameter("u", bare.getEventUuid()).getSingleResult();
+			assertEquals(null, readBare.getInstallId());
+			assertEquals(null, readBare.getAmount());
+			assertFalse(readBare.isImported());
+			session.getTransaction().rollback();
+		}
+	}
 }
