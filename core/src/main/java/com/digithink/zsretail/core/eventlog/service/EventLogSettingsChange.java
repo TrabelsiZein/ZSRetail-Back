@@ -37,15 +37,15 @@ public class EventLogSettingsChange implements GeneralSetupValueCheck, GeneralSe
 		String v = value == null ? "" : value.trim();
 		if (EventLogSettings.STORE_FROM.equals(code)) {
 			if (!EventLogSettings.LEVEL_STEP.equals(v) && !EventLogSettings.LEVEL_NOTABLE.equals(v)) {
-				throw new IllegalStateException("The event log's level is STEP or NOTABLE, not '" + v + "'.");
+				throw new Refused("EVENTLOG_LEVEL_INVALID", "The event log's level is STEP or NOTABLE, not '" + v + "'.", v);
 			}
 		} else if (EventLogSettings.AUTO_CLEANUP.equals(code)) {
 			if (!"true".equals(v) && !"false".equals(v)) {
-				throw new IllegalStateException("The automatic cleanup is true or false, not '" + v + "'.");
+				throw new Refused("EVENTLOG_SWITCH_INVALID", "The automatic cleanup is true or false, not '" + v + "'.", v);
 			}
 		} else if (!v.isEmpty() && EventLogSettings.months(v) == null) {
-			throw new IllegalStateException("A duration is 1 to " + EventLogSettings.MAX_MONTHS
-					+ " months, or empty (kept forever), not '" + v + "'.");
+			throw new Refused("EVENTLOG_DURATION_INVALID", "A duration is 1 to " + EventLogSettings.MAX_MONTHS
+					+ " months, or empty (kept forever), not '" + v + "'.", v);
 		}
 	}
 
@@ -67,6 +67,33 @@ public class EventLogSettingsChange implements GeneralSetupValueCheck, GeneralSe
 			});
 		} else {
 			settings.refresh();
+		}
+	}
+
+	/**
+	 * A value refused, with its code (the front shows serverErrors.<code> in the screen's language, the field named by its
+	 * label): {value} the value typed, {max} the longest duration. 400 by General setup, as every refusal of a setting.
+	 */
+	static final class Refused extends IllegalStateException implements com.digithink.zsretail.core.exception.CodedRefusal {
+		private static final long serialVersionUID = 1L;
+		private final String code;
+		private final java.util.Map<String, Object> params = new java.util.LinkedHashMap<>();
+
+		Refused(String code, String message, String value) {
+			super(message);
+			this.code = code;
+			params.put("value", value);
+			params.put("max", EventLogSettings.MAX_MONTHS);
+		}
+
+		@Override
+		public String getCode() {
+			return code;
+		}
+
+		@Override
+		public java.util.Map<String, Object> getParams() {
+			return params;
 		}
 	}
 

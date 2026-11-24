@@ -104,7 +104,11 @@ class EventLogSettingsTest {
 		assertThrows(IllegalStateException.class, () -> change.check(EventLogSettings.STORE_FROM, "ALERT"));
 		assertDoesNotThrow(() -> change.check(EventLogSettings.KEEP_STEP_MONTHS, ""));
 		assertDoesNotThrow(() -> change.check(EventLogSettings.KEEP_STEP_MONTHS, "12"));
-		assertThrows(IllegalStateException.class, () -> change.check(EventLogSettings.KEEP_STEP_MONTHS, "0"));
+		IllegalStateException zero = assertThrows(IllegalStateException.class,
+				() -> change.check(EventLogSettings.KEEP_STEP_MONTHS, "0"));
+		assertEquals("EVENTLOG_DURATION_INVALID", ((com.digithink.zsretail.core.exception.CodedRefusal) zero).getCode(),
+				"a coded refusal: the screen says it in its language");
+		assertEquals("0", ((com.digithink.zsretail.core.exception.CodedRefusal) zero).getParams().get("value"));
 		assertThrows(IllegalStateException.class, () -> change.check(EventLogSettings.KEEP_ALERT_MONTHS, "601"));
 		assertThrows(IllegalStateException.class, () -> change.check(EventLogSettings.KEEP_ALERT_MONTHS, "-3"));
 		assertThrows(IllegalStateException.class, () -> change.check(EventLogSettings.AUTO_CLEANUP, "oui"));

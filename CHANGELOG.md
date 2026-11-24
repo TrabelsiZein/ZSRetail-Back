@@ -76,6 +76,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - Event log: `EVENTLOG_STARTED` is Notable, not an Alert (a store restarts every morning).
 
 ### Fixes
+- Event log settings: a refused value is a coded refusal (`EVENTLOG_LEVEL_INVALID`, `EVENTLOG_DURATION_INVALID`,
+  `EVENTLOG_SWITCH_INVALID`, the value and the maximum), so General setup says it in the screen's language.
 - `backend.log` no longer writes the login typed at a refused login (it may be a password typed in the wrong field): one
   WARN with the kind of refusal and the address; only a server failure keeps its stack trace. "User not found" no longer
   names the login.
