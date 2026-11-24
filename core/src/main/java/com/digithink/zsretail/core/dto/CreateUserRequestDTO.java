@@ -15,4 +15,7 @@ public class CreateUserRequestDTO {
 	private String fullName;
 	private String email;
 	private Long appRoleId; // dynamic AppRole assignment (source of permissions)
+	// 3.4.0: the badge typed in the add popup (it was dropped); checked by UserAccountAPI.badgeRefusal as an update is
+	private String badgeCode;
+	private String badgeExpirationDate; // the popup's datetime-local, "2026-12-31T23:59"; empty: none
 }

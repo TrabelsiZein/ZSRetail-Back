@@ -90,6 +90,13 @@ public class UserAccountService extends _BaseService<UserAccount, Long> {
 		user.setEmail(request.getEmail());
 		user.setPassword(request.getPassword());
 		user.setActive(true);
+		// 3.4.0: the badge of the add popup (checked by the API: format, unique code, date)
+		if (request.getBadgeCode() != null && !request.getBadgeCode().trim().isEmpty()) {
+			user.setBadgeCode(request.getBadgeCode().trim());
+		}
+		if (request.getBadgeExpirationDate() != null && !request.getBadgeExpirationDate().trim().isEmpty()) {
+			user.setBadgeExpirationDate(LocalDateTime.parse(request.getBadgeExpirationDate().trim()));
+		}
 
 		// The user's role is his AppRole (step E: the enum Role is retired); a user without one cannot log in usefully
 		if (request.getAppRoleId() == null) {

@@ -336,6 +336,10 @@ change seen twice for one cart (the payment page, then the till) is told once.
   - the lost cart and the events dropped give the till's local time ("le 23/11/2026 à 21:29");
   - real plurals ("1 ligne", "2 lignes");
   - `EVENTLOG_STARTED` reads "Journal des événements actif, version …".
+- Rows check 2 (2026-11-24): `PROMO_CODE_ADDED`, `PROMO_CODE_REMOVED` and `CART_CUSTOMER_CHANGED` on the till read
+  `effectiveTotal` (the lines less a cart-wide promotion), no longer `totalAmount` (the lines only: a cart-wide code
+  read "8,900 → 8,900"). The payment page's `totalAfterDiscount` already had the cart promotion off. The rows written
+  before stay as they are (test data). Front check: `tools/till-cart-check.mjs`.
 - **For the Journal page (step 6):** `amount` is a float column (21.899999…), so the page rounds it to 3 decimals.
 
 **The measure of a validated sale** (2026-11-23).

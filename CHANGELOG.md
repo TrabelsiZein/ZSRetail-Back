@@ -63,6 +63,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - `backend.log` no longer writes the login typed at a refused login (it may be a password typed in the wrong field): one
   WARN with the kind of refusal and the address; only a server failure keeps its stack trace. "User not found" no longer
   names the login.
+- Users: the badge code and its expiry date typed in the add popup are saved (`POST /user-account` dropped them: only an
+  edit or "Générer" gave a badge). Checked as an edit checks them (`UserAccountAPI.badgeRefusal`: 6 to 50 letters,
+  digits or hyphens, a code no other user holds); a bad code or an unreadable date is refused with its message, the user
+  not created.
 
 ### DB script
 - `db/3.4.0/update.sql` 1-2: `event_log` (one row per event, never updated; unique `event_uuid`; indexes by date,

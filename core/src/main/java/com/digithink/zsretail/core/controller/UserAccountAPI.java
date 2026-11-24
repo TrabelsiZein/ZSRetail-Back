@@ -157,6 +157,24 @@ public class UserAccountAPI {
 	/**
 	 * Create new user (admin only)
 	 */
+	/**
+	 * The refusal of a badge code for the user {@code selfId} (null: a new user), or null when it may be given (none, or a
+	 * valid code no other user holds). The add popup and the edit popup check it alike.
+	 */
+	private String badgeRefusal(String badgeCode, Long selfId) {
+		if (badgeCode == null || badgeCode.trim().isEmpty()) {
+			return null;
+		}
+		if (!badgeService.validateBadgeCode(badgeCode)) {
+			return "Invalid badge code format. Must be 6-50 alphanumeric characters.";
+		}
+		java.util.Optional<UserAccount> holder = accountRepository.findByBadgeCode(badgeCode.trim());
+		if (holder.isPresent() && !holder.get().getId().equals(selfId)) {
+			return "Badge code already exists";
+		}
+		return null;
+	}
+
 	@PostMapping
 	public ResponseEntity<?> createUser(@RequestBody CreateUserRequestDTO request) {
 		ResponseEntity<?> refused = refusedWithout(WRITE_USERS);
@@ -175,6 +193,18 @@ public class UserAccountAPI {
 			}
 			if (request.getAppRoleId() == null) {
 				return ResponseEntity.badRequest().body(createErrorResponse("Role is required"));
+			}
+			// 3.4.0: the badge typed in the add popup, checked as an update checks it (it was dropped)
+			String badgeRefused = badgeRefusal(request.getBadgeCode(), null);
+			if (badgeRefused != null) {
+				return ResponseEntity.badRequest().body(createErrorResponse(badgeRefused));
+			}
+			if (request.getBadgeExpirationDate() != null && !request.getBadgeExpirationDate().trim().isEmpty()) {
+				try {
+					LocalDateTime.parse(request.getBadgeExpirationDate().trim());
+				} catch (java.time.format.DateTimeParseException e) {
+					return ResponseEntity.badRequest().body(createErrorResponse("Invalid badge expiration date."));
+				}
 			}
 
 			// I-21: only an administrator creates an Administrateur
@@ -251,14 +281,9 @@ public class UserAccountAPI {
 			if (request.containsKey("badgeCode")) {
 				String badgeCode = (String) request.get("badgeCode");
 				if (badgeCode != null && !badgeCode.trim().isEmpty()) {
-					// Validate badge code format
-					if (!badgeService.validateBadgeCode(badgeCode)) {
-						return ResponseEntity.badRequest().body(createErrorResponse("Invalid badge code format. Must be 6-50 alphanumeric characters."));
-					}
-					// Check uniqueness (excluding current user)
-					java.util.Optional<UserAccount> existingUser = accountRepository.findByBadgeCode(badgeCode.trim());
-					if (existingUser.isPresent() && !existingUser.get().getId().equals(user.getId())) {
-						return ResponseEntity.badRequest().body(createErrorResponse("Badge code already exists"));
+					String badgeRefused = badgeRefusal(badgeCode, user.getId());
+					if (badgeRefused != null) {
+						return ResponseEntity.badRequest().body(createErrorResponse(badgeRefused));
 					}
 					user.setBadgeCode(badgeCode.trim());
 				} else {
