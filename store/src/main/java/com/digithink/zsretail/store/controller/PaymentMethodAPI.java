@@ -36,6 +36,10 @@ public class PaymentMethodAPI extends _BaseController<PaymentMethod, Long, Payme
 	@Autowired
 	private CurrentUserProvider currentUserProvider;
 
+	/** 3.4.0, event log step 9: a payment method created, changed (before → after) or deleted. */
+	@Autowired(required = false)
+	private com.digithink.zsretail.core.eventlog.service.AdminEvents adminEvents;
+
 	@Override
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody PaymentMethod entity) {
@@ -47,7 +51,11 @@ public class PaymentMethodAPI extends _BaseController<PaymentMethod, Long, Payme
 		} catch (Refusal refusal) {
 			return refused(HttpStatus.BAD_REQUEST, refusal);
 		}
-		return super.create(entity);
+		ResponseEntity<?> answer = super.create(entity);
+		if (adminEvents != null && answer.getStatusCode().is2xxSuccessful() && answer.getBody() instanceof PaymentMethod) {
+			adminEvents.paymentMethodSaved(null, (PaymentMethod) answer.getBody());
+		}
+		return answer;
 	}
 
 	@Override
@@ -60,12 +68,17 @@ public class PaymentMethodAPI extends _BaseController<PaymentMethod, Long, Payme
 		if (!stored.isPresent()) {
 			return ResponseEntity.notFound().build();
 		}
+		java.util.Map<String, String> before = com.digithink.zsretail.core.eventlog.service.AdminEvents.describe(stored.get()); // 3.4.0: before prepareUpdate copies onto it
 		try {
 			service.prepareUpdate(stored.get(), entity);
 		} catch (Refusal refusal) {
 			return refused(HttpStatus.BAD_REQUEST, refusal);
 		}
-		return super.update(id, stored.get());
+		ResponseEntity<?> answer = super.update(id, stored.get());
+		if (adminEvents != null && answer.getStatusCode().is2xxSuccessful() && answer.getBody() instanceof PaymentMethod) {
+			adminEvents.paymentMethodSaved(before, (PaymentMethod) answer.getBody());
+		}
+		return answer;
 	}
 
 	@Override
@@ -82,7 +95,11 @@ public class PaymentMethodAPI extends _BaseController<PaymentMethod, Long, Payme
 		if (refusal.isPresent()) {
 			return refused(HttpStatus.CONFLICT, refusal.get());
 		}
-		return super.deleteById(id);
+		ResponseEntity<?> answer = super.deleteById(id);
+		if (adminEvents != null && answer.getStatusCode().is2xxSuccessful()) {
+			adminEvents.paymentMethodDeleted(stored.get());
+		}
+		return answer;
 	}
 
 	/** Step 3: the behaviour of this method cannot change (the dialog greys its choice); a logged user. */

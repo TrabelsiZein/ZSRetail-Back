@@ -285,6 +285,11 @@ public class DeliveryReceptionService {
 	 * note too long. A line absent from the body, or without a quantity, is received as sent; a quantity above the
 	 * quantity sent is accepted (the store counted it).
 	 */
+
+	/** 3.4.0, event log step 9: the administrator's gestures (absent in the hand-built tests: nothing written). */
+	@org.springframework.beans.factory.annotation.Autowired(required = false)
+	private com.digithink.zsretail.core.eventlog.service.AdminEvents adminEvents;
+
 	@Transactional(rollbackFor = Exception.class)
 	public Optional<ReceivedDeliveryDTO> receive(Long id, ReceptionInputDTO input, String user) {
 		Optional<ReceivedDelivery> found = deliveries.findForUpdate(id);
@@ -330,6 +335,20 @@ public class DeliveryReceptionService {
 		ReceivedDelivery saved = deliveries.save(delivery);
 		log.info("Head office link: BL {} received by {}: {} of {} items", saved.getNumber(), user,
 				total(saved, true), total(saved, false));
+		if (adminEvents != null) { // 3.4.0, event log step 9: the item lines, sent and received, the gaps
+			int itemLines = 0;
+			int gaps = 0;
+			for (ReceivedDeliveryLine line : saved.getLines()) {
+				if (line.isItemLine()) {
+					itemLines++;
+					if (line.getQuantitySent() != null && line.getQuantityReceived() != null
+							&& line.getQuantitySent().compareTo(line.getQuantityReceived()) != 0) {
+						gaps++;
+					}
+				}
+			}
+			adminEvents.receptionDone(saved.getId(), saved.getNumber(), itemLines, total(saved, false), total(saved, true), gaps);
+		}
 		return Optional.of(view(saved, true, false)); // the stock was changed by native updates: GET /{id} reads it
 	}
 

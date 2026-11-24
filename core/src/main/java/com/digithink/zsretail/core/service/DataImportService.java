@@ -131,8 +131,22 @@ public class DataImportService {
         }
     }
 
+    /** 3.4.0, event log step 9: one IMPORT_RUN per run, with its counts (never one event per row). */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.digithink.zsretail.core.eventlog.service.AdminEvents adminEvents;
+
     public ImportResultDTO executeImport(MultipartFile file, String entityType,
                                          List<ImportFieldMappingDTO> mapping) throws IOException {
+        ImportResultDTO result = importOf(file, entityType, mapping);
+        if (adminEvents != null && result != null) {
+            adminEvents.importRun(entityType.toUpperCase(), result.getTotalRows(), result.getSuccessCount(),
+                    result.getErrorCount());
+        }
+        return result;
+    }
+
+    private ImportResultDTO importOf(MultipartFile file, String entityType,
+                                     List<ImportFieldMappingDTO> mapping) throws IOException {
         switch (entityType.toUpperCase()) {
             case "FAMILIES":    return importFamilies(file, mapping);
             case "SUBFAMILIES": return importSubFamilies(file, mapping);

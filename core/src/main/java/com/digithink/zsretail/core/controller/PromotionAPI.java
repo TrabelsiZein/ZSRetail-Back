@@ -80,6 +80,10 @@ public class PromotionAPI extends _BaseController<Promotion, Long, PromotionServ
 	 * The generic create, guarded (task 3.2): 409 when promotions are owned by the head office. The origin is never taken
 	 * from the request: a new promotion is local, a body with the id of an existing one keeps that one's origin.
 	 */
+	/** 3.4.0, event log step 9: a promotion created, changed (its values before → after) or deleted. */
+	@org.springframework.beans.factory.annotation.Autowired(required = false)
+	private com.digithink.zsretail.core.eventlog.service.AdminEvents adminEvents;
+
 	@Override
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody Promotion promotion) {
@@ -90,7 +94,10 @@ public class PromotionAPI extends _BaseController<Promotion, Long, PromotionServ
 			Optional<Promotion> existing = promotion.getId() == null ? Optional.empty()
 					: promotionService.findById(promotion.getId());
 			promotion.setOrigin(existing.map(Promotion::getOrigin).orElse(null)); // new: local
-			return ResponseEntity.status(HttpStatus.CREATED).body(promotionService.save(promotion));
+			java.util.Map<String, String> before = existing.map(com.digithink.zsretail.core.eventlog.service.AdminEvents::describe).orElse(null); // 3.4.0
+			Promotion saved = promotionService.save(promotion);
+			if (adminEvents != null) adminEvents.promotionSaved(before, saved); // 3.4.0, event log step 9
+			return ResponseEntity.status(HttpStatus.CREATED).body(saved);
 		} catch (IllegalArgumentException e) {
 			// 3.1.0: a target refused by the save rules (PromotionService.normalise), as the head office answers it
 			log.warn("PromotionAPI::create:refused: {}", e.getMessage());
@@ -121,7 +128,9 @@ public class PromotionAPI extends _BaseController<Promotion, Long, PromotionServ
 						.body("This promotion has been used in " + usageCount
 								+ " sale(s) and cannot be deleted. Deactivate it instead.");
 			}
+			Promotion gone = adminEvents != null ? promotionService.findById(id).orElse(null) : null; // 3.4.0
 			promotionService.deleteById(id);
+			if (gone != null) adminEvents.promotionDeleted(gone); // 3.4.0, event log step 9
 			return ResponseEntity.noContent().build();
 		} catch (Exception e) {
 			String detailedMessage = getDetailedMessage(e);
@@ -149,9 +158,11 @@ public class PromotionAPI extends _BaseController<Promotion, Long, PromotionServ
 				return conflict(OWNED_BY_HEAD_OFFICE);
 			}
 			promotionService.validateUpdateAllowed(id, promotion);
+			java.util.Map<String, String> before = com.digithink.zsretail.core.eventlog.service.AdminEvents.describe(existing.get()); // 3.4.0: before the merge
 			promotion.setId(id);
 			promotion.setOrigin(existing.get().getOrigin());
 			Promotion updated = promotionService.save(promotion);
+			if (adminEvents != null) adminEvents.promotionSaved(before, updated); // 3.4.0, event log step 9
 			return ResponseEntity.ok(updated);
 		} catch (IllegalStateException e) {
 			log.warn("PromotionAPI::update: locked field violation for id={}: {}", id, e.getMessage());

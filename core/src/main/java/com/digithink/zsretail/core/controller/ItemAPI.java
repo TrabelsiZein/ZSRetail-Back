@@ -77,6 +77,10 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 	@Autowired
 	private PricingService pricingService;
 
+	/** 3.4.0, event log step 9: the administrator's gestures (absent in the hand-built tests: nothing written). */
+	@Autowired(required = false)
+	private com.digithink.zsretail.core.eventlog.service.AdminEvents adminEvents;
+
 	@Autowired
 	private CustomerRepository customerRepository;
 
@@ -275,7 +279,12 @@ public class ItemAPI extends _BaseController<Item, Long, ItemService> {
 			entity.setPublicPrice(existingItem.getPublicPrice());
 			// 3.1.2, bulk sale: written by PUT /{id}/bulk-flag only (never read from JSON)
 			entity.setSoldInBulk(existingItem.getSoldInBulk());
+			Double priceBefore = existingItem.getUnitPrice(); // 3.4.0: before the merge over the loaded row
 			Item updated = service.save(entity);
+			if (adminEvents != null) { // 3.4.0, event log step 9: a local item's price changed on its card
+				adminEvents.itemPriceChanged(updated.getId(), com.digithink.zsretail.core.utils.Quantities.itemLabel(updated.getItemCode(), updated.getName()), priceBefore,
+						updated.getUnitPrice());
+			}
 			return ResponseEntity.ok(updated);
 		} catch (CatalogueCodeChangeException e) {
 			return ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(e.getMessage())); // step 6

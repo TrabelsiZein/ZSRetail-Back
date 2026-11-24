@@ -23,6 +23,47 @@ public class SalesDiscountAPI extends _BaseController<SalesDiscount, Long, Sales
 	@Autowired
 	private SalesDiscountService salesDiscountService;
 
+	/** 3.4.0, event log step 9: a discount created, changed (its values before → after) or deleted. */
+	@Autowired(required = false)
+	private com.digithink.zsretail.core.eventlog.service.AdminEvents adminEvents;
+
+	/** The generic create, its event (3.4.0). */
+	@Override
+	@org.springframework.web.bind.annotation.PostMapping
+	public ResponseEntity<?> create(@org.springframework.web.bind.annotation.RequestBody SalesDiscount entity) {
+		ResponseEntity<?> answer = super.create(entity);
+		if (adminEvents != null && answer.getStatusCode().is2xxSuccessful() && answer.getBody() instanceof SalesDiscount) {
+			adminEvents.discountSaved(null, (SalesDiscount) answer.getBody());
+		}
+		return answer;
+	}
+
+	/** The generic update, its event with the values before (copied: the loaded row is merged over). */
+	@Override
+	@org.springframework.web.bind.annotation.PutMapping("/{id}")
+	public ResponseEntity<?> update(@org.springframework.web.bind.annotation.PathVariable Long id,
+			@org.springframework.web.bind.annotation.RequestBody SalesDiscount entity) {
+		java.util.Map<String, String> before = service.findById(id).map(com.digithink.zsretail.core.eventlog.service.AdminEvents::describe).orElse(null);
+		ResponseEntity<?> answer = super.update(id, entity);
+		if (adminEvents != null && before != null && answer.getStatusCode().is2xxSuccessful()
+				&& answer.getBody() instanceof SalesDiscount) {
+			adminEvents.discountSaved(before, (SalesDiscount) answer.getBody());
+		}
+		return answer;
+	}
+
+	/** The generic delete, its event. */
+	@Override
+	@org.springframework.web.bind.annotation.DeleteMapping("/{id}")
+	public ResponseEntity<?> deleteById(@org.springframework.web.bind.annotation.PathVariable Long id) {
+		SalesDiscount gone = service.findById(id).orElse(null);
+		ResponseEntity<?> answer = super.deleteById(id);
+		if (adminEvents != null && gone != null && answer.getStatusCode().is2xxSuccessful()) {
+			adminEvents.discountDeleted(gone);
+		}
+		return answer;
+	}
+
 	/**
 	 * Get paginated sales discounts with optional search
 	 * GET /sales-discount/paginated?page=0&size=20&search=term

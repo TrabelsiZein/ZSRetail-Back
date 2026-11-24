@@ -105,6 +105,16 @@ public enum EventCode {
 	PROMOTION_SAVED(EventSubject.PROMOTION, NOTABLE, "Promotion enregistrée"),
 	PROMOTION_DELETED(EventSubject.PROMOTION, NOTABLE, "Promotion supprimée"),
 
+	/** Step 9: a local item's price changed on its card (not a sales price, not an own price). */
+	ITEM_PRICE_CHANGED(EventSubject.ITEM, NOTABLE, "Prix d'un article changé"),
+	/** Step 9: a payment method created or changed (its values before → after). */
+	PAYMENT_METHOD_SAVED(EventSubject.PAYMENT_METHOD, NOTABLE, "Mode de paiement enregistré"),
+	PAYMENT_METHOD_DELETED(EventSubject.PAYMENT_METHOD, NOTABLE, "Mode de paiement supprimé"),
+	/** Step 9: points given or taken by hand on a member's account: money, an Alert. */
+	LOYALTY_POINTS_ADJUSTED(EventSubject.LOYALTY, ALERT, "Points de fidélité ajustés"),
+	LOYALTY_PROGRAM_SAVED(EventSubject.LOYALTY, NOTABLE, "Programme de fidélité enregistré"),
+	LOYALTY_PROGRAM_DELETED(EventSubject.LOYALTY, NOTABLE, "Programme de fidélité supprimé"),
+
 	// ── Stock, inventory, purchases ──
 	STOCK_ADJUSTED(EventSubject.ITEM, ALERT, "Stock ajusté"),
 	COST_ADJUSTED(EventSubject.ITEM, NOTABLE, "CMP ajusté"),

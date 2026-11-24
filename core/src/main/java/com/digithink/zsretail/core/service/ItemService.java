@@ -50,6 +50,10 @@ public class ItemService extends _BaseService<Item, Long> {
 	@Autowired
 	private ItemRepository itemRepository;
 
+	/** 3.4.0, event log step 9: the administrator's gestures (absent in the hand-built tests: nothing written). */
+	@Autowired(required = false)
+	private com.digithink.zsretail.core.eventlog.service.AdminEvents adminEvents;
+
 	@Autowired
 	private ItemFamilyRepository itemFamilyRepository;
 
@@ -179,8 +183,14 @@ public class ItemService extends _BaseService<Item, Long> {
 	 */
 	@Transactional(rollbackFor = Exception.class)
 	public void adjustStock(Long itemId, BigDecimal delta, String reason) {
+		// 3.4.0, event log step 9: the stock before (the change itself is relative, StockService)
+		Item before = adminEvents != null && adminEvents.isOn() ? itemRepository.findById(itemId).orElse(null) : null;
+		BigDecimal stockBefore = before == null ? null : before.getStockQuantity();
 		stockService.adjustStock(itemId, delta, reason);
 		stockMovementService.recordAdjustment(itemId, delta, reason);
+		if (before != null) {
+			adminEvents.stockAdjusted(itemId, com.digithink.zsretail.core.utils.Quantities.itemLabel(before.getItemCode(), before.getName()), stockBefore, delta, reason, null);
+		}
 	}
 
 	/** 3.1.2: the note of the OPENING_STOCK movement of an item created with a stock (POST /item). */
@@ -216,6 +226,9 @@ public class ItemService extends _BaseService<Item, Long> {
 		stockMovementService.recordCostAdjustment(itemId, before, newCost, reason, user);
 		costHistoryService.record(itemId, before, newCost, null, newCost,
 				CostHistoryService.Origin.of(CostChangeSource.MANUAL, user).withNote(reason));
+		if (adminEvents != null) { // 3.4.0, event log step 9
+			adminEvents.costAdjusted(itemId, com.digithink.zsretail.core.utils.Quantities.itemLabel(item.getItemCode(), item.getName()), before, newCost, reason);
+		}
 		return before;
 	}
 

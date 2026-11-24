@@ -41,12 +41,23 @@ public class SalesPriceAPI extends _BaseController<SalesPrice, Long, SalesPriceS
 				: ResponseEntity.status(HttpStatus.CONFLICT).body(createErrorResponse(guard.salesPriceWrite()));
 	}
 
+	/** 3.4.0, event log step 9: a price created, changed (its values before → after) or deleted. */
+	@Autowired(required = false)
+	private com.digithink.zsretail.core.eventlog.service.AdminEvents adminEvents;
+
 	/** The generic create; step 6: refused when selling prices come from the head office. */
 	@Override
 	@PostMapping
 	public ResponseEntity<?> create(@RequestBody SalesPrice entity) {
 		ResponseEntity<?> refusal = refused();
-		return refusal != null ? refusal : super.create(entity);
+		if (refusal != null) {
+			return refusal;
+		}
+		ResponseEntity<?> answer = super.create(entity);
+		if (adminEvents != null && answer.getStatusCode().is2xxSuccessful() && answer.getBody() instanceof SalesPrice) {
+			adminEvents.priceSaved(null, (SalesPrice) answer.getBody());
+		}
+		return answer;
 	}
 
 	/** The generic update; step 6: as create. */
@@ -54,7 +65,17 @@ public class SalesPriceAPI extends _BaseController<SalesPrice, Long, SalesPriceS
 	@PutMapping("/{id}")
 	public ResponseEntity<?> update(@PathVariable Long id, @RequestBody SalesPrice entity) {
 		ResponseEntity<?> refusal = refused();
-		return refusal != null ? refusal : super.update(id, entity);
+		if (refusal != null) {
+			return refusal;
+		}
+		// 3.4.0: the values before, copied (the loaded row is merged over)
+		java.util.Map<String, String> before = service.findById(id).map(com.digithink.zsretail.core.eventlog.service.AdminEvents::describe).orElse(null);
+		ResponseEntity<?> answer = super.update(id, entity);
+		if (adminEvents != null && before != null && answer.getStatusCode().is2xxSuccessful()
+				&& answer.getBody() instanceof SalesPrice) {
+			adminEvents.priceSaved(before, (SalesPrice) answer.getBody());
+		}
+		return answer;
 	}
 
 	/** The generic delete; step 6: as create. */
@@ -62,7 +83,15 @@ public class SalesPriceAPI extends _BaseController<SalesPrice, Long, SalesPriceS
 	@DeleteMapping("/{id}")
 	public ResponseEntity<?> deleteById(@PathVariable Long id) {
 		ResponseEntity<?> refusal = refused();
-		return refusal != null ? refusal : super.deleteById(id);
+		if (refusal != null) {
+			return refusal;
+		}
+		SalesPrice gone = service.findById(id).orElse(null); // 3.4.0: what is deleted, for its event
+		ResponseEntity<?> answer = super.deleteById(id);
+		if (adminEvents != null && gone != null && answer.getStatusCode().is2xxSuccessful()) {
+			adminEvents.priceDeleted(gone);
+		}
+		return answer;
 	}
 
 	/**

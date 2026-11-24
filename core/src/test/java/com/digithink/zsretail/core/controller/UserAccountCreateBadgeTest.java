@@ -45,6 +45,8 @@ class UserAccountCreateBadgeTest {
 	private final AppRoleRepository roles = mock(AppRoleRepository.class);
 	private final CurrentUserProvider current = mock(CurrentUserProvider.class);
 	private final AtomicReference<UserAccount> saved = new AtomicReference<>();
+	/** 3.4.0, event log step 9: the events the real API and service write. */
+	private final com.digithink.zsretail.core.support.InMemoryEventLog log = new com.digithink.zsretail.core.support.InMemoryEventLog();
 	private MockMvc mvc;
 
 	@BeforeEach
@@ -56,6 +58,7 @@ class UserAccountCreateBadgeTest {
 		ReflectionTestUtils.setField(users, "appRoleRepository", roles);
 		ReflectionTestUtils.setField(users, "passwordEncoder", encoder);
 		ReflectionTestUtils.setField(users, "currentUserProvider", current);
+		ReflectionTestUtils.setField(users, "adminEvents", new com.digithink.zsretail.core.eventlog.service.AdminEvents(log.eventLog()));
 
 		UserAccountAPI api = new UserAccountAPI();
 		ReflectionTestUtils.setField(api, "userAccountService", users);
@@ -102,6 +105,8 @@ class UserAccountCreateBadgeTest {
 		assertEquals(201, answer.getStatus(), answer.getContentAsString());
 		assertEquals("CAISSIER-TEST-001", saved.get().getBadgeCode());
 		assertEquals(LocalDateTime.of(2026, 12, 31, 23, 59), saved.get().getBadgeExpirationDate());
+		assertEquals(java.util.Arrays.asList("USER_CREATED"), log.codes(), "3.4.0: the creation logged");
+		assertEquals("Utilisateur créé : Caissier Test (caissier_test), rôle POS_USER, avec un badge.", log.rows.get(0).getDetails());
 	}
 
 	@Test
@@ -122,6 +127,7 @@ class UserAccountCreateBadgeTest {
 		assertEquals(400, answer.getStatus());
 		assertTrue(answer.getContentAsString().contains("Badge code already exists"), answer.getContentAsString());
 		verify(accounts, never()).save(any());
+		assertTrue(log.rows.isEmpty(), "refused: no event");
 	}
 
 	@Test

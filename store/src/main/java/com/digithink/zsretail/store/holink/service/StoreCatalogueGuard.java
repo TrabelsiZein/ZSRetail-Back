@@ -75,6 +75,10 @@ public class StoreCatalogueGuard implements CatalogueEditGuard {
 	private final CatalogueCopyWriter writer;
 	private final HeadOfficeLinkStatus linkStatus;
 
+	/** 3.4.0, event log step 9: the own price set or given back (absent in the hand-built tests). */
+	@org.springframework.beans.factory.annotation.Autowired(required = false)
+	private com.digithink.zsretail.core.eventlog.service.AdminEvents adminEvents;
+
 	public StoreCatalogueGuard(CatalogueRights rights, ItemRepository items, ItemFamilyRepository families,
 			ItemSubFamilyRepository subFamilies, ItemBarcodeRepository barcodes, SalesPriceRepository salesPrices,
 			CatalogueCopyWriter writer, HeadOfficeLinkStatus linkStatus) {
@@ -208,9 +212,14 @@ public class StoreCatalogueGuard implements CatalogueEditGuard {
 		if (item.getHeadOfficePrice() == null) {
 			item.setHeadOfficePrice(item.getUnitPrice());
 		}
+		Double before = item.getUnitPrice(); // 3.4.0, event log step 9
 		item.setUnitPrice(price);
 		item.setOwnPrice(true);
-		return items.save(item);
+		Item saved = items.save(item);
+		if (adminEvents != null) {
+			adminEvents.ownPrice(true, saved.getId(), com.digithink.zsretail.core.utils.Quantities.itemLabel(saved.getItemCode(), saved.getName()), before, price);
+		}
+		return saved;
 	}
 
 	/** The head office price back on a head office item; allowed whatever the right. */
@@ -220,7 +229,13 @@ public class StoreCatalogueGuard implements CatalogueEditGuard {
 		if (!fromHeadOffice(item)) {
 			throw new IllegalArgumentException("This item is the store's own item: it has no head office price.");
 		}
-		return writer.giveBack(item);
+		boolean hadOwn = Boolean.TRUE.equals(item.getOwnPrice()); // 3.4.0, event log step 9: nothing given back without
+		Double before = item.getUnitPrice();
+		Item back = writer.giveBack(item);
+		if (adminEvents != null && hadOwn) {
+			adminEvents.ownPrice(false, back.getId(), com.digithink.zsretail.core.utils.Quantities.itemLabel(back.getItemCode(), back.getName()), before, back.getUnitPrice());
+		}
+		return back;
 	}
 
 	// ─── Status ──────────────────────────────────────────────────

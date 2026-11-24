@@ -25,6 +25,9 @@ The build is in small steps.
   "À surveiller" numbers open the Journal filtered; four fixes of the page. See "Step 7" below.
 - **Step 8 (done): the settings and the cleanup.** The level, the durations and the night cleanup in General setup;
   the cleanup button and its right; `update.sql` step 6. See "Step 8" below.
+- **Step 9 (done): the administrator's gestures.** Users, roles, badges, settings, prices, promotions, stock, cost,
+  inventories, purchases, receptions, imports, payment methods, loyalty: one call each, where the gesture happens
+  (`AdminEvents`). See "Step 9" below.
 
 ## The switch: `eventlog.enabled`
 
@@ -530,7 +533,61 @@ save):
   every night would hide the real ones; turning the switch on is itself an Alert): who (the user, or "la tâche de
   nuit"), how many per importance and their limit dates; the total as its count. Both never deleted.
 
+## Step 9: the administrator's gestures
+
+**`AdminEvents`** (core, `core.eventlog.service`) builds each event and its French sentence, as `AccessEvents`. One
+call where the gesture really happens, through `EventLog.write` (after the caller's commit when there is one). It never
+throws and, off, it builds and reads nothing. The rules:
+
+- An event only when a value really changed. The caller copies the values before (`AdminEvents.describe(entity)`, a
+  map of labelled values) before the loaded row is changed in place or merged over; the event lists "field : before →
+  after" for each value that changed, and nothing when none did.
+- Never a password (only "changé par un administrateur"), a badge code (a badge shows as "aucun" or an opaque mark that
+  changes with it), nor a secret setting's value (`AdminEvents.secret`: a code with PASSWORD, SECRET, TOKEN, API_KEY,
+  PRIVATE or ending in _KEY is "******").
+- One event for a bulk gesture (an import), with its counts.
+- `amount` is money only (a price, a cost, a purchase's total); a count or a quantity is in the sentence and in before
+  / after.
+
+| Subject | Action | Code (importance) | Written in |
+|---|---|---|---|
+| User | created | `USER_CREATED` (Notable) | `UserAccountService.createUser` |
+| User | fields changed (name, e-mail, badge, its expiry) | `USER_UPDATED` (Notable) | `UserAccountAPI.updateUser` |
+| User | role changed | `USER_ROLE_CHANGED` (Alert) | `UserAccountAPI.updateUser` |
+| User | deactivated / reactivated | `USER_DISABLED` / `USER_ENABLED` (Notable) | `updateUser`, `UserAccountService.toggleUserStatus` |
+| User | password set by an admin | `PASSWORD_CHANGED` (Alert) | `UserAccountAPI.updateUser` |
+| User | deleted | `USER_DELETED` (Alert) | `UserAccountAPI.deleteUser` |
+| Badge | generated, revoked (its reason), reactivated | `BADGE_GENERATED`, `BADGE_REVOKED`, `BADGE_REACTIVATED` (Notable) | `UserAccountAPI` |
+| Role | created / deleted | `ROLE_CREATED` (Notable) / `ROLE_DELETED` (Alert) | `AppRoleService` |
+| Role | rights added / taken off | `ROLE_RIGHTS_CHANGED` (Alert) | `AppRoleService.update` |
+| Setting | a value changed (a secret masked) | `SETTING_CHANGED` (Notable) | `GeneralSetupService.updateFromAdmin` (a `GeneralSetupChangeListener`) |
+| Sales price, discount | created, changed, deleted | `PRICE_SAVED`, `PRICE_DELETED` (Notable) | `SalesPriceAPI`, `SalesDiscountAPI` |
+| Item | a local item's price on its card | `ITEM_PRICE_CHANGED` (Notable, new) | `ItemAPI.update` |
+| Item | own price set / head office price given back | `OWN_PRICE_SET`, `OWN_PRICE_GIVEN_BACK` (Notable) | `StoreCatalogueGuard` |
+| Promotion | created, changed, deleted | `PROMOTION_SAVED`, `PROMOTION_DELETED` (Notable) | `PromotionAPI` |
+| Item | stock adjusted by hand | `STOCK_ADJUSTED` (Alert) | `ItemService.adjustStock` |
+| Item | CMP adjusted | `COST_ADJUSTED` (Notable) | `ItemService.adjustCost` |
+| Inventory | created / validated / deleted | `INVENTORY_CREATED` (Notable), `_VALIDATED`, `_DELETED` (Alert) | `InventoryCountService` |
+| Purchase | processed | `PURCHASE_PROCESSED` (Notable) | `PurchaseHeaderService.processPurchase` |
+| Reception | a BL received | `RECEPTION_DONE` (Notable) | `DeliveryReceptionService.receive` |
+| Import | one run, its counts | `IMPORT_RUN` (Notable) | `DataImportService.executeImport` |
+| Payment method | created, changed, deleted | `PAYMENT_METHOD_SAVED`, `_DELETED` (Notable, new) | `PaymentMethodAPI` |
+| Loyalty | points adjusted by hand | `LOYALTY_POINTS_ADJUSTED` (Alert, new) | `LoyaltyService.adjustPoints`, `StoreLoyaltyNetwork.adjust` |
+| Loyalty | program created, changed, deactivated, deleted | `LOYALTY_PROGRAM_SAVED`, `_DELETED` (Notable, new) | `LoyaltyService` |
+
+**Left out.** `ERP_SYNC_RUN` and `HEAD_OFFICE_SYNC_RUN` stay unwritten: an automatic job is not an administrator's
+gesture, and one event a run (every minute for the ERP poll) would bury the page in Steps; the jobs keep their own
+pages (ERP jobs, Head office link). The generic CRUD (`POST` / `DELETE` of `_BaseController`, e.g. `/general-setup`,
+`/sales-header`, `/payment`) writes no event: the generic-CRUD gap left for later. The automatic give-back of own prices
+when the head office takes the right off is the link's (no admin gesture). A role renamed without a change of rights
+writes nothing.
+
 ## Tests
+
+- Step 9:
+  - `AdminEventsTest`: each gesture, "no change, no event", no password / badge code / secret written, the
+    importances, off: nothing, a failure never thrown.
+  - `UserAccountCreateBadgeTest`: the real API and service write `USER_CREATED`, nothing on a refusal.
 
 - Step 8:
   - `EventLogSettingsTest`: level Notable (no Step written, no number taken, the next Step number 2 after), the
@@ -616,4 +673,4 @@ save):
 | 6 | The Journal page (done). |
 | 7 | The old badge scans copied in (done), the old page, the links. |
 | 8 | General setup and the cleanup (done). |
-| 9 | Admin gestures. |
+| 9 | Admin gestures (done). |

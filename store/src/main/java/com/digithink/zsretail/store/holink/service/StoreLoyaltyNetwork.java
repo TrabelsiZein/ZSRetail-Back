@@ -277,11 +277,21 @@ public class StoreLoyaltyNetwork implements LoyaltyMemberNetwork {
 	 * POST /loyalty/member/{id}/adjust, through the head office (needs canAdjustPoints there): applied there, the new
 	 * balance saved here. Nothing is written here as a movement, so nothing is sent twice.
 	 */
+	/** 3.4.0, event log step 9: points adjusted by hand through the head office (absent in hand-built tests). */
+	@org.springframework.beans.factory.annotation.Autowired(required = false)
+	private com.digithink.zsretail.core.eventlog.service.AdminEvents adminEvents;
+
 	public LoyaltyMemberDTO adjust(Long id, int delta, String reason, String adjustedBy) {
 		LoyaltyMember member = networkMember(id);
+		Integer before = member.getLoyaltyPoints(); // 3.4.0, event log step 9
+		String label = member.getCardNumber();
 		LiveAnswer<LoyaltyMemberCopyDTO> answer = client.adjustLoyaltyPoints(member.getCardNumber(),
 				new LoyaltyPointsAdjustDTO(delta, reason, adjustedBy));
-		return save(member, answer, ADJUST_UNREACHABLE, "This store may not adjust points.", "points adjusted");
+		LoyaltyMemberDTO adjusted = save(member, answer, ADJUST_UNREACHABLE, "This store may not adjust points.", "points adjusted");
+		if (adminEvents != null && adjusted != null) {
+			adminEvents.loyaltyPointsAdjusted(id, label, before, adjusted.getLoyaltyPoints(), reason);
+		}
+		return adjusted;
 	}
 
 	private LoyaltyMember networkMember(Long id) {

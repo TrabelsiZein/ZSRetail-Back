@@ -26,6 +26,10 @@ public class AppRoleService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found"));
     }
 
+    /** 3.4.0, event log step 9: the roles created, their rights changed, deleted (absent in hand-built tests). */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.digithink.zsretail.core.eventlog.service.AdminEvents adminEvents;
+
     public AppRole create(String name, String label, boolean isPosRole, Set<String> permissions, String createdBy) {
         if (appRoleRepository.existsByName(name)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Role name already exists: " + name);
@@ -34,20 +38,27 @@ public class AppRoleService {
         role.setPermissions(permissions);
         role.setCreatedBy(createdBy);
         role.setUpdatedBy(createdBy);
-        return appRoleRepository.save(role);
+        AppRole saved = appRoleRepository.save(role);
+        if (adminEvents != null) adminEvents.roleCreated(saved); // 3.4.0, event log step 9
+        return saved;
     }
 
     public AppRole update(Long id, String label, boolean isPosRole, Set<String> permissions, String updatedBy) {
         AppRole role = findById(id);
+        // 3.4.0, event log step 9: the rights before (the live set is replaced below)
+        Set<String> rightsBefore = role.getPermissions() == null ? new java.util.HashSet<>() : new java.util.HashSet<>(role.getPermissions());
         role.setLabel(label);
         role.setIsPosRole(isPosRole);
         role.setPermissions(permissions);
         role.setUpdatedBy(updatedBy);
-        return appRoleRepository.save(role);
+        AppRole saved = appRoleRepository.save(role);
+        if (adminEvents != null) adminEvents.roleRightsChanged(saved, rightsBefore, saved.getPermissions()); // 3.4.0
+        return saved;
     }
 
     public void delete(Long id) {
         AppRole role = findById(id);
         appRoleRepository.delete(role);
+        if (adminEvents != null) adminEvents.roleDeleted(role); // 3.4.0, event log step 9
     }
 }

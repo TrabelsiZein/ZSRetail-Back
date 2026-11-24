@@ -590,6 +590,10 @@ public class LoyaltyService {
 	 * Admin manual point adjustment.
 	 * delta is signed: positive = add, negative = remove.
 	 */
+	/** 3.4.0, event log step 9: points adjusted by hand, programs saved / deleted (absent in hand-built tests). */
+	@Autowired(required = false)
+	private com.digithink.zsretail.core.eventlog.service.AdminEvents adminEvents;
+
 	@Transactional
 	public LoyaltyMemberDTO adjustPoints(Long memberId, int delta, String reason, String adjustedBy) {
 		if (reason == null || reason.isBlank()) {
@@ -628,7 +632,17 @@ public class LoyaltyService {
 		}
 
 		log.info("Manual adjustment of {} points for member {} by {}. Reason: {}", delta, member.getCardNumber(), adjustedBy, reason);
+		if (adminEvents != null) { // 3.4.0, event log step 9: written once the adjustment commits
+			adminEvents.loyaltyPointsAdjusted(member.getId(), memberLabel(member), balanceBefore, balanceAfter, reason);
+		}
 		return toMemberDTO(member);
+	}
+
+	/** 3.4.0: a member as the event names it: "card - first last". */
+	static String memberLabel(LoyaltyMember m) {
+		String name = ((m.getFirstName() == null ? "" : m.getFirstName()) + " " + (m.getLastName() == null ? "" : m.getLastName()))
+				.trim();
+		return (m.getCardNumber() == null ? "" : m.getCardNumber()) + (name.isEmpty() ? "" : " - " + name);
 	}
 
 	// ───────────────────────────────────────────────────────────────
@@ -682,6 +696,7 @@ public class LoyaltyService {
 			networkHooks.afterProgramSaved(saved);
 		}
 		log.info("Activated new loyalty program: {}", saved.getProgramCode());
+		if (adminEvents != null) adminEvents.loyaltyProgramSaved(null, saved); // 3.4.0, event log step 9
 		return toProgramDTO(saved, today);
 	}
 
@@ -689,6 +704,7 @@ public class LoyaltyService {
 	public LoyaltyProgramDTO updateProgram(Long id, LoyaltyProgram patch) {
 		LoyaltyProgram existing = loyaltyProgramRepository.findById(id)
 				.orElseThrow(() -> new IllegalArgumentException("Loyalty program not found: " + id));
+		java.util.Map<String, String> before = com.digithink.zsretail.core.eventlog.service.AdminEvents.describe(existing); // 3.4.0: changed in place below
 
 		long txCount = loyaltyTransactionRepository.countByLoyaltyProgram(existing);
 		boolean canEditAll = (txCount == 0);
@@ -746,6 +762,7 @@ public class LoyaltyService {
 			networkHooks.afterProgramSaved(saved);
 		}
 		log.info("Updated loyalty program: {} (canEditAll={})", saved.getProgramCode(), canEditAll);
+		if (adminEvents != null) adminEvents.loyaltyProgramSaved(before, saved); // 3.4.0, event log step 9
 		return toProgramDTO(saved, LocalDate.now());
 	}
 
@@ -763,6 +780,7 @@ public class LoyaltyService {
 		}
 		loyaltyProgramRepository.delete(existing);
 		log.info("Deleted loyalty program: {}", existing.getProgramCode());
+		if (adminEvents != null) adminEvents.loyaltyProgramDeleted(existing); // 3.4.0, event log step 9
 	}
 
 	@Transactional
@@ -774,6 +792,7 @@ public class LoyaltyService {
 				&& existing.getEndDate() != null && existing.getEndDate().isBefore(today)) {
 			throw new IllegalStateException("Program is already inactive.");
 		}
+		java.util.Map<String, String> before = com.digithink.zsretail.core.eventlog.service.AdminEvents.describe(existing); // 3.4.0
 		existing.setActive(false);
 		if (existing.getEndDate() == null || existing.getEndDate().isAfter(today)) {
 			existing.setEndDate(today);
@@ -784,6 +803,7 @@ public class LoyaltyService {
 			networkHooks.afterProgramSaved(saved);
 		}
 		log.info("Deactivated loyalty program: {}", saved.getProgramCode());
+		if (adminEvents != null) adminEvents.loyaltyProgramSaved(before, saved); // 3.4.0, event log step 9
 		return toProgramDTO(saved, today);
 	}
 

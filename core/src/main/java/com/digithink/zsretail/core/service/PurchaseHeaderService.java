@@ -63,6 +63,10 @@ public class PurchaseHeaderService extends _BaseService<PurchaseHeader, Long> {
 	/**
 	 * Create a purchase from the request (without an ERP only).
 	 */
+	/** 3.4.0, event log step 9: the administrator's gestures (absent in the hand-built tests: nothing written). */
+	@org.springframework.beans.factory.annotation.Autowired(required = false)
+	private com.digithink.zsretail.core.eventlog.service.AdminEvents adminEvents;
+
 	@Transactional
 	public PurchaseHeader processPurchase(ProcessPurchaseRequestDTO request, UserAccount currentUser) {
 		if (request.getVendorId() == null) {
@@ -169,6 +173,10 @@ public class PurchaseHeaderService extends _BaseService<PurchaseHeader, Long> {
 		}
 
 		log.info("Purchase created: {} id={}", purchaseNumber, header.getId());
+		if (adminEvents != null) { // 3.4.0, event log step 9: written once the purchase's transaction commits
+			adminEvents.purchaseProcessed(header.getId(), purchaseNumber, vendor.getName(), request.getLines().size(),
+					header.getTotalAmount());
+		}
 		return header;
 	}
 

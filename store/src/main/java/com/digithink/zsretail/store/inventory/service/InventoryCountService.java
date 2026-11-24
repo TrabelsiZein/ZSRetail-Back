@@ -175,7 +175,9 @@ public class InventoryCountService {
 			count.setStatus(InventoryCountStatus.DRAFT);
 			count.setCreatedBy(user);
 			count.setUpdatedBy(user);
-			return writeLines(count, fileName, rows, user, start);
+			InventoryCount written = writeLines(count, fileName, rows, user, start);
+			if (adminEvents != null) adminEvents.inventoryCreated(written.getId(), written.getNumber(), rows.size()); // 3.4.0
+			return written;
 		});
 		return withSummary(saved);
 	}
@@ -399,6 +401,10 @@ public class InventoryCountService {
 		}
 	}
 
+	/** 3.4.0, event log step 9: an inventory created, validated, deleted (absent in the hand-built tests). */
+	@org.springframework.beans.factory.annotation.Autowired(required = false)
+	private com.digithink.zsretail.core.eventlog.service.AdminEvents adminEvents;
+
 	// ─── Validation ──────────────────────────────────────────────
 
 	/**
@@ -442,6 +448,9 @@ public class InventoryCountService {
 			stock.applyInventoryDifferences(differences);
 			int written = movements.recordInventory(differences, id, number, user);
 			lineStore.saveValidation(lines, user);
+			if (adminEvents != null) { // 3.4.0, event log step 9: written once the transaction commits
+				adminEvents.inventoryValidated(id, number, lines.size(), written, up, down);
+			}
 			log.info("Inventory count {} validated by {}: {} lines applied, {} differences (+{} / -{}), {} ms", number,
 					user, lines.size(), written, Quantities.plain(up), Quantities.plain(down), millisSince(start));
 			return counts.findById(id);
@@ -475,6 +484,7 @@ public class InventoryCountService {
 			lineStore.deleteByCount(id);
 			counts.delete(found.get());
 			log.info("Inventory count {} deleted", found.get().getNumber());
+			if (adminEvents != null) adminEvents.inventoryDeleted(id, found.get().getNumber()); // 3.4.0, event log step 9
 			return true;
 		});
 		return Boolean.TRUE.equals(deleted);

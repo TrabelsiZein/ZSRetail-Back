@@ -30,6 +30,10 @@ public enum EventSubject {
 	IMPORT,
 	/** One run of a synchronisation with the ERP or the head office. */
 	SYNC,
+	/** Step 9: a payment method (its settings: money taken at the till). */
+	PAYMENT_METHOD,
+	/** Step 9: a loyalty member's points or a loyalty program. */
+	LOYALTY,
 	/** The event log itself: its start, its settings, its cleanups. */
 	EVENT_LOG
 }

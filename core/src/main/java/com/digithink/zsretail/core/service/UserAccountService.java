@@ -35,6 +35,11 @@ public class UserAccountService extends _BaseService<UserAccount, Long> {
 	@Autowired
 	private AppRoleRepository appRoleRepository;
 
+
+	/** 3.4.0, event log step 9: the administrator's gestures (absent in the hand-built tests: nothing written). */
+	@Autowired(required = false)
+	private com.digithink.zsretail.core.eventlog.service.AdminEvents adminEvents;
+
 	@Override
 	protected _BaseRepository<UserAccount, Long> getRepository() {
 		return accountRepository;
@@ -106,6 +111,7 @@ public class UserAccountService extends _BaseService<UserAccount, Long> {
 
 		// Save user (password will be encrypted in save method)
 		UserAccount savedUser = save(user);
+		if (adminEvents != null) adminEvents.userCreated(savedUser); // 3.4.0, event log step 9
 
 		return UserAccountDTO.fromEntity(savedUser);
 	}
@@ -160,6 +166,7 @@ public class UserAccountService extends _BaseService<UserAccount, Long> {
 		
 		user.setActive(!user.getActive());
 		UserAccount savedUser = save(user);
+		if (adminEvents != null) adminEvents.userStatusChanged(savedUser, !Boolean.FALSE.equals(savedUser.getActive())); // 3.4.0
 		
 		return UserAccountDTO.fromEntity(savedUser);
 	}

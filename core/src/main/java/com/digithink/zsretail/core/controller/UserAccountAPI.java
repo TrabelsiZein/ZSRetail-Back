@@ -53,6 +53,10 @@ public class UserAccountAPI {
 	@Autowired
 	private BadgeService badgeService;
 
+	/** 3.4.0, event log step 9: the administrator's gestures (absent in the hand-built tests: nothing written). */
+	@Autowired(required = false)
+	private com.digithink.zsretail.core.eventlog.service.AdminEvents adminEvents;
+
 	@Autowired
 	private CurrentUserProvider currentUserProvider;
 
@@ -239,6 +243,9 @@ public class UserAccountAPI {
 			log.info("UserAccountAPI::updateUser: " + id);
 			UserAccount user = userAccountService.findById(id)
 					.orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+			// 3.4.0, event log step 9: the values before (the loaded user is changed in place)
+			Map<String, String> before = com.digithink.zsretail.core.eventlog.service.AdminEvents.describe(user);
+			boolean passwordSet = false;
 
 			// Update fields if provided
 			if (request.containsKey("fullName")) {
@@ -251,6 +258,7 @@ public class UserAccountAPI {
 				String password = (String) request.get("password");
 				if (password != null && !password.trim().isEmpty()) {
 					user.setPassword(password);
+					passwordSet = true;
 				}
 			}
 			if (request.containsKey("appRoleId")) {
@@ -306,6 +314,7 @@ public class UserAccountAPI {
 			}
 
 			UserAccount updatedUser = userAccountService.save(user);
+			if (adminEvents != null) adminEvents.userUpdated(before, updatedUser, passwordSet); // 3.4.0, event log step 9
 			return ResponseEntity.ok(UserAccountDTO.fromEntity(updatedUser));
 		} catch (RoleChangeRefusedException e) {
 			log.warn("UserAccountAPI::updateUser:refused: {}", e.getMessage());
@@ -341,6 +350,7 @@ public class UserAccountAPI {
 			}
 
 			userAccountService.deleteById(id);
+			if (adminEvents != null) adminEvents.userDeleted(user); // 3.4.0, event log step 9
 			return ResponseEntity.ok().body(createSuccessResponse("User deleted successfully"));
 		} catch (RuntimeException e) {
 			log.error("UserAccountAPI::deleteUser:error: " + e.getMessage(), e);
@@ -403,10 +413,12 @@ public class UserAccountAPI {
 			UserAccount user = userAccountService.findById(id)
 					.orElseThrow(() -> new RuntimeException("User not found with id: " + id));
 
+			boolean hadBadge = user.getBadgeCode() != null && !user.getBadgeCode().trim().isEmpty(); // 3.4.0
 			String badgeCode = badgeService.generateBadgeCode(user);
 			user.setBadgeCode(badgeCode);
 
 			UserAccount updatedUser = userAccountService.save(user);
+			if (adminEvents != null) adminEvents.badgeGenerated(updatedUser, hadBadge); // 3.4.0, event log step 9
 			
 			Map<String, Object> response = new HashMap<>();
 			response.put("badgeCode", badgeCode);
@@ -442,6 +454,7 @@ public class UserAccountAPI {
 			UserAccount revokedBy = currentUserProvider.getCurrentUser();
 
 			badgeService.revokeBadge(user, revokedBy, reason);
+			if (adminEvents != null) adminEvents.badgeRevoked(user, reason); // 3.4.0, event log step 9
 
 			return ResponseEntity.ok(UserAccountDTO.fromEntity(user));
 		} catch (RuntimeException e) {
@@ -469,7 +482,9 @@ public class UserAccountAPI {
 			UserAccount user = userAccountService.findById(id)
 					.orElseThrow(() -> new RuntimeException("User not found with id: " + id));
 
+			String formerReason = user.getBadgeRevokeReason(); // 3.4.0: wiped by the reactivation
 			badgeService.reactivateBadge(user);
+			if (adminEvents != null) adminEvents.badgeReactivated(user, formerReason); // 3.4.0, event log step 9
 
 			return ResponseEntity.ok(UserAccountDTO.fromEntity(user));
 		} catch (RuntimeException e) {

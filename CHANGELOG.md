@@ -54,6 +54,12 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `sessionIds` and `newValues` (the "À surveiller" links), `/catalogue` the roles' names; a count kept in the amount
   column (`LOGIN_REFUSED_REPEATED`, `EVENTLOG_EVENTS_DROPPED`) is sent as `count`, never as an amount (page and Excel);
   `CashDifferencesDTO.WatchRow.sessionIds`.
+- Event log, step 9: the administrator's gestures (`AdminEvents`, one call where each happens, only when a value really
+  changed, never a password, a badge code or a secret setting's value): users (created, fields, role, active, password,
+  deleted), badges, roles' rights, General setup (`SETTING_CHANGED`), sales prices and discounts, a local item's price
+  (`ITEM_PRICE_CHANGED`, new), own prices, promotions, stock and CMP adjusted, inventories, purchases, BL receptions,
+  imports (one event a run), payment methods (`PAYMENT_METHOD_SAVED` / `_DELETED`, new), loyalty points adjusted by hand
+  (`LOYALTY_POINTS_ADJUSTED`, Alert, new) and programs (`LOYALTY_PROGRAM_SAVED` / `_DELETED`, new).
 - Event log, step 8: the settings (`EventLogSettings`: the level, three durations, the night cleanup; checked, each
   change an `EVENTLOG_SETTINGS_CHANGED` Alert with before / after); level Notable: no Step written, none in
   `eventLogTillCodes`, a queued one refused `BELOW_LEVEL`, no hole in the numbers; the cleanup (`GET` / `POST
