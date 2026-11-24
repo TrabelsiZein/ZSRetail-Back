@@ -168,9 +168,11 @@ class EventLogCleanupTest {
 		assertEquals(march15.minusDays(30), steps.getLimit());
 		cleanup.run(null);
 		assertEquals(2, count(EventImportance.STEP), "45 days goes; 29 and 20 days stay");
-		assertNull(log.only("EVENTLOG_CLEANUP").getUserLogin(), "the night job: nobody");
-		assertTrue(log.only("EVENTLOG_CLEANUP").getDetails().startsWith("Journal nettoyé par la tâche de nuit"));
-		assertTrue(log.only("EVENTLOG_CLEANUP").getDetails().contains("(les 30 derniers jours gardés)"));
+		EventLogEntry night = log.only("EVENTLOG_CLEANUP_NIGHTLY");
+		assertEquals(EventImportance.NOTABLE, night.getImportance(), "the night job: Notable (the button: Alert)");
+		assertNull(night.getUserLogin(), "the night job: nobody");
+		assertTrue(night.getDetails().startsWith("Journal nettoyé par la tâche de nuit"));
+		assertTrue(night.getDetails().contains("(les 30 derniers jours gardés)"));
 	}
 
 	@Test

@@ -126,7 +126,13 @@ public enum EventCode {
 	 */
 	EVENTLOG_STARTED(EventSubject.EVENT_LOG, NOTABLE, "Journal démarré"),
 	EVENTLOG_SETTINGS_CHANGED(EventSubject.EVENT_LOG, ALERT, "Réglages du journal changés"),
+	/** Step 8: the cleanup by the button (an Alert: someone chose to delete). */
 	EVENTLOG_CLEANUP(EventSubject.EVENT_LOG, ALERT, "Nettoyage du journal"),
+	/**
+	 * Step 8: the night cleanup (EVENTLOG_AUTO_CLEANUP on). Notable, not an Alert: one a night would hide the real
+	 * Alerts; turning the switch on is itself an Alert (EVENTLOG_SETTINGS_CHANGED).
+	 */
+	EVENTLOG_CLEANUP_NIGHTLY(EventSubject.EVENT_LOG, NOTABLE, "Nettoyage automatique du journal"),
 	/** Step 4, sent by the till: its queue was full, events were dropped (how many, from when to when). */
 	EVENTLOG_EVENTS_DROPPED(EventSubject.EVENT_LOG, ALERT, "Événements perdus par la caisse");
 
@@ -150,14 +156,15 @@ public enum EventCode {
 	 * dropped): the Journal page and its Excel file show it as a count, never as an amount.
 	 */
 	public static final java.util.Set<EventCode> AMOUNT_IS_COUNT = java.util.Collections.unmodifiableSet(
-			java.util.EnumSet.of(LOGIN_REFUSED_REPEATED, EVENTLOG_EVENTS_DROPPED, EVENTLOG_CLEANUP));
+			java.util.EnumSet.of(LOGIN_REFUSED_REPEATED, EVENTLOG_EVENTS_DROPPED, EVENTLOG_CLEANUP,
+			EVENTLOG_CLEANUP_NIGHTLY));
 
 	/**
 	 * Step 8: the events a cleanup never deletes (the cleanups and the changes of the settings: how the journal itself
 	 * was handled stays, whatever the durations).
 	 */
 	public static final java.util.Set<EventCode> NEVER_CLEANED = java.util.Collections.unmodifiableSet(
-			java.util.EnumSet.of(EVENTLOG_CLEANUP, EVENTLOG_SETTINGS_CHANGED));
+			java.util.EnumSet.of(EVENTLOG_CLEANUP, EVENTLOG_CLEANUP_NIGHTLY, EVENTLOG_SETTINGS_CHANGED));
 
 	/** True when the stored code's amount is a count (a code no longer in the catalogue: money). */
 	public static boolean amountIsCount(String code) {

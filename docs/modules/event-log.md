@@ -524,10 +524,11 @@ save):
   or after the limit (the numbers follow the server's clock). `event_log_sequence.cleaned_to` = N is written first,
   so the page counts only the numbers above it: no false "missing", and a row deleted by hand above it still shows. A
   copied badge scan (no number) goes by its own time.
-- Never deleted: `EVENTLOG_CLEANUP` and `EVENTLOG_SETTINGS_CHANGED` (`EventCode.NEVER_CLEANED`).
+- Never deleted: `EVENTLOG_CLEANUP`, `EVENTLOG_CLEANUP_NIGHTLY` and `EVENTLOG_SETTINGS_CHANGED` (`EventCode.NEVER_CLEANED`).
 - 500 rows per delete, each its own statement, 20 ms between them: the till's inserts never wait long.
-- One `EVENTLOG_CLEANUP` (Alert): who (the user, or "la tâche de nuit"), how many per importance and their limit
-  dates; the total as its count.
+- One event: `EVENTLOG_CLEANUP` (Alert) by the button, `EVENTLOG_CLEANUP_NIGHTLY` (Notable) by the night job (an Alert
+  every night would hide the real ones; turning the switch on is itself an Alert): who (the user, or "la tâche de
+  nuit"), how many per importance and their limit dates; the total as its count. Both never deleted.
 
 ## Tests
 

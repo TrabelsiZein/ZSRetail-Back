@@ -59,7 +59,7 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `eventLogTillCodes`, a queued one refused `BELOW_LEVEL`, no hole in the numbers; the cleanup (`GET` / `POST
   /event-log/cleanup`, `delete:admin-event-log` given to ADMIN, the night job at 03:30 when on): never the last 30 days,
   a run of first numbers recorded in `cleaned_to` (never shown as missing), 500 rows a statement, one `EVENTLOG_CLEANUP`
-  Alert; the cleanups and the settings' changes never deleted. `GET /event-log` `firstEventAt`; one filter "Badge de"
+  Alert (the button) or `EVENTLOG_CLEANUP_NIGHTLY` Notable (the night job); the cleanups and the settings' changes never deleted. `GET /event-log` `firstEventAt`; one filter "Badge de"
   (the authoriser or the badge's owner; `authorisedById` is the same filter).
 
 ### Enhancements

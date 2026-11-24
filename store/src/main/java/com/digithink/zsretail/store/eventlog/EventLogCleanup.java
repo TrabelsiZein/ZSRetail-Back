@@ -43,7 +43,8 @@ import lombok.extern.log4j.Log4j2;
  * <li><b>Never deleted:</b> the cleanups and the changes of the settings (EventCode.NEVER_CLEANED).</li>
  * <li><b>Small groups:</b> {@link #GROUP} rows per delete, each its own short statement, a pause between them: the
  * till's inserts never wait long.</li>
- * <li><b>One event:</b> EVENTLOG_CLEANUP (Alert, kept): who (the user, or the night job), how many per importance, the
+ * <li><b>One event:</b> EVENTLOG_CLEANUP (Alert, the button) or EVENTLOG_CLEANUP_NIGHTLY (Notable, the night job), kept:
+ * who, how many per importance, the
  * limit dates.</li>
  * </ul>
  * One cleanup at a time (the button and the night job alike).
@@ -233,7 +234,7 @@ public class EventLogCleanup {
 							+ (p.floored ? " (les 30 derniers jours gardés)" : ""));
 		}
 		String who = by != null ? com.digithink.zsretail.core.eventlog.service.AccessEvents.who(by) : "la tâche de nuit";
-		NewEvent event = NewEvent.of(EventCode.EVENTLOG_CLEANUP).subject("EVENT_LOG", "Journal des événements")
+		NewEvent event = NewEvent.of(by != null ? EventCode.EVENTLOG_CLEANUP : EventCode.EVENTLOG_CLEANUP_NIGHTLY).subject("EVENT_LOG", "Journal des événements")
 				.amount((double) result.total)
 				.details("Journal nettoyé par " + who + " : " + String.join(" ; ", lines) + ".");
 		if (by != null) {
