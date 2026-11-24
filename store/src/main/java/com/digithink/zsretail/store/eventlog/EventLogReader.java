@@ -154,7 +154,14 @@ public class EventLogReader {
 		equal(w, p, add, a + ".authorised_by_id", "authorisedById", f.getAuthorisedById());
 		equal(w, p, add, a + ".badge_owner_id", "badgeOwnerId", f.getBadgeOwnerId());
 		equal(w, p, add, a + ".pos_machine_id", "posMachineId", f.getPosMachineId());
-		equal(w, p, add, a + ".session_id", "sessionId", f.getSessionId());
+		if (!f.getSessionIds().isEmpty()) {
+			w.append(" and ").append(a).append(".session_id in (:sessionIds)");
+			put(p, add, "sessionIds", f.getSessionIds());
+		}
+		if (!f.getNewValues().isEmpty()) {
+			w.append(" and ").append(a).append(".new_value in (:newValues)");
+			put(p, add, "newValues", f.getNewValues());
+		}
 		equal(w, p, add, a + ".session_number", "sessionNumber", f.getSessionNumber());
 		equal(w, p, add, a + ".subject_type", "subjectType", f.getSubjectType());
 		equal(w, p, add, a + ".subject_id", "subjectId", f.getSubjectId());
@@ -339,7 +346,13 @@ public class EventLogReader {
 		r.setOldValue(rs.getString("old_value"));
 		r.setNewValue(rs.getString("new_value"));
 		double amount = rs.getDouble("amount");
-		r.setAmount(rs.wasNull() ? null : EventLogRow.rounded(amount));
+		if (!rs.wasNull()) {
+			if (EventCode.amountIsCount(r.getCode())) {
+				r.setCount(Math.round(amount)); // step 7: a count, never money
+			} else {
+				r.setAmount(EventLogRow.rounded(amount));
+			}
+		}
 		r.setDetails(rs.getString("details"));
 		r.setImported(rs.getBoolean("imported"));
 		r.setGroupKey(rs.getString("group_key"));

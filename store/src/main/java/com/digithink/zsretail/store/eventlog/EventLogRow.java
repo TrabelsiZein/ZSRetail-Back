@@ -62,6 +62,8 @@ public class EventLogRow {
 	private String oldValue;
 	private String newValue;
 	private Double amount;
+	/** Step 7: a count kept in the amount column (EventCode.AMOUNT_IS_COUNT): shown as a count, the amount then empty. */
+	private Long count;
 	private String details;
 	private boolean imported;
 

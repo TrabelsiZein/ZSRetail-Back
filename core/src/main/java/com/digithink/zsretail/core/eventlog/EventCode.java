@@ -145,6 +145,22 @@ public enum EventCode {
 			RETURN_VOUCHER_REPRINTED, TICKET_X_PRINTED,
 			TICKET_Z_PRINTED, SESSION_TICKET_PRINTED, EVENTLOG_EVENTS_DROPPED));
 
+	/**
+	 * Step 7: the codes whose amount column holds a count, not money (the refusals in a row, the events the till
+	 * dropped): the Journal page and its Excel file show it as a count, never as an amount.
+	 */
+	public static final java.util.Set<EventCode> AMOUNT_IS_COUNT = java.util.Collections.unmodifiableSet(
+			java.util.EnumSet.of(LOGIN_REFUSED_REPEATED, EVENTLOG_EVENTS_DROPPED));
+
+	/** True when the stored code's amount is a count (a code no longer in the catalogue: money). */
+	public static boolean amountIsCount(String code) {
+		try {
+			return code != null && AMOUNT_IS_COUNT.contains(valueOf(code));
+		} catch (IllegalArgumentException gone) {
+			return false;
+		}
+	}
+
 	private final EventSubject subject;
 	private final int importance;
 	private final String label;

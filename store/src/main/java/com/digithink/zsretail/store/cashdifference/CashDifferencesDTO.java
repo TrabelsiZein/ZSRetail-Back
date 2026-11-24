@@ -93,6 +93,11 @@ public class CashDifferencesDTO {
 		private long refusedAuthorisations;
 		/** The cashier's sessions whose amounts are hidden (see watchHiddenSessions). */
 		private long hiddenSessions;
+		/**
+		 * 3.4.0, event log step 7: the sessions these numbers count (a cashier's of the period; every one for the total):
+		 * the link of each number opens the Journal des événements on them.
+		 */
+		private java.util.List<Long> sessionIds = new java.util.ArrayList<>();
 	}
 
 	@Data

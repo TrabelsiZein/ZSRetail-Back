@@ -21,7 +21,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.digithink.zsretail.core.eventlog.service.EventLog;
+import com.digithink.zsretail.core.model.AppRole;
 import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.repository.AppRoleRepository;
 import com.digithink.zsretail.core.repository.UserAccountRepository;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.store.posmachine.model.PosMachine;
@@ -38,6 +40,7 @@ class EventLogPageAPITest {
 	private final CurrentUserProvider current = mock(CurrentUserProvider.class);
 	private final UserAccountRepository users = mock(UserAccountRepository.class);
 	private final PosMachineRepository machines = mock(PosMachineRepository.class);
+	private final AppRoleRepository roles = mock(AppRoleRepository.class);
 	private MockMvc mvc;
 
 	@BeforeEach
@@ -48,6 +51,7 @@ class EventLogPageAPITest {
 		ReflectionTestUtils.setField(api, "currentUserProvider", current);
 		ReflectionTestUtils.setField(api, "users", users);
 		ReflectionTestUtils.setField(api, "machines", machines);
+		ReflectionTestUtils.setField(api, "roles", roles);
 		mvc = MockMvcBuilders.standaloneSetup(api).build();
 		when(eventLog.isOn()).thenReturn(true);
 		when(current.currentUserHasPermission("read:admin-event-log")).thenReturn(true);
@@ -103,6 +107,7 @@ class EventLogPageAPITest {
 		caisse.setId(1L);
 		caisse.setName("Caisse 1");
 		when(machines.findAll()).thenReturn(Arrays.asList(caisse));
+		when(roles.findAll()).thenReturn(Arrays.asList(new AppRole("POS_USER", "Caissier", true)));
 
 		MockHttpServletResponse page = call("/event-log?from=2026-11-18&to=2026-11-24&importances=20,30&page=0");
 		assertEquals(200, page.getStatus());
@@ -121,6 +126,8 @@ class EventLogPageAPITest {
 				catalogue);
 		assertTrue(catalogue.contains("{\"id\":1,\"name\":\"Caisse 1\"}"), catalogue);
 		assertTrue(catalogue.contains("\"subjects\":[\"CART\""), catalogue);
+		assertTrue(catalogue.contains("\"roles\":[{\"name\":\"POS_USER\",\"label\":\"Caissier\"}]"), catalogue);
+		assertEquals(400, call("/event-log?from=2026-11-18&to=2026-11-24&sessionIds=1,x").getStatus());
 
 		assertEquals(200, call("/event-log/missing").getStatus());
 

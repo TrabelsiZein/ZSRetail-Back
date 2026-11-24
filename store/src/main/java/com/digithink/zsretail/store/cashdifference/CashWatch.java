@@ -74,13 +74,16 @@ public final class CashWatch {
 			WatchRow row = row(ofCashier.stream().map(d -> sessions.get(d.getId())).collect(Collectors.toList()));
 			row.setCashierId(cashierId);
 			row.setCashierName(ofCashier.get(0).getCashierFullName());
+			row.setSessionIds(ofCashier.stream().map(SessionDashboardDTO::getId).collect(Collectors.toList())); // 3.4.0
 			rows.add(row);
 		});
 		rows.sort(java.util.Comparator
 				.comparing((WatchRow r) -> r.getCashierName() == null ? "" : r.getCashierName(), String.CASE_INSENSITIVE_ORDER)
 				.thenComparing(r -> r.getCashierId() == null ? 0L : r.getCashierId()));
 		result.setWatch(rows);
-		result.setWatchTotal(row(new ArrayList<>(sessions.values())));
+		WatchRow total = row(new ArrayList<>(sessions.values()));
+		total.setSessionIds(new ArrayList<>(sessions.keySet())); // 3.4.0, event log step 7: the links
+		result.setWatchTotal(total);
 		result.setWatchHiddenSessions(sessions.values().stream().filter(s -> s.hidden).count());
 	}
 
@@ -92,7 +95,11 @@ public final class CashWatch {
 			Map<Long, SessionFiguresService.Figures> figures, CashWatchRepository repository, boolean amountsVisible) {
 		Map<Long, WatchRow> out = new LinkedHashMap<>();
 		sessions(dashboards, figures, repository, amountsVisible)
-				.forEach((id, session) -> out.put(id, row(java.util.Collections.singletonList(session))));
+				.forEach((id, session) -> {
+					WatchRow row = row(java.util.Collections.singletonList(session));
+					row.getSessionIds().add(id); // 3.4.0, event log step 7: the links
+					out.put(id, row);
+				});
 		return out;
 	}
 

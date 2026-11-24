@@ -20,7 +20,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.digithink.zsretail.core.eventlog.EventCode;
 import com.digithink.zsretail.core.eventlog.EventSubject;
 import com.digithink.zsretail.core.eventlog.service.EventLog;
+import com.digithink.zsretail.core.model.AppRole;
 import com.digithink.zsretail.core.model.UserAccount;
+import com.digithink.zsretail.core.repository.AppRoleRepository;
 import com.digithink.zsretail.core.repository.UserAccountRepository;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.store.posmachine.model.PosMachine;
@@ -34,12 +36,12 @@ import lombok.extern.log4j.Log4j2;
  * exporting it is not an event.
  * <ul>
  * <li>GET /event-log?from&amp;to&amp;importances&amp;userId&amp;authorisedById&amp;badgeOwnerId&amp;posMachineId&amp;
- * sessionId&amp;sessionNumber&amp;subjectType&amp;subjectId&amp;cartId&amp;codes&amp;text&amp;doubtOnly&amp;groupKey&amp;page&amp;size:
+ * sessionId&amp;sessionIds&amp;newValues&amp;sessionNumber&amp;subjectType&amp;subjectId&amp;cartId&amp;codes&amp;text&amp;doubtOnly&amp;groupKey&amp;page&amp;size:
  * one page of the lines (EventLogPage); from and to (YYYY-MM-DD) required; importances and codes separated by commas;
  * groupKey: the events of one run of refused logins.</li>
  * <li>GET /event-log/excel, the same filters: the file of the events (EventLogExcel).</li>
  * <li>GET /event-log/catalogue: what the filters offer (the codes with their importance and French label, the subjects,
- * every user, the disabled ones included, and the POS machines).</li>
+ * every user, the disabled ones included, the POS machines and, step 7, the roles' names).</li>
  * <li>GET /event-log/missing: the numbers missing per importance (a row deleted in the database).</li>
  * </ul>
  * 404 when eventlog.enabled is off; 403 without {@link EventLog#PAGE_PERMISSION}; 400 for filters that do not parse.
@@ -66,6 +68,9 @@ public class EventLogPageAPI {
 	@Autowired
 	private PosMachineRepository machines;
 
+	@Autowired
+	private AppRoleRepository roles;
+
 	@GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<?> page(@RequestParam(required = false) String from, @RequestParam(required = false) String to,
 			@RequestParam(required = false) String importances, @RequestParam(required = false) Long userId,
@@ -75,6 +80,7 @@ public class EventLogPageAPI {
 			@RequestParam(required = false) String subjectId, @RequestParam(required = false) String cartId,
 			@RequestParam(required = false) String codes, @RequestParam(required = false) String text,
 			@RequestParam(defaultValue = "false") boolean doubtOnly, @RequestParam(required = false) String groupKey,
+			@RequestParam(required = false) String sessionIds, @RequestParam(required = false) String newValues,
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "" + EventLogReader.PAGE_SIZE) int size) {
 		ResponseEntity<?> refused = refused();
@@ -83,7 +89,8 @@ public class EventLogPageAPI {
 		}
 		try {
 			EventLogFilter filter = EventLogFilter.of(from, to, importances, userId, authorisedById, badgeOwnerId,
-					posMachineId, sessionId, sessionNumber, subjectType, subjectId, cartId, codes, text, doubtOnly, groupKey);
+					posMachineId, sessionId, sessionNumber, subjectType, subjectId, cartId, codes, text, doubtOnly, groupKey,
+					sessionIds, newValues);
 			return ResponseEntity.ok(reader.page(filter, page, size));
 		} catch (EventLogFilter.Refused e) {
 			return ResponseEntity.badRequest().contentType(MediaType.APPLICATION_JSON).body(error(e.getMessage()));
@@ -98,14 +105,16 @@ public class EventLogPageAPI {
 			@RequestParam(required = false) String sessionNumber, @RequestParam(required = false) String subjectType,
 			@RequestParam(required = false) String subjectId, @RequestParam(required = false) String cartId,
 			@RequestParam(required = false) String codes, @RequestParam(required = false) String text,
-			@RequestParam(defaultValue = "false") boolean doubtOnly, @RequestParam(required = false) String groupKey) {
+			@RequestParam(defaultValue = "false") boolean doubtOnly, @RequestParam(required = false) String groupKey,
+			@RequestParam(required = false) String sessionIds, @RequestParam(required = false) String newValues) {
 		ResponseEntity<?> refused = refused();
 		if (refused != null) {
 			return refused;
 		}
 		try {
 			EventLogFilter filter = EventLogFilter.of(from, to, importances, userId, authorisedById, badgeOwnerId,
-					posMachineId, sessionId, sessionNumber, subjectType, subjectId, cartId, codes, text, doubtOnly, groupKey);
+					posMachineId, sessionId, sessionNumber, subjectType, subjectId, cartId, codes, text, doubtOnly, groupKey,
+					sessionIds, newValues);
 			List<EventLogRow> rows = reader.all(filter, EventLogReader.EXCEL_LIMIT);
 			long total = rows.size() < EventLogReader.EXCEL_LIMIT ? rows.size() : reader.countAll(filter);
 			byte[] file = EventLogExcel.of(filter, rows, total);
@@ -165,6 +174,15 @@ public class EventLogPageAPI {
 		}
 		posMachines.sort(Comparator.comparing(m -> String.valueOf(m.get("name"))));
 		answer.put("posMachines", posMachines);
+		// step 7: the roles' names (user_role holds the role's code, POS_USER; the window shows "Caissier")
+		List<Map<String, Object>> roleNames = new ArrayList<>();
+		for (AppRole role : roles.findAll()) {
+			Map<String, Object> r = new LinkedHashMap<>();
+			r.put("name", role.getName());
+			r.put("label", role.getLabel());
+			roleNames.add(r);
+		}
+		answer.put("roles", roleNames);
 		return ResponseEntity.ok(answer);
 	}
 

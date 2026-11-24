@@ -297,6 +297,48 @@ class EventLogReaderTest {
 	}
 
 	@Test
+	@DisplayName("Step 7: a count in the amount column (the refusals in a row, the events dropped) is a count, never an"
+			+ " amount; several sessions; the new values (a cash movement's kind)")
+	void countsSessionsValues() {
+		event(EventCode.LOGIN_REFUSED_REPEATED, T).setAmount(8.0);
+		event(EventCode.EVENTLOG_EVENTS_DROPPED, T.plusSeconds(1)).setAmount(3.0);
+		EventLogEntry expense = event(EventCode.CASH_MOVEMENT, T.plusSeconds(2));
+		expense.setAmount(12.5);
+		expense.setNewValue("DEPENSE");
+		expense.setSessionId(50L);
+		EventLogEntry withdrawal = event(EventCode.CASH_MOVEMENT, T.plusSeconds(3));
+		withdrawal.setNewValue("PRELEVEMENT");
+		withdrawal.setSessionId(51L);
+		event(EventCode.CASH_MOVEMENT, T.plusSeconds(4)).setSessionId(52L);
+		store();
+		List<EventLogRow> all = reader.page(filter(null), 0, 50).getRows();
+		EventLogRow repeated = all.get(4);
+		assertEquals("LOGIN_REFUSED_REPEATED", repeated.getCode());
+		assertNull(repeated.getAmount());
+		assertEquals(Long.valueOf(8), repeated.getCount());
+		assertNull(all.get(3).getAmount(), "the events dropped: a count");
+		assertEquals(Long.valueOf(3), all.get(3).getCount());
+		assertEquals(Double.valueOf(12.5), all.get(2).getAmount(), "money stays money");
+		assertNull(all.get(2).getCount());
+
+		EventLogFilter two = EventLogFilter.of("2026-11-24", "2026-11-24", null, null, null, null, null, null, null, null,
+				null, null, "CASH_MOVEMENT", null, false, null, "50,51", null);
+		assertEquals(2, reader.page(two, 0, 50).getTotal(), "sessions 50 and 51");
+		EventLogFilter expenses = EventLogFilter.of("2026-11-24", "2026-11-24", null, null, null, null, null, 52L, null,
+				null, null, null, "CASH_MOVEMENT", null, false, null, "50,51", "depense");
+		assertEquals(Arrays.asList("CASH_MOVEMENT"), codes(reader.page(expenses, 0, 50)));
+		assertEquals("DEPENSE", reader.page(expenses, 0, 50).getRows().get(0).getNewValue());
+		assertRefused(() -> EventLogFilter.of("2026-11-24", "2026-11-24", null, null, null, null, null, null, null, null,
+				null, null, null, null, false, null, "50,x", null));
+		StringBuilder many = new StringBuilder();
+		for (int i = 1; i <= EventLogFilter.MAX_SESSIONS + 1; i++) {
+			many.append(i).append(",");
+		}
+		assertRefused(() -> EventLogFilter.of("2026-11-24", "2026-11-24", null, null, null, null, null, null, null, null,
+				null, null, null, null, false, null, many.toString(), null));
+	}
+
+	@Test
 	@DisplayName("Missing numbers per importance: none; a row deleted in the middle and at the end; the counter higher"
 			+ " than every row")
 	void missingNumbers() {

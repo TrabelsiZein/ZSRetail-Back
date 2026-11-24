@@ -50,6 +50,10 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   event's own time, the runs of refused logins as one line, the counters), `/excel` (20,000 events at most),
   `/catalogue`, `/missing` (the numbers missing per importance). 404 when the module is off. Amounts to 3 decimals.
   The badge's owner kept on its use and on a refused known badge (`badge_owner_*`).
+- Event log, step 7: the badge scans of before copied into the Journal (`update.sql` step 5); `GET /event-log` gains
+  `sessionIds` and `newValues` (the "À surveiller" links), `/catalogue` the roles' names; a count kept in the amount
+  column (`LOGIN_REFUSED_REPEATED`, `EVENTLOG_EVENTS_DROPPED`) is sent as `count`, never as an amount (page and Excel);
+  `CashDifferencesDTO.WatchRow.sessionIds`.
 
 ### Enhancements
 - Event log: `LOGIN_REFUSED` is Notable; from the 5th refused login in a row on one login or from one address (a run
@@ -83,6 +87,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - `db/3.4.0/update.sql` step 4 (event log step 6): `event_log.occurred_at` (filled for the rows of before),
   `badge_owner_id` / `_login` / `_name` (the uses of before from `authorised_by`), `group_key`;
   `ix_event_log_occurred` (occurred_at, importance); `ix_event_log_user` moved to (user_id, occurred_at). Re-runnable.
+- `db/3.4.0/update.sql` step 5 (event log step 7): each badge scan of `badge_scan_log` (a badge used, a refused scan;
+  not a role pass) copied once into `event_log` as today's event, imported, without a number (`event_uuid`
+  `badge-scan-<id>`; a scan that has its event is not copied). Re-runnable: a second run copies nothing.
 
 ### Config
 - `eventlog.enabled` (a store only): `false` by default and in the store type file, strictly true/false. Absent is

@@ -21,6 +21,9 @@ public final class EventLogFilter {
 	/** The free text is cut to this length (the sentence column is 2,000; a search longer than this is a paste). */
 	static final int TEXT_LENGTH = 100;
 
+	/** Step 7: the sessions of one filter at most (a SQL Server query takes 2,100 parameters). */
+	static final int MAX_SESSIONS = 1000;
+
 	private LocalDate from;
 	private LocalDate to;
 	private List<Integer> importances = Collections.emptyList();
@@ -29,6 +32,10 @@ public final class EventLogFilter {
 	private Long badgeOwnerId;
 	private Long posMachineId;
 	private Long sessionId;
+	/** Step 7: several sessions (the links of "À surveiller": a cashier's sessions of the period); an OR with sessionId. */
+	private List<Long> sessionIds = Collections.emptyList();
+	/** Step 7: the new values, one of them (a cash movement's kind, a refusal's reason). */
+	private List<String> newValues = Collections.emptyList();
 	private String sessionNumber;
 	private String subjectType;
 	private String subjectId;
@@ -46,6 +53,15 @@ public final class EventLogFilter {
 	static EventLogFilter of(String from, String to, String importances, Long userId, Long authorisedById,
 			Long badgeOwnerId, Long posMachineId, Long sessionId, String sessionNumber, String subjectType,
 			String subjectId, String cartId, String codes, String text, boolean doubtOnly, String groupKey) {
+		return of(from, to, importances, userId, authorisedById, badgeOwnerId, posMachineId, sessionId, sessionNumber,
+				subjectType, subjectId, cartId, codes, text, doubtOnly, groupKey, null, null);
+	}
+
+	/** Step 7: with {@code sessionIds} and {@code newValues}, comma separated. */
+	static EventLogFilter of(String from, String to, String importances, Long userId, Long authorisedById,
+			Long badgeOwnerId, Long posMachineId, Long sessionId, String sessionNumber, String subjectType,
+			String subjectId, String cartId, String codes, String text, boolean doubtOnly, String groupKey,
+			String sessionIds, String newValues) {
 		EventLogFilter filter = new EventLogFilter();
 		if (blank(from) || blank(to)) {
 			throw new Refused("from and to are required (dates YYYY-MM-DD)");
@@ -74,6 +90,23 @@ public final class EventLogFilter {
 		filter.text = t != null && t.length() > TEXT_LENGTH ? t.substring(0, TEXT_LENGTH) : t;
 		filter.doubtOnly = doubtOnly;
 		filter.groupKey = trimmed(groupKey);
+		List<Long> sessions = new ArrayList<>();
+		for (String word : words(sessionIds)) {
+			try {
+				sessions.add(Long.valueOf(word));
+			} catch (NumberFormatException e) {
+				throw new Refused("sessionIds: '" + word + "' is not a session id");
+			}
+		}
+		if (sessionId != null && !sessions.contains(sessionId)) {
+			sessions.add(sessionId);
+		}
+		if (sessions.size() > MAX_SESSIONS) {
+			throw new Refused("at most " + MAX_SESSIONS + " sessions, " + sessions.size() + " given");
+		}
+		filter.sessionIds = sessions;
+		filter.sessionId = null;
+		filter.newValues = words(newValues);
 		return filter;
 	}
 
@@ -103,6 +136,8 @@ public final class EventLogFilter {
 		c.badgeOwnerId = badgeOwnerId;
 		c.posMachineId = posMachineId;
 		c.sessionId = sessionId;
+		c.sessionIds = sessionIds;
+		c.newValues = newValues;
 		c.sessionNumber = sessionNumber;
 		c.subjectType = subjectType;
 		c.subjectId = subjectId;

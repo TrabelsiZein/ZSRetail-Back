@@ -20,6 +20,9 @@ The build is in small steps.
   "Step 5" below. No screen has changed.
 - **Step 6 (done): the Journal page.** "Journal des événements" in the Caisse menu, read only, its own right
   (`read:admin-event-log`); see "Step 6" below. Three columns and two indexes (`db/3.4.0/update.sql` step 4).
+- **Step 7 (done): the old badge scans, the old page, the links.** The scans of `badge_scan_log` copied once into the
+  Journal (`update.sql` step 5); the page "Journal de scan badge" gives way to the Journal where the module is on; the
+  "À surveiller" numbers open the Journal filtered; four fixes of the page. See "Step 7" below.
 
 ## The switch: `eventlog.enabled`
 
@@ -419,8 +422,74 @@ for a code the screen does not know), the sentence, amount. A line opens a wide 
 before and after, the numbers (the importance's and the till's), the doubt in words, the run's refusals, and "Même
 panier / Même sujet / Même session" (the page filtered on it, every importance). Excel: the server's file, the filters.
 
+## Step 7: the old badge scans, the old page, the links
+
+**Four fixes of the page.**
+
+- A count kept in the amount column (`EventCode.AMOUNT_IS_COUNT`: `LOGIN_REFUSED_REPEATED`, the refusals in a row;
+  `EVENTLOG_EVENTS_DROPPED`, the events the till lost) is sent as `count`, never as `amount`: the Montant column and
+  the Excel file leave it empty, the window says "Nombre". A run's line keeps its `groupCount`.
+- The chip "Filtré sur : …" has a real button "Retirer".
+- The window shows the role's name ("Caissier"), from `GET /event-log/catalogue` `roles`; the code only when unknown.
+- The menu entry is under Utilisateurs, in the place of "Journal de scan badge" (Zein, replacing point 4), no longer in
+  Caisse. Beside Importance a "?" says each level in one sentence and one example; the Action filter groups the actions
+  by importance, a coloured dot before each (a native select colours nothing itself).
+
+**The old badge scans** (`update.sql` step 5, between the lines `step7:copy:begin` and `step7:copy:end`).
+
+- Each scan of `badge_scan_log` becomes the event written today: a badge used (success, `granted_by` BADGE or empty
+  before 3.1.0's step C) is `TILL_RIGHT_USED`, its owner the authoriser and the badge's owner; a refused scan is
+  `TILL_RIGHT_REFUSED`, the reason as the new value, the owner when the badge is known. The same French texts as
+  `AccessEvents`, no badge code. A pass on the user's own role (`granted_by` ROLE) writes no event today: not copied.
+- `imported` = 1, no number (the missing numbers count only the numbered rows), `event_at` = `occurred_at` = the
+  scan's time, the POS machine from `cashier_session_pos_machine`, the session's number, the names and roles as they
+  are now. The window says "Copié de l'ancien journal des scans de badge".
+- Once: each copy is `event_uuid` `badge-scan-<id>` (unique). A scan that already has its event (written since step
+  3: the same code, action and user within 5 seconds) is not copied. A second run copies nothing.
+- `badge_scan_log` is unchanged and still written: CashWatch reads it.
+- pos_franchise_customer (2026-11-24): 30 scans, 27 role passes and the 3 badge scans of the rows check of that morning,
+  which have their events: 0 copied (shown before by the same SELECT without the "has its event" rule: the three rows it
+  would give are word for word the events written at the till).
+
+**The old page.** Where the module is on, "Journal de scan badge" leaves the menu, the search bar and the Roles page
+(`BADGE_SCAN_ROUTES`, `BADGE_SCAN_PERMISSIONS`), and its route `admin-badge-scan-history` opens the Journal on the
+subject Droit de caisse, every importance (`badgeScanRedirect`; the Journal's right then). Where it is off, the page
+stays as before; its route now has `meta.resource` `admin-badge-scan-history` (it had none: any logged user opened it
+by its address), the right its API already checked (`BadgeAPI`, step S of 3.1.0).
+
+**The "À surveiller" links** (Écarts de caisse, Caisse en direct; `ZSRetail-Front` `src/libs/event-log-link.js`). A
+number other than 0 is a link when the module is on and the user has the Journal's right (else the plain number). It
+opens the Journal on the sessions it counts (`sessionIds`: a cashier's sessions of the period, every one for the total,
+`CashDifferencesDTO.WatchRow.sessionIds`; the session on Caisse en direct), every importance, from the period's first day
+(the session's opening) to today, and its actions. The Journal reads its filters from the address and writes them back
+(`src/libs/event-log-query.js`): a link opens it filtered, a reload keeps them. `GET /event-log` gains `sessionIds`
+(1,000 at most) and `newValues`.
+
+| Number | The Journal shows | Where they can differ |
+|---|---|---|
+| Tickets | `SALE_VALIDATED` | The same tickets (a pending ticket completed, a part paid apart: each its event). |
+| Tickets annulés | `PENDING_DELETED` | A split ticket whose lines were all paid apart is CANCELLED without that event (its parts are `SALE_VALIDATED` "partie payée"): the number is higher. |
+| Retours | `RETURN_DONE` | The same. |
+| Tickets avec remise | `LINE_DISCOUNT`, `CART_DISCOUNT`, `PROMO_CODE_ADDED` | The number counts tickets, the Journal gestures: several on one ticket, on a cart never sold, a discount taken off again; an automatic promotion writes no event. Never equal by nature. |
+| dont manuelles | `LINE_DISCOUNT`, `CART_DISCOUNT` | Tickets against gestures, as above. |
+| Dépenses, Prélèvements | `CASH_MOVEMENT` of kind `DEPENSE`, `PRELEVEMENT` | The same. |
+| Autorisations refusées | `TILL_RIGHT_REFUSED` of a badge (`BADGE_*`) | The same rows of `badge_scan_log`, by the same session (a request refused 403 or a role pass refused is not counted, and filtered out). |
+
+For every number: an event exists only while the module was on (before it, only the badge scans, by the copy); a till's
+event (the discounts, the promo codes) shows once the till has sent it, and a till whose queue was full lost some
+(`EVENTLOG_EVENTS_DROPPED`).
+
 ## Tests
 
+- Step 7:
+  - `BadgeScanCopyTest`: the script's copy statement as written, run twice on H2 over scans of each kind (used, refused
+    known and unknown, a role pass, a scan of before step C, a scan with its event): 4, then 0; the texts, the columns,
+    no badge code, no missing number.
+  - `EventLogReaderTest.countsSessionsValues` (the count, several sessions, the values, the limit);
+    `EventLogPageAPITest` (the roles, a bad session id); `BadgeScanHistoryRightTest` (the old page's API, 403 without
+    its right).
+  - Front: `tools/event-log-link-check.mjs` (the address both ways, a reload, the links), `tools/store-menu-check.mjs`
+    (the entry under Utilisateurs, the old page hidden and redirected with the module on, as before with it off).
 - Step 6:
   - `EventLogReaderTest` (H2, the real batch insert): the order by the till's time, the period, each filter, the
     runs as one line and their events, the counters, the paging, the amount rounded, the missing numbers, the Excel
@@ -485,6 +554,6 @@ panier / Même sujet / Même session" (the page filtered on it, every importance
 | Step | What |
 |---|---|
 | 6 | The Journal page (done). |
-| 7 | The old badge scans copied in. |
+| 7 | The old badge scans copied in (done), the old page, the links. |
 | 8 | General setup and the cleanup. |
 | 9 | Admin gestures. |

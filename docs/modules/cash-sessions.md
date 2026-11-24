@@ -609,8 +609,9 @@ Without "Voir montants session" the amounts that enter the expected cash (return
 or CLOSED session are neither sent nor summed, their counts are (`hiddenSessions`, `watchHiddenSessions`): the step B
 rule. The Journal shows these amounts under its own right (`read:day-journal`), never masked. The
 Journal reads each document by its own date and the block by its session's opening: the same day agrees when no
-session crosses midnight (`CashWatchJournalTest`). No link yet: the Journal takes only `?month=` / `?date=` (no cashier)
-and the badge history no URL filter. Indexes (3.2.0, `db/3.2.0/update.sql` step 19, declared on the entities too):
+session crosses midnight (`CashWatchJournalTest`). 3.4.0, event log step 7: with the event log on and its right, each
+number other than 0 opens the Journal des événements on its sessions (`WatchRow.sessionIds`) and the actions it counts
+(`docs/modules/event-log.md`, "Step 7", where they can differ); the cash Journal takes only `?month=` / `?date=`. Indexes (3.2.0, `db/3.2.0/update.sql` step 19, declared on the entities too):
 `ix_sales_line_sales_header`, `ix_payment_sales_header`, `ix_return_line_return_header`, `ix_return_header_session`,
 `ix_session_cash_count_session`, the foreign keys these readers (the Journal, the X / Z, this page) join on.
 

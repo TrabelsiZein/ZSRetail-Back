@@ -1,6 +1,6 @@
 -- ============================================================
 -- Version 3.4.0 (in progress) — event log ("Journal des événements"): event_log, event_log_sequence (step 1);
--- event_log.install_id and doubt (step 4); occurred_at, badge_owner_*, group_key (step 6)
+-- event_log.install_id and doubt (step 4); occurred_at, badge_owner_*, group_key (step 6); the badge scans of before copied (step 7)
 -- ============================================================
 -- Deployment order (a database at 3.3.0; CHANGELOG.md, 3.4.0, "Before deployment"):
 --   1) Bring the database to 3.3.0 first (db/3.3.0/update.sql). This script stops, without changing anything, while
@@ -124,6 +124,80 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'ix_event_log_user' AND o
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'ix_event_log_occurred' AND object_id = OBJECT_ID(N'event_log'))
 	CREATE INDEX ix_event_log_occurred ON event_log (occurred_at, importance);
+GO
+
+-- 5) Event log step 7: the badge scans of before, copied once into the Journal (badge_scan_log stays as it is and stays
+--   written: CashWatch reads it). The same events as today (AccessEvents): a badge used (a badge scan or pass, success)
+--   is TILL_RIGHT_USED (Step), its owner the authoriser and the badge's owner; a refused scan is TILL_RIGHT_REFUSED
+--   (Alert), the reason as the new value, the owner when the badge is known. A pass on the user's own role (granted_by
+--   ROLE) writes no event today: not copied. The same French texts; no badge code. Marked imported, without a number (the
+--   missing numbers count only the numbered rows). The POS machine from cashier_session_pos_machine, the session's
+--   number, the users' names and roles as they are now.
+--   Once: each copy is event_uuid 'badge-scan-<id>' (unique); a scan that already has its event (written since step 3:
+--   the same code, action and user within 5 seconds) is not copied. A second run copies nothing. Every database (a head
+--   office's badge_scan_log is empty).
+IF OBJECT_ID(N'badge_scan_log', N'U') IS NOT NULL AND OBJECT_ID(N'cashier_session', N'U') IS NOT NULL
+	AND OBJECT_ID(N'cashier_session_pos_machine', N'U') IS NOT NULL AND OBJECT_ID(N'pos_machine', N'U') IS NOT NULL
+BEGIN
+-- step7:copy:begin
+INSERT INTO event_log (event_uuid, importance, sequence_no, code, subject_type, subject_id, subject_label, event_at,
+	front_at, occurred_at, pos_machine_id, pos_machine_name, session_id, session_number, user_id, user_login, user_name,
+	user_role, authorised_by_id, authorised_by_login, authorised_by_name, badge_owner_id, badge_owner_login,
+	badge_owner_name, new_value, details, imported)
+SELECT x.uuid, CASE WHEN x.ok = 1 THEN 10 ELSE 30 END, NULL,
+	CASE WHEN x.ok = 1 THEN N'TILL_RIGHT_USED' ELSE N'TILL_RIGHT_REFUSED' END, N'TILL_RIGHT', x.action, x.action_label,
+	x.at, NULL, x.at, x.machine_id, x.machine_name, x.session_id, x.session_number, x.user_id, x.user_login, x.user_name,
+	x.user_role,
+	CASE WHEN x.ok = 1 THEN x.owner_id END, CASE WHEN x.ok = 1 THEN x.owner_login END,
+	CASE WHEN x.ok = 1 THEN x.owner_name END, x.owner_id, x.owner_login, x.owner_name,
+	CASE WHEN x.ok = 1 THEN NULL ELSE x.reason END,
+	CASE WHEN x.ok = 1 THEN CONCAT(N'Droit « ', x.action_label, N' » ouvert par le badge de ', COALESCE(x.owner_who, N'—'),
+			CASE WHEN x.user_who IS NOT NULL THEN CONCAT(N', pour ', x.user_who) ELSE N'' END,
+			CASE WHEN RIGHT(COALESCE(x.user_who, x.owner_who, N'—'), 1) = N'.' THEN N'' ELSE N'.' END)
+		ELSE CONCAT(N'Badge refusé au scan pour « ', x.action_label, N' » : ',
+			CASE x.reason
+				WHEN N'BADGE_NOT_EXISTS' THEN N'badge inconnu'
+				WHEN N'BADGE_REVOKED' THEN CONCAT(N'badge', x.owner_of, N' révoqué')
+				WHEN N'BADGE_EXPIRED' THEN CONCAT(N'badge', x.owner_of, N' expiré')
+				WHEN N'BADGE_OWNER_INACTIVE' THEN CONCAT(N'badge', x.owner_of, N', compte désactivé')
+				WHEN N'BADGE_NO_ACCESS' THEN CONCAT(N'le rôle', x.owner_of, N' n''a pas ce droit')
+				ELSE CASE WHEN x.reason IS NULL THEN N'refusé' ELSE CONCAT(x.reason, x.owner_of) END END, N'.') END,
+	1
+FROM (SELECT CONCAT(N'badge-scan-', CAST(b.id AS nvarchar(20))) AS uuid,
+		CASE WHEN b.success = 1 THEN 1 ELSE 0 END AS ok,
+		b.functionality AS action,
+		CASE b.functionality
+			WHEN N'CONSULT_CUSTOMER_LIST' THEN N'Consulter la liste des clients'
+			WHEN N'MAKE_RETURN' THEN N'Effectuer un retour'
+			WHEN N'APPLY_LINE_DISCOUNT' THEN N'Appliquer une remise sur la ligne'
+			WHEN N'APPLY_TOTAL_DISCOUNT' THEN N'Appliquer une remise sur le total'
+			WHEN N'CLOSE_SESSION_WITH_DISCREPANCY' THEN N'Fermer la session avec écart'
+			WHEN N'CASH_MOVEMENT' THEN N'Mouvement de caisse'
+			ELSE b.functionality END AS action_label,
+		b.[timestamp] AS at, b.failure_reason AS reason, b.session_id AS session_id, cs.session_number AS session_number,
+		pm.id AS machine_id, pm.name AS machine_name,
+		su.id AS user_id, su.username AS user_login, su.full_name AS user_name, sr.name AS user_role,
+		COALESCE(NULLIF(LTRIM(RTRIM(su.full_name)), N''), su.username) AS user_who,
+		ou.id AS owner_id, ou.username AS owner_login, ou.full_name AS owner_name,
+		COALESCE(NULLIF(LTRIM(RTRIM(ou.full_name)), N''), ou.username) AS owner_who,
+		CASE WHEN ou.id IS NULL THEN N'' ELSE CONCAT(N' de ', COALESCE(NULLIF(LTRIM(RTRIM(ou.full_name)), N''), ou.username)) END
+			AS owner_of
+	FROM badge_scan_log b
+	LEFT JOIN user_account su ON su.id = b.scanned_by_user_id
+	LEFT JOIN app_role sr ON sr.id = su.app_role_id
+	LEFT JOIN user_account ou ON ou.id = b.scanned_user_id
+	LEFT JOIN cashier_session cs ON cs.id = b.session_id
+	LEFT JOIN (SELECT cashier_session_id, MIN(pos_machine_id) AS pos_machine_id FROM cashier_session_pos_machine
+		GROUP BY cashier_session_id) sm ON sm.cashier_session_id = b.session_id
+	LEFT JOIN pos_machine pm ON pm.id = sm.pos_machine_id
+	WHERE (b.granted_by IS NULL OR b.granted_by <> N'ROLE')
+		AND NOT EXISTS (SELECT 1 FROM event_log c WHERE c.event_uuid = CONCAT(N'badge-scan-', CAST(b.id AS nvarchar(20))))
+		AND NOT EXISTS (SELECT 1 FROM event_log e WHERE e.imported = 0
+			AND e.code = CASE WHEN b.success = 1 THEN N'TILL_RIGHT_USED' ELSE N'TILL_RIGHT_REFUSED' END
+			AND e.subject_id = b.functionality AND e.user_id = b.scanned_by_user_id
+			AND e.event_at >= DATEADD(second, -5, b.[timestamp]) AND e.event_at <= DATEADD(second, 5, b.[timestamp]))) x;
+-- step7:copy:end
+END
 GO
 
 UPDATE APP_VERSION SET version = '3.4.0';
