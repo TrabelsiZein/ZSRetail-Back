@@ -85,7 +85,17 @@ public class EventLogReader {
 			withRuns(result.getRows(), filter);
 		}
 		result.setCounts(counts(filter));
+		result.setFirstEventAt(firstEventAt());
 		return result;
+	}
+
+	/**
+	 * Step 8: the journal's first event (the copies of the old badge scans aside: they are older than the journal); null
+	 * when it has none. The page says when the period asked starts before it.
+	 */
+	public LocalDateTime firstEventAt() {
+		return jdbc.getJdbcTemplate().query("select min(occurred_at) as first_at from event_log where imported = 0",
+				rs -> rs.next() ? time(rs, "first_at") : null);
 	}
 
 	/** The Excel file's events: every event of the filters (a run's events one by one), at most {@code limit}. */
@@ -151,8 +161,11 @@ public class EventLogReader {
 			put(p, add, "importances", f.getImportances());
 		}
 		equal(w, p, add, a + ".user_id", "userId", f.getUserId());
-		equal(w, p, add, a + ".authorised_by_id", "authorisedById", f.getAuthorisedById());
-		equal(w, p, add, a + ".badge_owner_id", "badgeOwnerId", f.getBadgeOwnerId());
+		if (f.getBadgeOwnerId() != null) { // step 8: "Badge de", who authorised it or whose badge was scanned
+			w.append(" and (").append(a).append(".authorised_by_id = :badgeOf or ").append(a)
+					.append(".badge_owner_id = :badgeOf)");
+			put(p, add, "badgeOf", f.getBadgeOwnerId());
+		}
 		equal(w, p, add, a + ".pos_machine_id", "posMachineId", f.getPosMachineId());
 		if (!f.getSessionIds().isEmpty()) {
 			w.append(" and ").append(a).append(".session_id in (:sessionIds)");
@@ -246,46 +259,53 @@ public class EventLogReader {
 	 */
 	public List<Missing> missing() {
 		Map<Integer, Long> last = new HashMap<>();
-		jdbc.getJdbcTemplate().query("select importance, last_value from event_log_sequence",
+		Map<Integer, Long> cleaned = new HashMap<>();
+		jdbc.getJdbcTemplate().query("select importance, last_value, cleaned_to from event_log_sequence",
 				rs -> {
 					last.put(rs.getInt("importance"), rs.getLong("last_value"));
+					cleaned.put(rs.getInt("importance"), rs.getLong("cleaned_to"));
 				});
+		// step 8: the numbers 1 to cleaned_to were cleaned up, not missing: only those above count
 		Map<Integer, long[]> present = new HashMap<>();
-		jdbc.getJdbcTemplate().query("select importance, count(sequence_no) as n, min(sequence_no) as lo,"
-				+ " max(sequence_no) as hi from event_log where sequence_no is not null group by importance",
-				rs -> {
-					present.put(rs.getInt("importance"), new long[] { rs.getLong("n"), rs.getLong("lo"), rs.getLong("hi") });
-				});
+		for (Map.Entry<Integer, Long> c : cleaned.entrySet()) {
+			jdbc.query("select count(sequence_no) as n, min(sequence_no) as lo, max(sequence_no) as hi from event_log"
+					+ " where importance = :importance and sequence_no > :cleaned",
+					new MapSqlParameterSource().addValue("importance", c.getKey()).addValue("cleaned", c.getValue()),
+					rs -> {
+						present.put(c.getKey(), new long[] { rs.getLong("n"), rs.getLong("lo"), rs.getLong("hi") });
+					});
+		}
 		List<Missing> result = new ArrayList<>();
 		for (int importance : Arrays.asList(EventImportance.ALERT, EventImportance.NOTABLE, EventImportance.STEP)) {
 			Missing m = new Missing();
 			m.importance = importance;
 			m.lastNumber = last.getOrDefault(importance, 0L);
+			m.cleanedTo = cleaned.getOrDefault(importance, 0L);
 			long[] p = present.getOrDefault(importance, new long[] { 0, 0, 0 });
 			m.present = p[0];
-			m.missing = Math.max(0, m.lastNumber - m.present);
+			m.missing = Math.max(0, m.lastNumber - m.cleanedTo - m.present);
 			if (m.missing > 0) {
-				m.ranges = ranges(importance, p, m.lastNumber);
+				m.ranges = ranges(importance, p, m.lastNumber, m.cleanedTo);
 			}
 			result.add(m);
 		}
 		return result;
 	}
 
-	private List<long[]> ranges(int importance, long[] present, long lastNumber) {
+	private List<long[]> ranges(int importance, long[] present, long lastNumber, long cleanedTo) {
 		List<long[]> ranges = new ArrayList<>();
 		if (present[0] == 0) {
-			ranges.add(new long[] { 1, lastNumber });
+			ranges.add(new long[] { cleanedTo + 1, lastNumber });
 			return ranges;
 		}
-		if (present[1] > 1) {
-			ranges.add(new long[] { 1, present[1] - 1 });
+		if (present[1] > cleanedTo + 1) {
+			ranges.add(new long[] { cleanedTo + 1, present[1] - 1 });
 		}
 		MapSqlParameterSource params = new MapSqlParameterSource().addValue("importance", importance)
-				.addValue("size", MAX_GAPS);
+				.addValue("size", MAX_GAPS).addValue("cleaned", cleanedTo);
 		ranges.addAll(jdbc.query("select x.sequence_no + 1 as gap_from, x.next_no - 1 as gap_to from (select sequence_no,"
 				+ " lead(sequence_no) over (order by sequence_no) as next_no from event_log where importance = :importance"
-				+ " and sequence_no is not null) x where x.next_no > x.sequence_no + 1 order by x.sequence_no"
+				+ " and sequence_no > :cleaned) x where x.next_no > x.sequence_no + 1 order by x.sequence_no"
 				+ " offset 0 rows fetch next :size rows only", params,
 				(rs, i) -> new long[] { rs.getLong("gap_from"), rs.getLong("gap_to") }));
 		if (present[2] < lastNumber) {
@@ -300,8 +320,10 @@ public class EventLogReader {
 		private int importance;
 		/** The last number given (the counter). */
 		private long lastNumber;
-		/** The numbered rows present. */
+		/** The numbered rows present (above cleanedTo). */
 		private long present;
+		/** Step 8: the numbers 1 to this one were cleaned up (not missing). */
+		private long cleanedTo;
 		private long missing;
 		/** The first missing ranges, [from, to]. */
 		private List<long[]> ranges = new ArrayList<>();

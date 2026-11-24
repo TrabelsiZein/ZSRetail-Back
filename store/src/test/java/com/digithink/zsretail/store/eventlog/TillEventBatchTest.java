@@ -141,6 +141,20 @@ class TillEventBatchTest {
 	}
 
 	@Test
+	@DisplayName("Step 8, level Notable: a Step the till queued before the change is refused BELOW_LEVEL (the till drops"
+			+ " it), takes no number; a Notable of the group stored")
+	void belowLevel() {
+		log.minImportance = EventImportance.NOTABLE;
+		TillEventBatch.Answer answer = batch().receive(request(event("s-1", "CART_LINE_ADDED", 1L),
+				event("n-1", "CART_LINE_DELETED", 2L)), amine, "192.168.1.21");
+		assertEquals(Arrays.asList("n-1"), answer.getStored());
+		assertEquals("BELOW_LEVEL", answer.getRefused().get(0).getReason());
+		assertEquals("s-1", answer.getRefused().get(0).getUuid());
+		assertEquals(Long.valueOf(10), log.numbers.get(EventImportance.STEP), "no Step number taken");
+		assertEquals(Arrays.asList("CART_LINE_DELETED"), log.codes());
+	}
+
+	@Test
 	@DisplayName("The catalogue: the till may send the cart, the discounts, a pending taken back, the reprints, the X / Z and"
 			+ " session tickets and its losses; never a money event")
 	void tillCodes() {

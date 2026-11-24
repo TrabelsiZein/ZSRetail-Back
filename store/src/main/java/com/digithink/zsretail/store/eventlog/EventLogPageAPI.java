@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -52,6 +53,7 @@ import lombok.extern.log4j.Log4j2;
 public class EventLogPageAPI {
 
 	public static final String READ_PERMISSION = EventLog.PAGE_PERMISSION;
+	public static final String CLEANUP_PERMISSION = EventLog.CLEANUP_PERMISSION;
 
 	@Autowired
 	private EventLog eventLog;
@@ -70,6 +72,9 @@ public class EventLogPageAPI {
 
 	@Autowired
 	private AppRoleRepository roles;
+
+	@Autowired
+	private EventLogCleanup cleanup;
 
 	@GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<?> page(@RequestParam(required = false) String from, @RequestParam(required = false) String to,
@@ -193,6 +198,52 @@ public class EventLogPageAPI {
 			return refused;
 		}
 		return ResponseEntity.ok(reader.missing());
+	}
+
+	/**
+	 * Step 8: GET /event-log/cleanup, what a cleanup now would delete per importance (its duration, its limit date, the
+	 * floor of 30 days, how many rows), whether one is running and the last one's result. delete:admin-event-log.
+	 */
+	@GetMapping(value = "/cleanup", produces = MediaType.APPLICATION_JSON_VALUE)
+	public ResponseEntity<?> cleanupPreview() {
+		ResponseEntity<?> refused = refusedCleanup();
+		if (refused != null) {
+			return refused;
+		}
+		Map<String, Object> answer = new LinkedHashMap<>();
+		answer.put("running", cleanup.isRunning());
+		answer.put("parts", cleanup.preview());
+		answer.put("floorDays", EventLogCleanup.FLOOR_DAYS);
+		answer.put("last", cleanup.last());
+		return ResponseEntity.ok(answer);
+	}
+
+	/** Step 8: POST /event-log/cleanup, started in its own thread: 202; 409 while one is running. */
+	@PostMapping(value = "/cleanup", produces = MediaType.APPLICATION_JSON_VALUE)
+	public ResponseEntity<?> cleanupStart() {
+		ResponseEntity<?> refused = refusedCleanup();
+		if (refused != null) {
+			return refused;
+		}
+		if (!cleanup.start(currentUserProvider.getCurrentUser())) {
+			return ResponseEntity.status(HttpStatus.CONFLICT).contentType(MediaType.APPLICATION_JSON)
+					.body(error("A cleanup is already running."));
+		}
+		return ResponseEntity.status(HttpStatus.ACCEPTED).contentType(MediaType.APPLICATION_JSON)
+				.body(Collections.singletonMap("started", true));
+	}
+
+	/** The page's refusals, then 403 without delete:admin-event-log. */
+	private ResponseEntity<?> refusedCleanup() {
+		ResponseEntity<?> refused = refused();
+		if (refused != null && refused.getStatusCodeValue() == 404) {
+			return refused;
+		}
+		if (!currentUserProvider.currentUserHasPermission(CLEANUP_PERMISSION)) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN).contentType(MediaType.APPLICATION_JSON)
+					.body(error("Permission required: " + CLEANUP_PERMISSION));
+		}
+		return null;
 	}
 
 	/**

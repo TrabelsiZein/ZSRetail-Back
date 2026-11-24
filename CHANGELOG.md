@@ -54,6 +54,13 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `sessionIds` and `newValues` (the "À surveiller" links), `/catalogue` the roles' names; a count kept in the amount
   column (`LOGIN_REFUSED_REPEATED`, `EVENTLOG_EVENTS_DROPPED`) is sent as `count`, never as an amount (page and Excel);
   `CashDifferencesDTO.WatchRow.sessionIds`.
+- Event log, step 8: the settings (`EventLogSettings`: the level, three durations, the night cleanup; checked, each
+  change an `EVENTLOG_SETTINGS_CHANGED` Alert with before / after); level Notable: no Step written, none in
+  `eventLogTillCodes`, a queued one refused `BELOW_LEVEL`, no hole in the numbers; the cleanup (`GET` / `POST
+  /event-log/cleanup`, `delete:admin-event-log` given to ADMIN, the night job at 03:30 when on): never the last 30 days,
+  a run of first numbers recorded in `cleaned_to` (never shown as missing), 500 rows a statement, one `EVENTLOG_CLEANUP`
+  Alert; the cleanups and the settings' changes never deleted. `GET /event-log` `firstEventAt`; one filter "Badge de"
+  (the authoriser or the badge's owner; `authorisedById` is the same filter).
 
 ### Enhancements
 - Event log: `LOGIN_REFUSED` is Notable; from the 5th refused login in a row on one login or from one address (a run
@@ -90,8 +97,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - `db/3.4.0/update.sql` step 5 (event log step 7): each badge scan of `badge_scan_log` (a badge used, a refused scan;
   not a role pass) copied once into `event_log` as today's event, imported, without a number (`event_uuid`
   `badge-scan-<id>`; a scan that has its event is not copied). Re-runnable: a second run copies nothing.
+- `db/3.4.0/update.sql` step 6 (event log step 8): `event_log_sequence.cleaned_to` (0). Re-runnable.
 
 ### Config
+- General setup (a store, created at the start): `EVENTLOG_STORE_FROM` (STEP), `EVENTLOG_KEEP_STEP_MONTHS` (3),
+  `EVENTLOG_KEEP_NOTABLE_MONTHS` (24), `EVENTLOG_KEEP_ALERT_MONTHS` (24), `EVENTLOG_AUTO_CLEANUP` (false).
 - `eventlog.enabled` (a store only): `false` by default and in the store type file, strictly true/false. Absent is
   false; `true` on a head office stops the start. `GET /config` `eventLogEnabled`; startup summary "event log on".
   Commented in `configs/machine-model.properties`; the configuration keys record (keys 123).

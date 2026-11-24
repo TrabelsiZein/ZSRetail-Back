@@ -150,7 +150,14 @@ public enum EventCode {
 	 * dropped): the Journal page and its Excel file show it as a count, never as an amount.
 	 */
 	public static final java.util.Set<EventCode> AMOUNT_IS_COUNT = java.util.Collections.unmodifiableSet(
-			java.util.EnumSet.of(LOGIN_REFUSED_REPEATED, EVENTLOG_EVENTS_DROPPED));
+			java.util.EnumSet.of(LOGIN_REFUSED_REPEATED, EVENTLOG_EVENTS_DROPPED, EVENTLOG_CLEANUP));
+
+	/**
+	 * Step 8: the events a cleanup never deletes (the cleanups and the changes of the settings: how the journal itself
+	 * was handled stays, whatever the durations).
+	 */
+	public static final java.util.Set<EventCode> NEVER_CLEANED = java.util.Collections.unmodifiableSet(
+			java.util.EnumSet.of(EVENTLOG_CLEANUP, EVENTLOG_SETTINGS_CHANGED));
 
 	/** True when the stored code's amount is a count (a code no longer in the catalogue: money). */
 	public static boolean amountIsCount(String code) {

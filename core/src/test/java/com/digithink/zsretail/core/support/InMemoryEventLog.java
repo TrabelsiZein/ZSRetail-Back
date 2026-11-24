@@ -31,6 +31,8 @@ public final class InMemoryEventLog {
 	public final Map<String, UserAccount> users = new HashMap<>();
 	public final List<EventLogContext> contexts = new ArrayList<>();
 	public boolean on = true;
+	/** Step 8: the level, the lowest importance stored (10: every event, 20: no Step). */
+	public int minImportance = 10;
 	public String loggedLogin;
 	public String address;
 	public LocalDateTime now = LocalDateTime.of(2026, 11, 23, 10, 0);
@@ -45,7 +47,8 @@ public final class InMemoryEventLog {
 	}
 
 	public EventLog eventLog() {
-		return new EventLog(() -> on, writer(), () -> loggedLogin, users::get, () -> address, contexts, () -> now);
+		return new EventLog(() -> on, writer(), () -> loggedLogin, users::get, () -> address, contexts, () -> now,
+				() -> minImportance);
 	}
 
 	public EventLogWriter writer() {

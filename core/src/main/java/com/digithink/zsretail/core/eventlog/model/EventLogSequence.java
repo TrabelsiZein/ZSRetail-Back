@@ -34,6 +34,13 @@ public class EventLogSequence {
 	@Column(name = "last_value", nullable = false)
 	private long lastValue;
 
+	/**
+	 * Step 8: the numbers 1 to this one were cleaned up (EventLogCleanup deletes a run of the first numbers, older than
+	 * the limit): they are not missing. 0: never cleaned. Set before the rows are deleted.
+	 */
+	@Column(name = "cleaned_to", nullable = false, columnDefinition = "bigint default 0")
+	private long cleanedTo;
+
 	public EventLogSequence(int importance, long lastValue) {
 		this.importance = importance;
 		this.lastValue = lastValue;

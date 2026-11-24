@@ -71,6 +71,8 @@ public class TillEventBatch {
 	static final String NO_UUID = "NO_UUID";
 	static final String UNKNOWN_CODE = "UNKNOWN_CODE";
 	static final String NOT_FROM_TILL = "NOT_FROM_TILL";
+	/** Step 8: a Step while only Notable and Alert are stored (queued before the change): refused, the till drops it. */
+	static final String BELOW_LEVEL = "BELOW_LEVEL";
 
 	/** A group of the till: the browser that made the events, and the events. */
 	@Data
@@ -180,6 +182,10 @@ public class TillEventBatch {
 				answer.getRefused().add(new Refused(uuid, reason));
 				log.warn("Event log batch: {} refused ({}) from {} sent by {}", cut(event.getCode(), 60), reason, address,
 						sender != null ? sender.getUsername() : "nobody");
+				continue;
+			}
+			if (!eventLog.stores(code)) {
+				answer.getRefused().add(new Refused(uuid, BELOW_LEVEL));
 				continue;
 			}
 			if (uuid.length() > EventLogEntry.UUID_LENGTH || !seen.add(uuid)) {

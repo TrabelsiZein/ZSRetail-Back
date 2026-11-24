@@ -52,6 +52,9 @@ public class EventLog {
 	 */
 	public static final String PAGE_PERMISSION = "read:admin-event-log";
 
+	/** Step 8: the right of the cleanup button (store.eventlog.EventLogCleanupAPI), ADMIN of every store by default. */
+	public static final String CLEANUP_PERMISSION = "delete:admin-event-log";
+
 	private final BooleanSupplier on;
 	private final EventLogWriter writer;
 	private final Supplier<String> loggedLogin;
@@ -59,12 +62,14 @@ public class EventLog {
 	private final Supplier<String> requestAddress;
 	private final List<EventLogContext> contexts;
 	private final Supplier<LocalDateTime> clock;
+	/** Step 8: the lowest importance stored (EventLogSettings, in memory: STEP, or NOTABLE when the Steps are not kept). */
+	private final java.util.function.IntSupplier minImportance;
 
 	@Autowired
 	public EventLog(ApplicationModeService mode, EventLogWriter writer, UserAccountRepository users,
-			ObjectProvider<EventLogContext> contexts) {
+			ObjectProvider<EventLogContext> contexts, EventLogSettings settings) {
 		this(mode::isEventLogEnabled, writer, EventLog::loggedLogin, login -> users.findByUsername(login).orElse(null),
-				EventLog::requestAddress, new ArrayList<>(), LocalDateTime::now);
+				EventLog::requestAddress, new ArrayList<>(), LocalDateTime::now, settings::minImportance);
 		contexts.orderedStream().forEach(this.contexts::add);
 	}
 
@@ -72,6 +77,15 @@ public class EventLog {
 	public EventLog(BooleanSupplier on, EventLogWriter writer, Supplier<String> loggedLogin,
 			Function<String, UserAccount> userByLogin, Supplier<String> requestAddress, List<EventLogContext> contexts,
 			Supplier<LocalDateTime> clock) {
+		this(on, writer, loggedLogin, userByLogin, requestAddress, contexts, clock,
+				() -> com.digithink.zsretail.core.eventlog.EventImportance.STEP);
+	}
+
+	/** Step 8: with the level (the lowest importance stored). */
+	public EventLog(BooleanSupplier on, EventLogWriter writer, Supplier<String> loggedLogin,
+			Function<String, UserAccount> userByLogin, Supplier<String> requestAddress, List<EventLogContext> contexts,
+			Supplier<LocalDateTime> clock, java.util.function.IntSupplier minImportance) {
+		this.minImportance = minImportance;
 		this.on = on;
 		this.writer = writer;
 		this.loggedLogin = loggedLogin;
@@ -86,9 +100,17 @@ public class EventLog {
 		return on.getAsBoolean();
 	}
 
+	/**
+	 * Step 8: an event of this code is written (the module on and its importance at or above the level). Below the level
+	 * nothing is made, so no number is taken: no hole.
+	 */
+	public boolean stores(com.digithink.zsretail.core.eventlog.EventCode code) {
+		return isOn() && code != null && code.getImportance() >= minImportance.getAsInt();
+	}
+
 	/** The gesture's event: after the caller's transaction has committed (none if it rolls back), else at once. */
 	public void write(NewEvent event) {
-		if (!isOn()) {
+		if (!stores(event.getCode())) { // step 8: off, or below the level
 			return;
 		}
 		try {
@@ -111,7 +133,7 @@ public class EventLog {
 
 	/** An event written at once, in its own transaction, even when the caller's rolls back (a refusal). */
 	public void writeNow(NewEvent event) {
-		if (!isOn()) {
+		if (!stores(event.getCode())) { // step 8: off, or below the level
 			return;
 		}
 		try {

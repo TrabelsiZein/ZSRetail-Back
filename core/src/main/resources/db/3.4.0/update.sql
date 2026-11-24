@@ -1,6 +1,6 @@
 -- ============================================================
 -- Version 3.4.0 (in progress) — event log ("Journal des événements"): event_log, event_log_sequence (step 1);
--- event_log.install_id and doubt (step 4); occurred_at, badge_owner_*, group_key (step 6); the badge scans of before copied (step 7)
+-- event_log.install_id and doubt (step 4); occurred_at, badge_owner_*, group_key (step 6); the badge scans of before copied (step 7); event_log_sequence.cleaned_to (step 8)
 -- ============================================================
 -- Deployment order (a database at 3.3.0; CHANGELOG.md, 3.4.0, "Before deployment"):
 --   1) Bring the database to 3.3.0 first (db/3.3.0/update.sql). This script stops, without changing anything, while
@@ -198,6 +198,15 @@ FROM (SELECT CONCAT(N'badge-scan-', CAST(b.id AS nvarchar(20))) AS uuid,
 			AND e.event_at >= DATEADD(second, -5, b.[timestamp]) AND e.event_at <= DATEADD(second, 5, b.[timestamp]))) x;
 -- step7:copy:end
 END
+GO
+
+-- 6) Event log step 8, the cleanup: event_log_sequence.cleaned_to, the numbers 1 to it were cleaned up (EventLogCleanup
+--   deletes a run of the first numbers of an importance, older than its duration, never the last 30 days), so the page
+--   does not show them as missing. 0: never cleaned. The settings (EVENTLOG_STORE_FROM, EVENTLOG_KEEP_*_MONTHS,
+--   EVENTLOG_AUTO_CLEANUP) are General setup rows the start creates on a store (ZZDataInitializer), as every setting.
+--   Every database.
+IF COL_LENGTH(N'event_log_sequence', N'cleaned_to') IS NULL
+	ALTER TABLE event_log_sequence ADD cleaned_to bigint NOT NULL CONSTRAINT df_event_log_sequence_cleaned_to DEFAULT 0;
 GO
 
 UPDATE APP_VERSION SET version = '3.4.0';

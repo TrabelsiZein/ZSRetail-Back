@@ -19,6 +19,9 @@ public class EventLogPage {
 	private int size;
 	private long total;
 	private Counts counts = new Counts();
+	/** Step 8: the journal's first event (the old badge scans aside); the page says when the period starts before it. */
+	@com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+	private java.time.LocalDateTime firstEventAt;
 
 	@Data
 	public static class Counts {

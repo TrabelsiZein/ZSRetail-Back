@@ -339,6 +339,27 @@ class EventLogReaderTest {
 	}
 
 	@Test
+	@DisplayName("Step 8: one filter Badge de, the authoriser or the badge's owner (authorisedById of before is the same);"
+			+ " the journal's first event, the copied badge scans aside")
+	void badgeOfAndFirstEvent() {
+		EventLogEntry old = event(EventCode.TILL_RIGHT_REFUSED, T.minusDays(30));
+		old.setImported(true);
+		old.setSequenceNo(null);
+		EventLogEntry movement = event(EventCode.CASH_MOVEMENT, T.plusMinutes(1));
+		movement.setAuthorisedById(4L);
+		EventLogEntry refused = event(EventCode.TILL_RIGHT_REFUSED, T.plusMinutes(2));
+		refused.setBadgeOwnerId(4L);
+		event(EventCode.CART_CLEARED, T.plusMinutes(3));
+		store();
+		assertEquals(Arrays.asList("TILL_RIGHT_REFUSED", "CASH_MOVEMENT"),
+				codes(reader.page(filter(null, null, null, 4L, null, null, null, null, null, null, null, null, false, null), 0, 50)));
+		assertEquals(Arrays.asList("TILL_RIGHT_REFUSED", "CASH_MOVEMENT"),
+				codes(reader.page(filter(null, null, 4L, null, null, null, null, null, null, null, null, null, false, null), 0, 50)),
+				"an address of before (authorisedById)");
+		assertEquals(T.plusMinutes(1), reader.page(filter(null), 0, 50).getFirstEventAt(), "the copied scan aside");
+	}
+
+	@Test
 	@DisplayName("Missing numbers per importance: none; a row deleted in the middle and at the end; the counter higher"
 			+ " than every row")
 	void missingNumbers() {

@@ -32,6 +32,10 @@ public class GeneralSetupService extends _BaseService<GeneralSetup, Long> {
 	@Autowired(required = false)
 	private java.util.List<GeneralSetupValueCheck> valueChecks;
 
+	/** 3.4.0, event log step 8: told after an administrator changed a row (EventLogSettingsChange). */
+	@Autowired(required = false)
+	private java.util.List<GeneralSetupChangeListener> changeListeners;
+
 	@Override
 	protected _BaseRepository<GeneralSetup, Long> getRepository() {
 		return generalSetupRepository;
@@ -88,6 +92,11 @@ public class GeneralSetupService extends _BaseService<GeneralSetup, Long> {
 
 		if (!Objects.equals(oldValue, newValue)) {
 			logChange(saved, oldValue, newValue, GeneralSetupChangeType.UPDATE, GeneralSetupChangeSource.ADMIN_UI, reason);
+			if (changeListeners != null) {
+				for (GeneralSetupChangeListener listener : changeListeners) {
+					listener.changed(saved.getCode(), oldValue, newValue);
+				}
+			}
 		}
 
 		return saved;

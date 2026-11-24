@@ -473,7 +473,8 @@ public class ZZDataInitializer {
 	 * a store (a database of before, the module turned on later). Never on a head office. Other roles: the Roles page.
 	 */
 	static final Set<String> EVENT_LOG_ADMIN_PERMISSIONS = new HashSet<>(
-			Arrays.asList(com.digithink.zsretail.core.eventlog.service.EventLog.PAGE_PERMISSION));
+			Arrays.asList(com.digithink.zsretail.core.eventlog.service.EventLog.PAGE_PERMISSION,
+					com.digithink.zsretail.core.eventlog.service.EventLog.CLEANUP_PERMISSION)); // step 8: the cleanup
 
 	static final Set<String> POS_MACHINES_ADMIN_PERMISSIONS = new HashSet<>(
 			Arrays.asList("read:admin-rfid-pos-machines"));
@@ -1230,6 +1231,18 @@ public class ZZDataInitializer {
 			ensureConfig(AppConfigAPI.VERIFY_PREVIOUS_SESSION_BEFORE_OPENING, "false",
 					"If true, a session does not open while the previous session of its drawer (the POS machine or the cashier, as CASH_DRAWER_OWNER) is closed and its final closing not yet done.",
 					false, ConfigType.BOOLEAN);
+			// 3.4.0, event log step 8: the tab "Journal des événements" (shown where eventlog.enabled is on; a store only)
+			ensureConfigWithOptions(com.digithink.zsretail.core.eventlog.service.EventLogSettings.STORE_FROM, "STEP",
+					"Event log: STEP stores every event; NOTABLE stores only the Notables and the Alerts (the Steps are not written).",
+					false, ConfigType.SELECT, "STEP,NOTABLE");
+			ensureConfig(com.digithink.zsretail.core.eventlog.service.EventLogSettings.KEEP_STEP_MONTHS, "3",
+					"Event log: months the Steps are kept (empty: forever). The last 30 days are never deleted.", false, ConfigType.NUMBER);
+			ensureConfig(com.digithink.zsretail.core.eventlog.service.EventLogSettings.KEEP_NOTABLE_MONTHS, "24",
+					"Event log: months the Notables are kept (empty: forever). The last 30 days are never deleted.", false, ConfigType.NUMBER);
+			ensureConfig(com.digithink.zsretail.core.eventlog.service.EventLogSettings.KEEP_ALERT_MONTHS, "24",
+					"Event log: months the Alerts are kept (empty: forever). The last 30 days are never deleted.", false, ConfigType.NUMBER);
+			ensureConfig(com.digithink.zsretail.core.eventlog.service.EventLogSettings.AUTO_CLEANUP, "false",
+					"Event log: if true, each night at 03:30 the events older than their duration are deleted.", false, ConfigType.BOOLEAN);
 		}
 
 		// Table management: the properties pos.table-management.* since 3.2.0 (AppConfigAPI), no General setup row (the

@@ -23,6 +23,8 @@ The build is in small steps.
 - **Step 7 (done): the old badge scans, the old page, the links.** The scans of `badge_scan_log` copied once into the
   Journal (`update.sql` step 5); the page "Journal de scan badge" gives way to the Journal where the module is on; the
   "À surveiller" numbers open the Journal filtered; four fixes of the page. See "Step 7" below.
+- **Step 8 (done): the settings and the cleanup.** The level, the durations and the night cleanup in General setup;
+  the cleanup button and its right; `update.sql` step 6. See "Step 8" below.
 
 ## The switch: `eventlog.enabled`
 
@@ -479,8 +481,65 @@ For every number: an event exists only while the module was on (before it, only 
 event (the discounts, the promo codes) shows once the till has sent it, and a till whose queue was full lost some
 (`EVENTLOG_EVENTS_DROPPED`).
 
+## Step 8: the settings and the cleanup
+
+**Three fixes of the page.**
+
+- When the period asked starts before the journal's first event (`EventLogPage.firstEventAt`, the copied badge scans
+  aside), the page says "Le journal a démarré le … : les gestes d'avant n'y sont pas", above the rows or in place of
+  the empty hint.
+- The menu entry is "Événements" (en "Events", ar "الأحداث"); the page's title stays "Journal des événements".
+- One filter "Badge de": the events where the person authorised (`authorised_by_id`) or whose badge was scanned
+  (`badge_owner_id`), accepted or refused. `authorisedById` of before (an address, a link) is the same filter, in the
+  page and in the API. The column "Autorisé par" stays.
+
+**The settings** (General setup, tab "Journal des événements", shown only where `eventlog.enabled` is on; the rows
+are created at the start of a store, as every setting; `EventLogSettings`, in memory, read at the start and after a
+save):
+
+| Code | Values | Default |
+|---|---|---|
+| `EVENTLOG_STORE_FROM` | `STEP` (everything) or `NOTABLE` (no Step written; Notable and Alert always) | `STEP` |
+| `EVENTLOG_KEEP_STEP_MONTHS`, `_NOTABLE_`, `_ALERT_` | 1 to 600 months, empty: kept forever | 3, 24, 24 |
+| `EVENTLOG_AUTO_CLEANUP` | `true` / `false`: the night cleanup at 03:30 | `false` |
+
+- A value that does not fit is refused (400 with its reason, `EventLogSettingsChange.check`).
+- Level Notable: `EventLog.stores(code)` is false for a Step, so nothing is made and no number taken (no hole); `GET
+  /config` `eventLogTillCodes` leaves the Steps out, so the till does not send them; a Step queued before the change
+  is refused `BELOW_LEVEL` and the till drops it. The General setup page reads `/config` again after the change.
+  What goes with the Steps: the sales validated, the lines added, the logins and logouts, the badges used, the sessions
+  opened and closed (the "Tickets" link of "À surveiller" then shows nothing).
+- A change of one of the five writes `EVENTLOG_SETTINGS_CHANGED` (**Alert**) with before and after in words, once the
+  save has committed. An Alert because lowering the level or shortening a duration is how traces would be made to go:
+  it must stand out among the few Alerts, and a cleanup never deletes it.
+
+**The cleanup** (`EventLogCleanup`, store; its own thread, never a request's nor the scheduler's).
+
+- By the button (`GET /event-log/cleanup`: per importance its duration, its limit date, the floor, how many rows;
+  `POST`: started, 202, 409 while one runs) behind `delete:admin-event-log` (ADMIN of every store, on the Roles page
+  beside the Journal's right; 403 without it), or each night at 03:30 when `EVENTLOG_AUTO_CLEANUP` is on.
+- The limit: today minus the duration, never later than today minus 30 days (the floor: since a duration is at least a
+  month, it only bites when a month is shorter than 30 days, and protects whatever the settings become).
+- A numbered importance loses a run of its first numbers, 1 to N, N the number just before the first event written at
+  or after the limit (the numbers follow the server's clock). `event_log_sequence.cleaned_to` = N is written first,
+  so the page counts only the numbers above it: no false "missing", and a row deleted by hand above it still shows. A
+  copied badge scan (no number) goes by its own time.
+- Never deleted: `EVENTLOG_CLEANUP` and `EVENTLOG_SETTINGS_CHANGED` (`EventCode.NEVER_CLEANED`).
+- 500 rows per delete, each its own statement, 20 ms between them: the till's inserts never wait long.
+- One `EVENTLOG_CLEANUP` (Alert): who (the user, or "la tâche de nuit"), how many per importance and their limit
+  dates; the total as its count.
+
 ## Tests
 
+- Step 8:
+  - `EventLogSettingsTest`: level Notable (no Step written, no number taken, the next Step number 2 after), the
+    defaults, the values read and refused, the change written (Alert, before and after).
+  - `EventLogCleanupTest` (H2): the durations, the run of numbers and `cleaned_to`, no missing number after, the
+    floor (1 month on 15 March), the kept events, a copied scan by its date, a duration left empty, a hand deletion still
+    seen, the event written (who, how many).
+  - `TillEventBatchTest.belowLevel`, `EventLogPageAPITest.cleanupRight` (404, 403, 202, 409),
+    `EventLogReaderTest.badgeOfAndFirstEvent`, `ZZDataInitializerRolesTest` (the two keys).
+  - Front: `tools/event-log-link-check.mjs` (`authorisedById` of before).
 - Step 7:
   - `BadgeScanCopyTest`: the script's copy statement as written, run twice on H2 over scans of each kind (used, refused
     known and unknown, a role pass, a scan of before step C, a scan with its event): 4, then 0; the texts, the columns,
@@ -555,5 +614,5 @@ event (the discounts, the promo codes) shows once the till has sent it, and a ti
 |---|---|
 | 6 | The Journal page (done). |
 | 7 | The old badge scans copied in (done), the old page, the links. |
-| 8 | General setup and the cleanup. |
+| 8 | General setup and the cleanup (done). |
 | 9 | Admin gestures. |

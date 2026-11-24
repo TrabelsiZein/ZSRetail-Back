@@ -136,6 +136,10 @@ public class AppConfigAPI {
 	@Autowired(required = false)
 	private ItemTreeService itemTreeService;
 
+	/** 3.4.0, event log step 8: the level (the till sends no Step while only Notable and Alert are stored). */
+	@Autowired(required = false)
+	private com.digithink.zsretail.core.eventlog.service.EventLogSettings eventLogSettings;
+
 	/**
 	 * GET /config - returns public app config (standalone, enableSalesPriceGroup, loyaltyEnabled, etc.).
 	 * Allowed without authentication so the frontend can load it on app init.
@@ -199,7 +203,10 @@ public class AppConfigAPI {
 		java.util.Map<String, Integer> codes = new java.util.TreeMap<>();
 		if (applicationModeService.isEventLogEnabled()) {
 			for (com.digithink.zsretail.core.eventlog.EventCode code : com.digithink.zsretail.core.eventlog.EventCode.FROM_TILL) {
-				codes.put(code.name(), code.getImportance());
+				// step 8: below the level (the Steps when only Notable and Alert are stored) the till sends nothing
+				if (eventLogSettings == null || eventLogSettings.stores(code)) {
+					codes.put(code.name(), code.getImportance());
+				}
 			}
 		}
 		return codes;

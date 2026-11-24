@@ -77,8 +77,10 @@ public final class EventLogFilter {
 		}
 		filter.importances = numbers(importances);
 		filter.userId = userId;
-		filter.authorisedById = authorisedById;
-		filter.badgeOwnerId = badgeOwnerId;
+		// step 8: one filter "Badge de", the authoriser or the badge's owner; authorisedById of before (links,
+		// bookmarks) is the same filter
+		filter.authorisedById = null;
+		filter.badgeOwnerId = badgeOwnerId != null ? badgeOwnerId : authorisedById;
 		filter.posMachineId = posMachineId;
 		filter.sessionId = sessionId;
 		filter.sessionNumber = trimmed(sessionNumber);

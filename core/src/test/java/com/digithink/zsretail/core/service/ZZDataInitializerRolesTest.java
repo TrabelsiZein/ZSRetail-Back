@@ -372,7 +372,8 @@ class ZZDataInitializerRolesTest {
 	/** 3.2.0: the POS machines page, every store, given to ADMIN at every start (the key keeps its 3.1.0 name). */
 	private static final Set<String> POS_MACHINES = Collections.singleton("read:admin-rfid-pos-machines");
 	/** 3.4.0, event log step 6: the Journal page, ADMIN of every store (module on or off), never a head office. */
-	private static final Set<String> EVENT_LOG = Collections.singleton("read:admin-event-log");
+	private static final Set<String> EVENT_LOG = new HashSet<>(java.util.Arrays.asList("read:admin-event-log",
+			"delete:admin-event-log")); // step 8: the cleanup button
 
 	@Test
 	@DisplayName("Licence page: ADMIN of a new store has it, and of a new head office the head office one; a store and a head office"

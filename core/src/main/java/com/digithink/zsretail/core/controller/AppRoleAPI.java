@@ -108,6 +108,8 @@ public class AppRoleAPI {
         "read:admin-scanned-tickets",
         // 3.4.0, event log step 6: the Journal page ("Journal des événements"), a store with eventlog.enabled=true
         "read:admin-event-log",
+        // 3.4.0, event log step 8: the cleanup button of the Journal
+        "delete:admin-event-log",
         "read:admin-loyalty-members", "write:admin-loyalty-members",
         "read:admin-loyalty-programs", "write:admin-loyalty-programs",
         "read:admin-loyalty-transactions",
