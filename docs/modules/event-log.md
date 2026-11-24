@@ -545,6 +545,12 @@ throws and, off, it builds and reads nothing. The rules:
 - Never a password (only "changé par un administrateur"), a badge code (a badge shows as "aucun" or an opaque mark that
   changes with it), nor a secret setting's value (`AdminEvents.secret`: a code with PASSWORD, SECRET, TOKEN, API_KEY,
   PRIVATE or ending in _KEY is "******").
+- A setting and a right are named as the screen names them, the key beside: "Paramètre « Comportement POS ›
+  Afficher le stock dans le POS » (POS_SHOW_STOCK) changé : non → oui", "ajoutés Licence (read:admin-license)"; a
+  switch's true / false says oui / non (the columns keep the raw value); a key without a label: the key. The labels
+  (`AdminLabels`, French) are written from the General setup and Roles pages by ZSRetail-Front
+  `tools/admin-labels-check.mjs --write`, and that check fails when they differ; the till rights by
+  `AccessEvents.actionLabel`.
 - One event for a bulk gesture (an import), with its counts.
 - `amount` is money only (a price, a cost, a purchase's total); a count or a quantity is in the sentence and in before
   / after.

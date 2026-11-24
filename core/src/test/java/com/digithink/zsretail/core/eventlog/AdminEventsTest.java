@@ -118,7 +118,8 @@ class AdminEventsTest {
 		events.roleRightsChanged(r, r.getPermissions(), new HashSet<>(Arrays.asList("read:home", "read:day-journal")));
 		EventLogEntry changed = log.only("ROLE_RIGHTS_CHANGED");
 		assertEquals(EventImportance.ALERT, changed.getImportance());
-		assertEquals("Droits du rôle Chef de caisse changés : ajoutés read:day-journal ; retirés till:make-return.",
+		assertEquals("Droits du rôle Chef de caisse changés : ajoutés Voir le Journal (read:day-journal) ; retirés Caisse : Effectuer"
+				+ " un retour (till:make-return).",
 				changed.getDetails());
 		events.roleRenamed(r, "Chef de caisse", "Chef de caisse");
 		assertEquals(2, log.rows.size(), "the same name: nothing");
@@ -136,9 +137,16 @@ class AdminEventsTest {
 	void settings() {
 		events.changed("MAX_DAYS_FOR_RETURN", "10", "30");
 		events.changed("COMM_SMTP_PASSWORD", "old-secret", "new-secret");
+		events.changed("POS_SHOW_STOCK", "false", "true");
+		events.changed("SOME_UNKNOWN_CODE", "a", "b");
 		events.changed("EVENTLOG_STORE_FROM", "STEP", "NOTABLE");
-		assertEquals(Arrays.asList("SETTING_CHANGED", "SETTING_CHANGED"), log.codes());
-		assertEquals("Paramètre MAX_DAYS_FOR_RETURN changé : 10 → 30.", log.rows.get(0).getDetails());
+		assertEquals(Arrays.asList("SETTING_CHANGED", "SETTING_CHANGED", "SETTING_CHANGED", "SETTING_CHANGED"), log.codes());
+		assertEquals("Paramètre « Retours produits › Délai max de retour (jours) » (MAX_DAYS_FOR_RETURN) changé : 10 → 30.",
+				log.rows.get(0).getDetails());
+		assertEquals("Paramètre « Comportement POS › Afficher le stock dans le POS » (POS_SHOW_STOCK) changé : non → oui.",
+				log.rows.get(2).getDetails());
+		assertEquals("false", log.rows.get(2).getOldValue(), "the columns keep the raw value");
+		assertEquals("Paramètre SOME_UNKNOWN_CODE changé : a → b.", log.rows.get(3).getDetails(), "no label: the key");
 		EventLogEntry secret = log.rows.get(1);
 		assertEquals("******", secret.getOldValue());
 		assertEquals("******", secret.getNewValue());

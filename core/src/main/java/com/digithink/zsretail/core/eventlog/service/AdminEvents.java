@@ -183,10 +183,10 @@ public class AdminEvents implements GeneralSetupChangeListener {
 			}
 			StringBuilder text = new StringBuilder("Droits du rôle ").append(roleName(role)).append(" changés :");
 			if (!added.isEmpty()) {
-				text.append(" ajoutés ").append(String.join(", ", added));
+				text.append(" ajoutés ").append(rights(added));
 			}
 			if (!removed.isEmpty()) {
-				text.append(added.isEmpty() ? "" : " ;").append(" retirés ").append(String.join(", ", removed));
+				text.append(added.isEmpty() ? "" : " ;").append(" retirés ").append(rights(removed));
 			}
 			eventLog.write(NewEvent.of(EventCode.ROLE_RIGHTS_CHANGED).subject(role.getId(), roleName(role))
 					.change(size(before) + " droits", size(after) + " droits").details(text.append(".").toString()));
@@ -222,10 +222,33 @@ public class AdminEvents implements GeneralSetupChangeListener {
 			boolean secret = secret(code);
 			String before = secret ? MASK : oldValue;
 			String after = secret ? MASK : newValue;
-			eventLog.write(NewEvent.of(EventCode.SETTING_CHANGED).subject(code, code).change(before, after)
-					.details("Paramètre " + code + " changé : " + text(before) + " → " + text(after)
-							+ (secret ? " (valeur secrète, non écrite)." : ".")));
+			String label = AdminLabels.SETTINGS.get(code);
+			eventLog.write(NewEvent.of(EventCode.SETTING_CHANGED).subject(code, label != null ? label : code).change(before, after)
+					.details("Paramètre " + (label != null ? "« " + label + " » (" + code + ")" : code) + " changé : "
+							+ text(yesNo(before)) + " → " + text(yesNo(after)) + (secret ? " (valeur secrète, non écrite)." : ".")));
 		});
+	}
+
+	/** A switch's value as the screen says it (true / false: oui / non); any other value as it is. */
+	static String yesNo(String value) {
+		return "true".equals(value) ? "oui" : "false".equals(value) ? "non" : value;
+	}
+
+	/** Rights as the Roles page names them, each key beside: "Licence (read:admin-license)". */
+	static String rights(Collection<String> keys) {
+		List<String> out = new ArrayList<>();
+		for (String key : keys) {
+			String label = AdminLabels.RIGHTS.get(key);
+			if (label == null) {
+				for (com.digithink.zsretail.core.model.enumeration.BadgePermission action : com.digithink.zsretail.core.model.enumeration.BadgePermission.values()) {
+					if (action.key().equals(key)) {
+						label = "Caisse : " + AccessEvents.actionLabel(action);
+					}
+				}
+			}
+			out.add(label == null ? key : label + " (" + key + ")");
+		}
+		return String.join(", ", out);
 	}
 
 	/** A setting whose value is never written: a password, a token, a key. */
