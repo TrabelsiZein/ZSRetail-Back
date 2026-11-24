@@ -129,6 +129,55 @@ class AccessEventsTest {
 	}
 
 	@Test
+	@DisplayName("Step 6: the refused logins of one run share a group key (the login's run, else the address's); a new"
+			+ " run after a successful login, or 15 minutes later, has its own; nothing else is grouped")
+	void groupKeys() {
+		LocalDateTime[] now = { LocalDateTime.of(2026, 11, 24, 8, 44, 2) };
+		AccessEvents counted = new AccessEvents(log.eventLog(), users::get, () -> now[0]);
+		for (int i = 1; i <= 6; i++) {
+			now[0] = now[0].plusSeconds(10);
+			counted.loginRefused("amine", new BadCredentialsException("x"), "192.168.1.30"); // 5th, 6th: REPEATED
+		}
+		java.util.Set<String> keys = new java.util.HashSet<>();
+		log.rows.forEach(row -> keys.add(row.getGroupKey()));
+		assertEquals(java.util.Collections.singleton("U7@2026-11-24T08:44:12"), keys, "one run, on the login");
+		counted.loginOk(amine, "192.168.1.30");
+		now[0] = now[0].plusSeconds(10);
+		counted.loginRefused("amine", new BadCredentialsException("x"), "192.168.1.30");
+		assertEquals("U7@" + now[0], log.rows.get(log.rows.size() - 1).getGroupKey(), "a new run after the login");
+		assertEquals(null, log.only("LOGIN_OK").getGroupKey());
+
+		now[0] = now[0].plusMinutes(1);
+		counted.loginRefused("nobody", new BadCredentialsException("x"), "10.0.0.66");
+		assertEquals("A10.0.0.66@" + now[0], log.rows.get(log.rows.size() - 1).getGroupKey(), "unknown login: the address");
+		LocalDateTime firstOfAddress = now[0];
+		now[0] = now[0].plusMinutes(16);
+		counted.loginRefused("nobody", new BadCredentialsException("x"), "10.0.0.66");
+		assertTrue(!("A10.0.0.66@" + firstOfAddress).equals(log.rows.get(log.rows.size() - 1).getGroupKey()),
+				"16 minutes later: another run");
+	}
+
+	@Test
+	@DisplayName("Step 6: the badge's owner on its use (and as the authoriser) and on a refusal of a known badge; an"
+			+ " unknown badge has none; a refusal authorised nothing")
+	void badgeOwner() {
+		events.badgeUsed(amine, sarra, BadgePermission.MAKE_RETURN, 3L);
+		events.badgeRefused(amine, sarra, BadgePermission.MAKE_RETURN, "BADGE_NO_ACCESS", 3L);
+		events.badgeRefused(amine, null, BadgePermission.MAKE_RETURN, "BADGE_NOT_EXISTS", 3L);
+		EventLogEntry used = log.rows.get(0);
+		assertEquals(Long.valueOf(2), used.getBadgeOwnerId());
+		assertEquals("sarra", used.getBadgeOwnerLogin());
+		assertEquals("Sarra B.", used.getBadgeOwnerName());
+		assertEquals(Long.valueOf(2), used.getAuthorisedById());
+		EventLogEntry noRight = log.rows.get(1);
+		assertEquals(Long.valueOf(2), noRight.getBadgeOwnerId());
+		assertEquals(null, noRight.getAuthorisedById());
+		EventLogEntry unknown = log.rows.get(2);
+		assertEquals(null, unknown.getBadgeOwnerId());
+		assertEquals(null, unknown.getAuthorisedById());
+	}
+
+	@Test
 	@DisplayName("Step 4: unknown logins from one address add up (5th: Alert); 15 minutes without a refusal end the run")
 	void repeatedFromAddress() {
 		LocalDateTime[] now = { LocalDateTime.of(2026, 11, 23, 22, 0, 0) };

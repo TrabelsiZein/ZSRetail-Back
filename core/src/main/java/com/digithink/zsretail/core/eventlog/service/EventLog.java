@@ -45,6 +45,13 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class EventLog {
 
+	/**
+	 * Step 6: the right of the Journal page ("Journal des événements", store.eventlog.EventLogPageAPI), reading and
+	 * exporting. Given to ADMIN of every store (ZZDataInitializer.EVENT_LOG_ADMIN_PERMISSIONS); other roles are ticked on
+	 * the Roles page.
+	 */
+	public static final String PAGE_PERMISSION = "read:admin-event-log";
+
 	private final BooleanSupplier on;
 	private final EventLogWriter writer;
 	private final Supplier<String> loggedLogin;
@@ -150,6 +157,7 @@ public class EventLog {
 				: UUID.randomUUID().toString());
 		entry.setEventAt(clock.get());
 		entry.setFrontAt(event.getFrontAt());
+		entry.setOccurredAt(EventLogEntry.occurredOf(entry)); // step 6: the page's order
 		entry.setSubjectId(cut(event.getSubjectId(), EventLogEntry.SUBJECT_ID_LENGTH));
 		entry.setSubjectLabel(cut(event.getSubjectLabel(), EventLogEntry.LABEL_LENGTH));
 		entry.setPosMachineId(event.getPosMachineId());
@@ -168,6 +176,10 @@ public class EventLog {
 		entry.setAuthorisedById(event.getAuthorisedById());
 		entry.setAuthorisedByLogin(cut(event.getAuthorisedByLogin(), EventLogEntry.LOGIN_LENGTH));
 		entry.setAuthorisedByName(cut(event.getAuthorisedByName(), EventLogEntry.NAME_LENGTH));
+		entry.setBadgeOwnerId(event.getBadgeOwnerId());
+		entry.setBadgeOwnerLogin(cut(event.getBadgeOwnerLogin(), EventLogEntry.LOGIN_LENGTH));
+		entry.setBadgeOwnerName(cut(event.getBadgeOwnerName(), EventLogEntry.NAME_LENGTH));
+		entry.setGroupKey(cut(event.getGroupKey(), EventLogEntry.GROUP_KEY_LENGTH));
 		entry.setSentById(event.getSentById());
 		entry.setSentByLogin(cut(event.getSentByLogin(), EventLogEntry.LOGIN_LENGTH));
 		entry.setClientAddress(cut(event.getClientAddress() != null ? event.getClientAddress() : safely(requestAddress),

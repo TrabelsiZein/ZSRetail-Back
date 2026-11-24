@@ -18,6 +18,8 @@ The build is in small steps.
 - **Step 5 (done): the till's gestures.** One line beside each gesture of the front (the cart, the discounts, a pending
   ticket taken back, the reprints, the tickets X / Z and the session tickets, the logouts) and the cart's ID; see
   "Step 5" below. No screen has changed.
+- **Step 6 (done): the Journal page.** "Journal des événements" in the Caisse menu, read only, its own right
+  (`read:admin-event-log`); see "Step 6" below. Three columns and two indexes (`db/3.4.0/update.sql` step 4).
 
 ## The switch: `eventlog.enabled`
 
@@ -49,22 +51,27 @@ Built as `warranty.enabled` (`NodeOwnership.isEventLogSet`):
 | `importance`, `sequence_no` | 10 STEP, 20 NOTABLE, 30 ALERT. The number runs 1, 2, 3... within each importance, so a missing number is a deleted row. It is null on a row imported from before the module. |
 | `code`, `subject_type`, `subject_id`, `subject_label` | `EventCode` and `EventSubject` as text; the subject's id and what a person reads for it. |
 | `event_at`, `front_at` | The server's clock when the event was written, and the till's clock (till events only). |
+| `occurred_at` | Step 6: the event's own time, `front_at` when the till gave one, else `event_at`. Written with every row (`EventLog.entryOf`, the batch insert, `@PrePersist`). The page's order and period. |
 | `pos_machine_id` / `_name`, `session_id` / `_number`, `cart_id` | Where it happened. `cart_id` is the cart's UUID, made by the till at the cart's first line. |
 | `user_id`, `user_login`, `user_name`, `user_role` | Who did it. |
 | `authorised_by_id` / `_login` / `_name` | The owner of the badge that allowed it. Empty when nobody's badge was needed. |
+| `badge_owner_id` / `_login` / `_name` | Step 6: the owner of the badge scanned, on `TILL_RIGHT_USED` and on a `TILL_RIGHT_REFUSED` whose badge is known (no right, revoked, expired, owner disabled). A refusal authorised nothing, so it is not `authorised_by`. |
 | `sent_by_id`, `sent_by_login` | Till events only: the user whose login sent them. |
 | `client_address`, `machine_sequence_no`, `install_id` | The request's address; the till's own number of its events, per browser install (a hole within one install shows events never sent; step 4). |
 | `doubt` | Step 4: what the server could not confirm of a till event's claims (codes, comma separated); null when nothing. |
 | `old_value`, `new_value`, `amount`, `details` | Before and after, an amount, one free text. |
 | `imported` | A row copied from `badge_scan_log` (step 7). |
+| `group_key` | Step 6: the refused logins of one run share it (see "Step 6"); null on every other event. |
 
 Indexes:
 
 - `ix_event_log_at` (the page is always filtered by a period)
 - `ix_event_log_subject` (a subject's history)
 - `ix_event_log_session`
-- `ix_event_log_user`
+- `ix_event_log_user` (`user_id, occurred_at` since step 6)
 - `ix_event_log_sequence` (the holes)
+- `ix_event_log_install` (step 4, a till's own numbers)
+- `ix_event_log_occurred` (step 6: `occurred_at, importance`, the page's period, order and counters)
 
 **`event_log_sequence` (`EventLogSequence`)**
 
@@ -356,7 +363,71 @@ change seen twice for one cart (the payment page, then the till) is told once.
 - **When the write is slow** (the counter row locked, a slow disk): the request waits up to the 5 s timeout. Then the
   event is lost (one WARN) and the sale stays done: the cashier sees a slow sale, never a failed one.
 
+## Step 6: the Journal page (store)
+
+**Who and when.** The menu entry "Journal des événements" (Caisse group), the route `admin-event-log` and its line on
+the Roles page exist only where `eventlog.enabled` is on (`EVENT_LOG_ROUTES`, `EVENT_LOG_PERMISSIONS`, as the
+Warranties). The right `read:admin-event-log` (`EventLog.PAGE_PERMISSION`) reads the page and its Excel file. ADMIN
+of every store gets it, on a new database and at every start (`ZZDataInitializer.EVENT_LOG_ADMIN_PERMISSIONS`, module
+on or off); other roles are ticked on the Roles page. Looking or exporting is not an event.
+
+**The API** (`store.eventlog.EventLogPageAPI`, read only; 404 when the module is off, 403 without the right, 400 for
+filters that do not parse; every answer JSON, the file aside):
+
+| Call | What |
+|---|---|
+| `GET /event-log` | One page of lines (`EventLogPage`: `rows`, `total`, `counts`). `from`, `to` (YYYY-MM-DD) required; `importances`, `codes` comma separated; `userId`, `authorisedById`, `badgeOwnerId`, `posMachineId`, `sessionId`, `sessionNumber`, `subjectType` + `subjectId`, `cartId`, `text`, `doubtOnly`, `groupKey`; `page` (from 0), `size` (50, at most 200). |
+| `GET /event-log/excel` | The same filters: every event (a run's events one by one), at most 20,000 (`EventLogReader.EXCEL_LIMIT`). |
+| `GET /event-log/catalogue` | The codes (importance, French label), the subjects, every user (the disabled ones too: a dismissed cashier stays searchable), the POS machines. |
+| `GET /event-log/missing` | Per importance: the counter, the numbered rows, how many are missing and the first 20 missing ranges. |
+
+**The reads** (`EventLogReader`, SQL that SQL Server and the tests' H2 run):
+
+- **Order:** `occurred_at` newest first, then the row's id (the arrival order; `sequence_no` restarts with each
+  importance). A till's event sent late (a closing ticket arriving after the logout and the next login) takes its place.
+  A till whose clock is wrong places its events wrong: the window shows both clocks.
+- **Period:** on `occurred_at`, from the first day's midnight to the day after the last one.
+- **Free text:** the sentence (`details`), the subject's label and id (a ticket's number, an item's code is in the
+  sentence); `%`, `_` and `[` are searched as typed.
+- **Counters:** events per importance, with every filter but the importance (a click on a counter shows what it says).
+  A run counts each of its events; the list counts it once.
+- **Amounts:** rounded to 3 decimals (the column is a float), in the API and the Excel file.
+
+**Refused logins, one line per run.** `AccessEvents` gives each `LOGIN_REFUSED` / `LOGIN_REFUSED_REPEATED` a
+`group_key` when it is written: the run's key (`"U" + user id` when the login typed is a user's, else `"A" +
+address`) and its first refusal's time (`LoginTries.Run.groupKey`, the runs of step 4: a successful login or 15 minutes
+end one). The list keeps a run as its last event (`group_key is null or id in (select max(id) ... group by
+group_key)`, the same filters inside), so the server's paging stays plain SQL; the count and the first and last times
+are read for the page's runs only. `groupKey=` lists a run's events. The rows of before step 6 have no key: one line
+each. A restart splits a run (`LoginTries` is in memory), which only makes two lines.
+
+**Missing numbers.** Over the whole table (a deleted row leaves nothing in its period): per importance, the counter
+(`event_log_sequence`) against the numbered rows; the ranges by `lead()` over `ix_event_log_sequence`, read only when
+some are missing. An event being written at that instant can show for a moment. Step 8's cleanup must say what it
+deleted (its own event and the range), or the page will count its rows as missing.
+
+**The indexes on millions of rows.** Every query has the period: `ix_event_log_occurred` (occurred_at, importance)
+bounds it and answers the counters without the rows. A session, a subject, a user also have their own index
+(`ix_event_log_user` now on `occurred_at`). The other filters (authorised by, badge, machine, cart, code, doubt) and
+the free text (`like '%x%'`, no index can serve it) are read inside the period: a week is a few tens of thousands of
+rows; a year searched by free text is a few seconds.
+
+**The page** (`ZSRetail-Front` `src/views/admin/eventlog/EventLogPage.vue`): opens on the last 7 days, Notable and
+Alert, newest first; the three counters (a click: only that importance); the filters; columns date and time, importance,
+user, authorised by, POS machine, session, action (`admin.eventLog.codes`, fr / en / ar; the catalogue's French label
+for a code the screen does not know), the sentence, amount. A line opens a wide window: both clocks, who and where,
+before and after, the numbers (the importance's and the till's), the doubt in words, the run's refusals, and "Même
+panier / Même sujet / Même session" (the page filtered on it, every importance). Excel: the server's file, the filters.
+
 ## Tests
+
+- Step 6:
+  - `EventLogReaderTest` (H2, the real batch insert): the order by the till's time, the period, each filter, the
+    runs as one line and their events, the counters, the paging, the amount rounded, the missing numbers, the Excel
+    file and its limit.
+  - `EventLogPageAPITest`: 404 off, 403 without the right (the reader never asked), 400, the four answers.
+  - `AccessEventsTest.groupKeys`, `badgeOwner`; `ZZDataInitializerRolesTest.eventLogPageGivenToAdmin`.
+  - Front: `tools/store-menu-check.mjs` (shown with the module and the right only), `i18n-keys-check`.
 
 - `EventLogKeyTest`: the switch.
 - `EventLogTest`: the catalogue, off and on, the given values, nobody logged, the start event, the numbering per
@@ -413,7 +484,7 @@ change seen twice for one cart (the payment page, then the till) is told once.
 
 | Step | What |
 |---|---|
-| 6 | The Journal page. |
+| 6 | The Journal page (done). |
 | 7 | The old badge scans copied in. |
 | 8 | General setup and the cleanup. |
 | 9 | Admin gestures. |

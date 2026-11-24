@@ -106,6 +106,8 @@ public class AppRoleAPI {
         "read:admin-badge-scan-history",
         // 3.2.0, step 7: the scanned meal tickets and gift cheques taken (a store)
         "read:admin-scanned-tickets",
+        // 3.4.0, event log step 6: the Journal page ("Journal des événements"), a store with eventlog.enabled=true
+        "read:admin-event-log",
         "read:admin-loyalty-members", "write:admin-loyalty-members",
         "read:admin-loyalty-programs", "write:admin-loyalty-programs",
         "read:admin-loyalty-transactions",

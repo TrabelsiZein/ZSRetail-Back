@@ -208,6 +208,7 @@ public class ZZDataInitializer {
 			wanted.addAll(API_CHECKED_ADMIN_PERMISSIONS);
 			wanted.addAll(SCANNED_TICKETS_ADMIN_PERMISSIONS); // 3.2.0, step 7: the scanned tickets taken
 			wanted.addAll(POS_MACHINES_ADMIN_PERMISSIONS); // 3.2.0: the POS machines page, RFID or not
+			wanted.addAll(EVENT_LOG_ADMIN_PERMISSIONS); // 3.4.0, event log step 6: the Journal page
 			wanted.addAll(CASH_MOVEMENT_PERMISSIONS); // 3.2.0, POS machines step 5: the cash movements at the till
 			// 3.1.1: the "Head office" pages (Jobs, Communications, Data exchanged) on a store linked after its database was
 			// created (its ADMIN role was made without them)
@@ -291,6 +292,7 @@ public class ZZDataInitializer {
 		permissions.addAll(TILL_PERMISSIONS); // step C: the five till rights, on every role of a new store
 		permissions.addAll(CASH_MOVEMENT_PERMISSIONS); // 3.2.0, POS machines step 5
 		permissions.addAll(POS_MACHINES_ADMIN_PERMISSIONS); // 3.2.0: the POS machines page, RFID or not
+		permissions.addAll(EVENT_LOG_ADMIN_PERMISSIONS); // 3.4.0, event log step 6: the Journal page
 		if (!applicationModeService.isSupplyFromErp()) {
 			permissions.addAll(INVENTORY_ADMIN_PERMISSIONS);
 		}
@@ -464,6 +466,15 @@ public class ZZDataInitializer {
 	 * ADMIN's set of a new store database (adminPermissions), given to ADMIN at every start of a store (a database of
 	 * before gets it once); other roles are ticked on the Roles page. Never on a head office.
 	 */
+	/**
+	 * 3.4.0, event log step 6: the Journal page ("Journal des événements", its list and its Excel file), the key the API
+	 * checks (store.eventlog.EventLogPageAPI). Every store, whether eventlog.enabled is on or not (the page and its line on
+	 * the Roles page are hidden while it is off): in ADMIN's set of a new store database, given to ADMIN at every start of
+	 * a store (a database of before, the module turned on later). Never on a head office. Other roles: the Roles page.
+	 */
+	static final Set<String> EVENT_LOG_ADMIN_PERMISSIONS = new HashSet<>(
+			Arrays.asList(com.digithink.zsretail.core.eventlog.service.EventLog.PAGE_PERMISSION));
+
 	static final Set<String> POS_MACHINES_ADMIN_PERMISSIONS = new HashSet<>(
 			Arrays.asList("read:admin-rfid-pos-machines"));
 

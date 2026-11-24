@@ -45,6 +45,11 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `LOGIN_OK`; its wrong password is a `LOGIN_REFUSED` that says so, still counted. `SESSION_OPENED` says what the drawer's
   last clôture left (no gap event, the 3.2.0 écart unchanged). A refused login has no session. `EVENTLOG_STARTED` in
   French.
+- Event log, step 6: the Journal page's API (`store.eventlog.EventLogPageAPI`, the right `read:admin-event-log`,
+  given to ADMIN of every store): `GET /event-log` (the filters, 50 lines a page on the server, newest first by the
+  event's own time, the runs of refused logins as one line, the counters), `/excel` (20,000 events at most),
+  `/catalogue`, `/missing` (the numbers missing per importance). 404 when the module is off. Amounts to 3 decimals.
+  The badge's owner kept on its use and on a refused known badge (`badge_owner_*`).
 
 ### Enhancements
 - Event log: `LOGIN_REFUSED` is Notable; from the 5th refused login in a row on one login or from one address (a run
@@ -75,6 +80,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 - `db/3.4.0/update.sql` 3: `event_log.install_id` (the browser that made a till event) and `event_log.doubt`, index
   `ix_event_log_install` (install_id, machine_sequence_no). Every database; a database where the script ran before
   runs it again (each statement guarded).
+- `db/3.4.0/update.sql` step 4 (event log step 6): `event_log.occurred_at` (filled for the rows of before),
+  `badge_owner_id` / `_login` / `_name` (the uses of before from `authorised_by`), `group_key`;
+  `ix_event_log_occurred` (occurred_at, importance); `ix_event_log_user` moved to (user_id, occurred_at). Re-runnable.
 
 ### Config
 - `eventlog.enabled` (a store only): `false` by default and in the store type file, strictly true/false. Absent is

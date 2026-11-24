@@ -13,122 +13,122 @@ import static com.digithink.zsretail.core.eventlog.EventImportance.STEP;
 public enum EventCode {
 
 	// ── The till: the cart before validation (sent by the till) ──
-	CART_LINE_ADDED(EventSubject.CART, STEP),
-	CART_QTY_RAISED(EventSubject.CART, STEP),
-	CART_QTY_LOWERED(EventSubject.CART, NOTABLE),
-	CART_LINE_DELETED(EventSubject.CART, NOTABLE),
-	CART_CLEARED(EventSubject.CART, NOTABLE),
-	LINE_DISCOUNT(EventSubject.CART, NOTABLE),
-	CART_DISCOUNT(EventSubject.CART, NOTABLE),
+	CART_LINE_ADDED(EventSubject.CART, STEP, "Ligne ajoutée"),
+	CART_QTY_RAISED(EventSubject.CART, STEP, "Quantité augmentée"),
+	CART_QTY_LOWERED(EventSubject.CART, NOTABLE, "Quantité diminuée"),
+	CART_LINE_DELETED(EventSubject.CART, NOTABLE, "Ligne supprimée"),
+	CART_CLEARED(EventSubject.CART, NOTABLE, "Panier vidé"),
+	LINE_DISCOUNT(EventSubject.CART, NOTABLE, "Remise sur la ligne"),
+	CART_DISCOUNT(EventSubject.CART, NOTABLE, "Remise sur le total"),
 	/** Step 5, sent by the till: a logout with lines in the cart (the cart is not emptied: a gap kept for later). */
-	CART_LEFT_AT_LOGOUT(EventSubject.CART, NOTABLE),
+	CART_LEFT_AT_LOGOUT(EventSubject.CART, NOTABLE, "Panier laissé à la déconnexion"),
 	/** Step 5, sent by the till when it opens again: a cart with lines lost with a page reload (scan + refresh). */
-	CART_LOST_ON_RELOAD(EventSubject.CART, NOTABLE),
+	CART_LOST_ON_RELOAD(EventSubject.CART, NOTABLE, "Panier perdu au rechargement"),
 	/** Step 5b, sent by the till: a promo code added to the cart (the cart total before -> after). */
-	PROMO_CODE_ADDED(EventSubject.CART, NOTABLE),
+	PROMO_CODE_ADDED(EventSubject.CART, NOTABLE, "Code promo ajouté"),
 	/** Step 5b, sent by the till: a promo code taken off the cart. */
-	PROMO_CODE_REMOVED(EventSubject.CART, NOTABLE),
+	PROMO_CODE_REMOVED(EventSubject.CART, NOTABLE, "Code promo retiré"),
 	/** Step 5b, sent by the till: the cart's customer chosen or changed (old -> new, the total before -> after). */
-	CART_CUSTOMER_CHANGED(EventSubject.CART, NOTABLE),
+	CART_CUSTOMER_CHANGED(EventSubject.CART, NOTABLE, "Client du panier changé"),
 
 	// ── Tickets ──
-	PENDING_SAVED(EventSubject.TICKET, STEP),
+	PENDING_SAVED(EventSubject.TICKET, STEP, "Ticket mis en attente"),
 	/** Sent by the till: taking a pending ticket back changes nothing on the server. */
-	PENDING_TAKEN_BACK(EventSubject.TICKET, STEP),
-	PENDING_DELETED(EventSubject.TICKET, NOTABLE),
-	SALE_VALIDATED(EventSubject.TICKET, STEP),
+	PENDING_TAKEN_BACK(EventSubject.TICKET, STEP, "Ticket en attente repris"),
+	PENDING_DELETED(EventSubject.TICKET, NOTABLE, "Ticket en attente supprimé"),
+	SALE_VALIDATED(EventSubject.TICKET, STEP, "Vente validée"),
 	/** Sent by the page that prints the duplicate: the ticket printer opens the drawer on every print. */
-	RECEIPT_REPRINTED(EventSubject.TICKET, ALERT),
-	PAYMENT_CHANGED(EventSubject.TICKET, ALERT),
+	RECEIPT_REPRINTED(EventSubject.TICKET, ALERT, "Ticket réimprimé"),
+	PAYMENT_CHANGED(EventSubject.TICKET, ALERT, "Paiement modifié"),
 
 	// ── Returns ──
-	RETURN_DONE(EventSubject.RETURN, NOTABLE),
+	RETURN_DONE(EventSubject.RETURN, NOTABLE, "Retour effectué"),
 	/** Sent by the page that prints the voucher's duplicate (the drawer opens, as for a ticket). */
-	RETURN_VOUCHER_REPRINTED(EventSubject.RETURN, ALERT),
+	RETURN_VOUCHER_REPRINTED(EventSubject.RETURN, ALERT, "Bon de retour réimprimé"),
 
 	// ── Cash ──
-	CASH_MOVEMENT(EventSubject.CASH_MOVEMENT, NOTABLE),
+	CASH_MOVEMENT(EventSubject.CASH_MOVEMENT, NOTABLE, "Mouvement de caisse"),
 
 	// ── Sessions and the store's day ──
-	SESSION_OPENED(EventSubject.SESSION, STEP),
-	SESSION_OPENING_GAP(EventSubject.SESSION, NOTABLE),
+	SESSION_OPENED(EventSubject.SESSION, STEP, "Session ouverte"),
+	SESSION_OPENING_GAP(EventSubject.SESSION, NOTABLE, "Écart à l'ouverture"),
 	/** Step 3: opened while the previous session of its drawer is closed but not verified. */
-	SESSION_OPENED_PREVIOUS_UNVERIFIED(EventSubject.SESSION, NOTABLE),
-	SESSION_CLOSED(EventSubject.SESSION, STEP),
-	SESSION_CLOSED_WITH_DIFFERENCE(EventSubject.SESSION, ALERT),
-	SESSION_VERIFIED(EventSubject.SESSION, NOTABLE),
+	SESSION_OPENED_PREVIOUS_UNVERIFIED(EventSubject.SESSION, NOTABLE, "Ouverte sans clôture de la précédente"),
+	SESSION_CLOSED(EventSubject.SESSION, STEP, "Session fermée"),
+	SESSION_CLOSED_WITH_DIFFERENCE(EventSubject.SESSION, ALERT, "Session fermée avec écart"),
+	SESSION_VERIFIED(EventSubject.SESSION, NOTABLE, "Session clôturée"),
 	/** Sent by the till or the page that prints a session's ticket. */
-	SESSION_TICKET_PRINTED(EventSubject.SESSION, STEP),
+	SESSION_TICKET_PRINTED(EventSubject.SESSION, STEP, "Ticket de session imprimé"),
 	/** Sent by the page "Journée du magasin". */
-	TICKET_X_PRINTED(EventSubject.STORE_DAY, STEP),
-	TICKET_Z_PRINTED(EventSubject.STORE_DAY, NOTABLE),
+	TICKET_X_PRINTED(EventSubject.STORE_DAY, STEP, "Ticket X imprimé"),
+	TICKET_Z_PRINTED(EventSubject.STORE_DAY, NOTABLE, "Ticket Z imprimé"),
 
 	// ── Till rights (badge or role) ──
-	TILL_RIGHT_USED(EventSubject.TILL_RIGHT, STEP),
-	TILL_RIGHT_REFUSED(EventSubject.TILL_RIGHT, ALERT),
+	TILL_RIGHT_USED(EventSubject.TILL_RIGHT, STEP, "Droit de caisse utilisé"),
+	TILL_RIGHT_REFUSED(EventSubject.TILL_RIGHT, ALERT, "Droit de caisse refusé"),
 
 	// ── Logins ──
-	LOGIN_OK(EventSubject.LOGIN, STEP),
+	LOGIN_OK(EventSubject.LOGIN, STEP, "Connexion"),
 	/**
 	 * Fixes after the test round: the till's "Retour à l'administration" popup, its password right (the login request
 	 * marked login-purpose TILL_ADMIN_RETURN): not a login. Its wrong password stays a LOGIN_REFUSED (said in the text).
 	 */
-	ADMIN_RETURN_VERIFIED(EventSubject.LOGIN, STEP),
+	ADMIN_RETURN_VERIFIED(EventSubject.LOGIN, STEP, "Retour à l'administration"),
 	/** Step 4 (Zein): Notable, a typo at the morning login is not an Alert. */
-	LOGIN_REFUSED(EventSubject.LOGIN, NOTABLE),
+	LOGIN_REFUSED(EventSubject.LOGIN, NOTABLE, "Connexion refusée"),
 	/** Step 4: the 5th refused login in a row on one login or from one address (and each one after it). */
-	LOGIN_REFUSED_REPEATED(EventSubject.LOGIN, ALERT),
+	LOGIN_REFUSED_REPEATED(EventSubject.LOGIN, ALERT, "Connexions refusées à répétition"),
 	/** Step 3: POST /logout, which only writes this event (the token stays valid until it expires). */
-	LOGOUT(EventSubject.LOGIN, STEP),
+	LOGOUT(EventSubject.LOGIN, STEP, "Déconnexion"),
 
 	// ── Users, roles, badges ──
-	USER_CREATED(EventSubject.USER, NOTABLE),
-	USER_UPDATED(EventSubject.USER, NOTABLE),
-	USER_ROLE_CHANGED(EventSubject.USER, ALERT),
-	PASSWORD_CHANGED(EventSubject.USER, ALERT),
-	USER_ENABLED(EventSubject.USER, NOTABLE),
-	USER_DISABLED(EventSubject.USER, NOTABLE),
-	USER_DELETED(EventSubject.USER, ALERT),
-	BADGE_GENERATED(EventSubject.USER, NOTABLE),
-	BADGE_REVOKED(EventSubject.USER, NOTABLE),
-	BADGE_REACTIVATED(EventSubject.USER, NOTABLE),
-	ROLE_CREATED(EventSubject.ROLE, NOTABLE),
-	ROLE_RIGHTS_CHANGED(EventSubject.ROLE, ALERT),
-	ROLE_DELETED(EventSubject.ROLE, ALERT),
+	USER_CREATED(EventSubject.USER, NOTABLE, "Utilisateur créé"),
+	USER_UPDATED(EventSubject.USER, NOTABLE, "Utilisateur modifié"),
+	USER_ROLE_CHANGED(EventSubject.USER, ALERT, "Rôle de l'utilisateur changé"),
+	PASSWORD_CHANGED(EventSubject.USER, ALERT, "Mot de passe changé"),
+	USER_ENABLED(EventSubject.USER, NOTABLE, "Utilisateur activé"),
+	USER_DISABLED(EventSubject.USER, NOTABLE, "Utilisateur désactivé"),
+	USER_DELETED(EventSubject.USER, ALERT, "Utilisateur supprimé"),
+	BADGE_GENERATED(EventSubject.USER, NOTABLE, "Badge généré"),
+	BADGE_REVOKED(EventSubject.USER, NOTABLE, "Badge révoqué"),
+	BADGE_REACTIVATED(EventSubject.USER, NOTABLE, "Badge réactivé"),
+	ROLE_CREATED(EventSubject.ROLE, NOTABLE, "Rôle créé"),
+	ROLE_RIGHTS_CHANGED(EventSubject.ROLE, ALERT, "Droits d'un rôle changés"),
+	ROLE_DELETED(EventSubject.ROLE, ALERT, "Rôle supprimé"),
 
 	// ── Settings, prices, promotions ──
-	SETTING_CHANGED(EventSubject.SETTING, NOTABLE),
-	PRICE_SAVED(EventSubject.PRICE, NOTABLE),
-	PRICE_DELETED(EventSubject.PRICE, NOTABLE),
-	OWN_PRICE_SET(EventSubject.ITEM, NOTABLE),
-	OWN_PRICE_GIVEN_BACK(EventSubject.ITEM, NOTABLE),
-	PROMOTION_SAVED(EventSubject.PROMOTION, NOTABLE),
-	PROMOTION_DELETED(EventSubject.PROMOTION, NOTABLE),
+	SETTING_CHANGED(EventSubject.SETTING, NOTABLE, "Paramètre changé"),
+	PRICE_SAVED(EventSubject.PRICE, NOTABLE, "Prix enregistré"),
+	PRICE_DELETED(EventSubject.PRICE, NOTABLE, "Prix supprimé"),
+	OWN_PRICE_SET(EventSubject.ITEM, NOTABLE, "Prix propre fixé"),
+	OWN_PRICE_GIVEN_BACK(EventSubject.ITEM, NOTABLE, "Prix propre rendu"),
+	PROMOTION_SAVED(EventSubject.PROMOTION, NOTABLE, "Promotion enregistrée"),
+	PROMOTION_DELETED(EventSubject.PROMOTION, NOTABLE, "Promotion supprimée"),
 
 	// ── Stock, inventory, purchases ──
-	STOCK_ADJUSTED(EventSubject.ITEM, ALERT),
-	COST_ADJUSTED(EventSubject.ITEM, NOTABLE),
-	INVENTORY_CREATED(EventSubject.INVENTORY, NOTABLE),
-	INVENTORY_VALIDATED(EventSubject.INVENTORY, ALERT),
-	INVENTORY_DELETED(EventSubject.INVENTORY, ALERT),
-	PURCHASE_PROCESSED(EventSubject.PURCHASE_ORDER, NOTABLE),
-	RECEPTION_DONE(EventSubject.PURCHASE_ORDER, NOTABLE),
+	STOCK_ADJUSTED(EventSubject.ITEM, ALERT, "Stock ajusté"),
+	COST_ADJUSTED(EventSubject.ITEM, NOTABLE, "CMP ajusté"),
+	INVENTORY_CREATED(EventSubject.INVENTORY, NOTABLE, "Inventaire créé"),
+	INVENTORY_VALIDATED(EventSubject.INVENTORY, ALERT, "Inventaire validé"),
+	INVENTORY_DELETED(EventSubject.INVENTORY, ALERT, "Inventaire supprimé"),
+	PURCHASE_PROCESSED(EventSubject.PURCHASE_ORDER, NOTABLE, "Achat enregistré"),
+	RECEPTION_DONE(EventSubject.PURCHASE_ORDER, NOTABLE, "Réception effectuée"),
 
 	// ── Runs: one event per run ──
-	IMPORT_RUN(EventSubject.IMPORT, NOTABLE),
-	ERP_SYNC_RUN(EventSubject.SYNC, STEP),
-	HEAD_OFFICE_SYNC_RUN(EventSubject.SYNC, STEP),
+	IMPORT_RUN(EventSubject.IMPORT, NOTABLE, "Import de données"),
+	ERP_SYNC_RUN(EventSubject.SYNC, STEP, "Synchronisation ERP"),
+	HEAD_OFFICE_SYNC_RUN(EventSubject.SYNC, STEP, "Synchronisation siège"),
 
 	// ── The event log itself ──
 	/**
 	 * Written at each start with the module on: a hole in time between two of them shows it was off. Notable, not an
 	 * Alert (step 2): a store restarts every morning.
 	 */
-	EVENTLOG_STARTED(EventSubject.EVENT_LOG, NOTABLE),
-	EVENTLOG_SETTINGS_CHANGED(EventSubject.EVENT_LOG, ALERT),
-	EVENTLOG_CLEANUP(EventSubject.EVENT_LOG, ALERT),
+	EVENTLOG_STARTED(EventSubject.EVENT_LOG, NOTABLE, "Journal démarré"),
+	EVENTLOG_SETTINGS_CHANGED(EventSubject.EVENT_LOG, ALERT, "Réglages du journal changés"),
+	EVENTLOG_CLEANUP(EventSubject.EVENT_LOG, ALERT, "Nettoyage du journal"),
 	/** Step 4, sent by the till: its queue was full, events were dropped (how many, from when to when). */
-	EVENTLOG_EVENTS_DROPPED(EventSubject.EVENT_LOG, ALERT);
+	EVENTLOG_EVENTS_DROPPED(EventSubject.EVENT_LOG, ALERT, "Événements perdus par la caisse");
 
 	/** The longest code the table holds (event_log.code). */
 	public static final int CODE_LENGTH = 60;
@@ -147,10 +147,13 @@ public enum EventCode {
 
 	private final EventSubject subject;
 	private final int importance;
+	private final String label;
 
-	EventCode(EventSubject subject, int importance) {
+	/** {@code label}: step 6, the French name of the action on the Journal page and in its Excel file. */
+	EventCode(EventSubject subject, int importance, String label) {
 		this.subject = subject;
 		this.importance = importance;
+		this.label = label;
 	}
 
 	public EventSubject getSubject() {
@@ -159,5 +162,21 @@ public enum EventCode {
 
 	public int getImportance() {
 		return importance;
+	}
+
+	public String getLabel() {
+		return label;
+	}
+
+	/** The French label of a code as stored (a code no longer in the catalogue: the code itself). */
+	public static String labelOf(String code) {
+		if (code == null) {
+			return null;
+		}
+		try {
+			return valueOf(code).label;
+		} catch (IllegalArgumentException gone) {
+			return code;
+		}
 	}
 }

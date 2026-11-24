@@ -32,6 +32,10 @@ public final class NewEvent {
 	private Long authorisedById;
 	private String authorisedByLogin;
 	private String authorisedByName;
+	private Long badgeOwnerId;
+	private String badgeOwnerLogin;
+	private String badgeOwnerName;
+	private String groupKey;
 	private Long sentById;
 	private String sentByLogin;
 	private String clientAddress;
@@ -113,6 +117,25 @@ public final class NewEvent {
 		this.authorisedById = id;
 		this.authorisedByLogin = login;
 		this.authorisedByName = name;
+		return this;
+	}
+
+	/**
+	 * Step 6: the owner of the badge scanned (its use, or its refusal when the badge is known); a refusal authorised
+	 * nothing, so this is not authorisedBy.
+	 */
+	public NewEvent badgeOwner(UserAccount owner) {
+		if (owner != null) {
+			this.badgeOwnerId = owner.getId();
+			this.badgeOwnerLogin = owner.getUsername();
+			this.badgeOwnerName = owner.getFullName();
+		}
+		return this;
+	}
+
+	/** Step 6: the refused logins of one run share it (the page shows them as one line). */
+	public NewEvent group(String key) {
+		this.groupKey = key;
 		return this;
 	}
 

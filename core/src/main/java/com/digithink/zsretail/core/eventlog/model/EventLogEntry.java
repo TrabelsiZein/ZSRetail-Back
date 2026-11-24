@@ -8,6 +8,7 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.Index;
+import javax.persistence.PrePersist;
 import javax.persistence.Table;
 import javax.persistence.UniqueConstraint;
 
@@ -35,9 +36,10 @@ import lombok.NoArgsConstructor;
 		indexes = { @Index(name = "ix_event_log_at", columnList = "event_at"),
 				@Index(name = "ix_event_log_subject", columnList = "subject_type, subject_id"),
 				@Index(name = "ix_event_log_session", columnList = "session_id"),
-				@Index(name = "ix_event_log_user", columnList = "user_id, event_at"),
+				@Index(name = "ix_event_log_user", columnList = "user_id, occurred_at"),
 				@Index(name = "ix_event_log_sequence", columnList = "importance, sequence_no"),
-				@Index(name = "ix_event_log_install", columnList = "install_id, machine_sequence_no") })
+				@Index(name = "ix_event_log_install", columnList = "install_id, machine_sequence_no"),
+				@Index(name = "ix_event_log_occurred", columnList = "occurred_at, importance") })
 @Data
 @NoArgsConstructor
 public class EventLogEntry {
@@ -53,6 +55,7 @@ public class EventLogEntry {
 	public static final int VALUE_LENGTH = 1000;
 	public static final int DETAILS_LENGTH = 2000;
 	public static final int DOUBT_LENGTH = 200;
+	public static final int GROUP_KEY_LENGTH = 80;
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -104,6 +107,16 @@ public class EventLogEntry {
 	@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
 	private LocalDateTime frontAt;
 
+	/**
+	 * Step 6: the event's own time, the Journal page's order and period: the till's clock of the gesture when it gave
+	 * one, else the server's (frontAt, else eventAt). A till's event sent late (its queue) takes its place among the
+	 * others, not at its arrival. Filled when the row is written ({@link #occurredOf}); nullable only so that a start
+	 * before db/3.4.0/update.sql step 4 can add it to a table with rows (the script fills the rows of before).
+	 */
+	@Column(name = "occurred_at")
+	@JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+	private LocalDateTime occurredAt;
+
 	@Column(name = "pos_machine_id")
 	private Long posMachineId;
 
@@ -151,6 +164,22 @@ public class EventLogEntry {
 	@Column(name = "authorised_by_name", length = NAME_LENGTH)
 	private String authorisedByName;
 
+	/**
+	 * Step 6: the owner of the badge scanned, on the badge's events: TILL_RIGHT_USED (the owner is also who authorised
+	 * it) and TILL_RIGHT_REFUSED when the badge is known (no right, revoked, expired, owner disabled): a refusal
+	 * authorised nothing, so its owner is not in authorised_by. The page's filter "Badge de".
+	 */
+	@Column(name = "badge_owner_id")
+	private Long badgeOwnerId;
+
+	@Nationalized
+	@Column(name = "badge_owner_login", length = LOGIN_LENGTH)
+	private String badgeOwnerLogin;
+
+	@Nationalized
+	@Column(name = "badge_owner_name", length = NAME_LENGTH)
+	private String badgeOwnerName;
+
 	/** The till's events: the user whose login sent them (another user when sent again after a logout). */
 	@Column(name = "sent_by_id")
 	private Long sentById;
@@ -188,6 +217,15 @@ public class EventLogEntry {
 	@Column(name = "doubt", length = DOUBT_LENGTH)
 	private String doubt;
 
+	/**
+	 * Step 6: the refused logins of one run (LOGIN_REFUSED, LOGIN_REFUSED_REPEATED) share it: the run's key ("U" + the
+	 * user's id when the login typed is a user's, else "A" + the address) and its first refusal's time. The page shows a
+	 * run as one line. Null on every other event.
+	 */
+	@Nationalized
+	@Column(name = "group_key", length = GROUP_KEY_LENGTH)
+	private String groupKey;
+
 	@Nationalized
 	@Column(name = "old_value", length = VALUE_LENGTH)
 	private String oldValue;
@@ -207,4 +245,17 @@ public class EventLogEntry {
 	/** A row copied from before the module (badge_scan_log), without a sequence number. */
 	@Column(name = "imported", nullable = false, columnDefinition = "bit default 0")
 	private boolean imported;
+
+	/** Step 6: the event's own time: the till's clock of the gesture, else the server's. */
+	public static LocalDateTime occurredOf(EventLogEntry entry) {
+		return entry.getFrontAt() != null ? entry.getFrontAt() : entry.getEventAt();
+	}
+
+	/** Step 6: occurred_at filled on every insert through JPA (the batch insert fills it itself). */
+	@PrePersist
+	void fillOccurredAt() {
+		if (occurredAt == null) {
+			occurredAt = occurredOf(this);
+		}
+	}
 }

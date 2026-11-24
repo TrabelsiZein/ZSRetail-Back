@@ -35,6 +35,25 @@ final class LoginTries {
 		boolean onLogin() {
 			return key.startsWith("U");
 		}
+
+		/** Step 6: the run's key and its first refusal, the group key of its events (the page shows the run as one line). */
+		String groupKey() {
+			return key + "@" + first;
+		}
+	}
+
+	/**
+	 * One refusal counted: the longer of its two runs (the Alert from the 5th) and the run it is grouped in on the page,
+	 * the login's when the login typed is a user's, else the address's (null without a key).
+	 */
+	static final class Refusal {
+		final Run longer;
+		final Run group;
+
+		Refusal(Run longer, Run group) {
+			this.longer = longer;
+			this.group = group;
+		}
 	}
 
 	private final Map<String, Run> runs = new HashMap<>();
@@ -49,6 +68,11 @@ final class LoginTries {
 
 	/** Counts a refusal on its keys (null: none); the longer of the two runs, null without a key. */
 	synchronized Run refused(String loginKey, String addressKey, LocalDateTime now) {
+		return counted(loginKey, addressKey, now).longer;
+	}
+
+	/** Step 6: the same, with the run the refusal is grouped in (the login's, else the address's). */
+	synchronized Refusal counted(String loginKey, String addressKey, LocalDateTime now) {
 		if (runs.size() >= MAX_RUNS) {
 			runs.values().removeIf(run -> ended(run, now));
 			if (runs.size() >= MAX_RUNS) {
@@ -58,9 +82,9 @@ final class LoginTries {
 		Run onLogin = count(loginKey, now);
 		Run onAddress = count(addressKey, now);
 		if (onLogin == null) {
-			return onAddress;
+			return new Refusal(onAddress, onAddress);
 		}
-		return onAddress != null && onAddress.count > onLogin.count ? onAddress : onLogin;
+		return new Refusal(onAddress != null && onAddress.count > onLogin.count ? onAddress : onLogin, onLogin);
 	}
 
 	/** A login answered with a token: its login's run and its address's run end. */

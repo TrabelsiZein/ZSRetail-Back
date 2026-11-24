@@ -23,8 +23,8 @@ public final class EventLogBatchInsert implements Consumer<List<EventLogEntry>> 
 			+ " subject_label, event_at, front_at, pos_machine_id, pos_machine_name, session_id, session_number, cart_id,"
 			+ " user_id, user_login, user_name, user_role, authorised_by_id, authorised_by_login, authorised_by_name,"
 			+ " sent_by_id, sent_by_login, client_address, machine_sequence_no, install_id, doubt, old_value, new_value,"
-			+ " amount, details, imported) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,"
-			+ " ?, ?, ?, ?, ?, ?, ?)";
+			+ " amount, details, imported, occurred_at, badge_owner_id, badge_owner_login, badge_owner_name, group_key)"
+			+ " values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 	private final JdbcTemplate jdbc;
 
@@ -37,7 +37,7 @@ public final class EventLogBatchInsert implements Consumer<List<EventLogEntry>> 
 		jdbc.batchUpdate(SQL, group, group.size(), EventLogBatchInsert::bind);
 	}
 
-	/** One row's 32 values, in the order of {@link #SQL}. */
+	/** One row's 37 values, in the order of {@link #SQL} (step 6: occurred_at, the badge's owner, the group key). */
 	public static void bind(PreparedStatement ps, EventLogEntry e) throws SQLException {
 		int i = 1;
 		text(ps, i++, e.getEventUuid());
@@ -75,7 +75,12 @@ public final class EventLogBatchInsert implements Consumer<List<EventLogEntry>> 
 			ps.setDouble(i++, e.getAmount());
 		}
 		text(ps, i++, e.getDetails());
-		ps.setBoolean(i, e.isImported());
+		ps.setBoolean(i++, e.isImported());
+		time(ps, i++, e.getOccurredAt() != null ? e.getOccurredAt() : EventLogEntry.occurredOf(e));
+		number(ps, i++, e.getBadgeOwnerId());
+		text(ps, i++, e.getBadgeOwnerLogin());
+		text(ps, i++, e.getBadgeOwnerName());
+		text(ps, i, e.getGroupKey());
 	}
 
 	/** nvarchar: the driver sends strings as Unicode (as Hibernate's @Nationalized columns). */

@@ -1,6 +1,6 @@
 -- ============================================================
 -- Version 3.4.0 (in progress) — event log ("Journal des événements"): event_log, event_log_sequence (step 1);
--- event_log.install_id and doubt (step 4)
+-- event_log.install_id and doubt (step 4); occurred_at, badge_owner_*, group_key (step 6)
 -- ============================================================
 -- Deployment order (a database at 3.3.0; CHANGELOG.md, 3.4.0, "Before deployment"):
 --   1) Bring the database to 3.3.0 first (db/3.3.0/update.sql). This script stops, without changing anything, while
@@ -83,6 +83,47 @@ IF COL_LENGTH(N'event_log', N'doubt') IS NULL
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'ix_event_log_install' AND object_id = OBJECT_ID(N'event_log'))
 	CREATE INDEX ix_event_log_install ON event_log (install_id, machine_sequence_no);
+GO
+
+-- 4) Event log step 6, the Journal page:
+--   occurred_at, the event's own time (the till's clock of the gesture, else the server's): the page's order and period,
+--   so a till's event sent late takes its place. Written with every row; the rows of before get it here.
+--   badge_owner_id / _login / _name, the owner of the badge scanned (its use, its refusal when the badge is known): a
+--   refusal authorised nothing, so its owner is not in authorised_by. The uses of before get it from authorised_by.
+--   group_key, the refused logins of one run (one line on the page); the rows of before stay one line each.
+--   ix_event_log_occurred serves the period, the order and the counters; ix_event_log_user moves from event_at to
+--   occurred_at. Every database.
+IF COL_LENGTH(N'event_log', N'occurred_at') IS NULL
+	ALTER TABLE event_log ADD occurred_at datetime2;
+GO
+UPDATE event_log SET occurred_at = COALESCE(front_at, event_at) WHERE occurred_at IS NULL;
+GO
+IF COL_LENGTH(N'event_log', N'badge_owner_id') IS NULL
+	ALTER TABLE event_log ADD badge_owner_id bigint;
+GO
+IF COL_LENGTH(N'event_log', N'badge_owner_login') IS NULL
+	ALTER TABLE event_log ADD badge_owner_login nvarchar(100);
+GO
+IF COL_LENGTH(N'event_log', N'badge_owner_name') IS NULL
+	ALTER TABLE event_log ADD badge_owner_name nvarchar(150);
+GO
+UPDATE event_log SET badge_owner_id = authorised_by_id, badge_owner_login = authorised_by_login,
+	badge_owner_name = authorised_by_name
+WHERE code = N'TILL_RIGHT_USED' AND badge_owner_id IS NULL AND authorised_by_id IS NOT NULL;
+GO
+IF COL_LENGTH(N'event_log', N'group_key') IS NULL
+	ALTER TABLE event_log ADD group_key nvarchar(80);
+GO
+IF EXISTS (SELECT 1 FROM sys.indexes i JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+		JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+		WHERE i.name = N'ix_event_log_user' AND i.object_id = OBJECT_ID(N'event_log') AND c.name = N'event_at')
+	DROP INDEX ix_event_log_user ON event_log;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'ix_event_log_user' AND object_id = OBJECT_ID(N'event_log'))
+	CREATE INDEX ix_event_log_user ON event_log (user_id, occurred_at);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'ix_event_log_occurred' AND object_id = OBJECT_ID(N'event_log'))
+	CREATE INDEX ix_event_log_occurred ON event_log (occurred_at, importance);
 GO
 
 UPDATE APP_VERSION SET version = '3.4.0';

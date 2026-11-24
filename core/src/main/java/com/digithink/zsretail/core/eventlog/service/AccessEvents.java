@@ -116,11 +116,12 @@ public class AccessEvents {
 		String where = adminReturn(purpose) ? " (retour à l'administration)" : "";
 		run("LOGIN_REFUSED", () -> {
 			UserAccount known = known(typedLogin);
-			LoginTries.Run run = tries.refused(known != null ? LoginTries.loginKey(known.getId()) : null,
+			LoginTries.Refusal counted = tries.counted(known != null ? LoginTries.loginKey(known.getId()) : null,
 					LoginTries.addressKey(address), clock.get());
+			LoginTries.Run run = counted.longer;
 			boolean repeated = run != null && run.count >= LoginTries.ALERT_FROM;
 			NewEvent event = NewEvent.of(repeated ? EventCode.LOGIN_REFUSED_REPEATED : EventCode.LOGIN_REFUSED)
-					.from(address);
+					.from(address).group(counted.group != null ? counted.group.groupKey() : null); // step 6: one line per run
 			String text;
 			if (known == null) {
 				event.subject(null, UNKNOWN_LOGIN).user(null, null, null, null);
@@ -153,7 +154,7 @@ public class AccessEvents {
 	public void badgeUsed(UserAccount scannedBy, UserAccount owner, BadgePermission action, Long sessionId) {
 		run("TILL_RIGHT_USED", () -> {
 			NewEvent event = NewEvent.of(EventCode.TILL_RIGHT_USED).subject(name(action), actionLabel(action))
-					.authorisedBy(owner).session(sessionId, null)
+					.authorisedBy(owner).badgeOwner(owner).session(sessionId, null)
 					.details(sentence("Droit « " + actionLabel(action) + " » ouvert par le badge de " + who(owner)
 							+ (scannedBy != null ? ", pour " + who(scannedBy) : "")));
 			if (scannedBy != null) {
@@ -168,7 +169,7 @@ public class AccessEvents {
 			Long sessionId) {
 		run("TILL_RIGHT_REFUSED", () -> {
 			NewEvent event = NewEvent.of(EventCode.TILL_RIGHT_REFUSED).subject(name(action), actionLabel(action))
-					.change(null, failureReason).session(sessionId, null)
+					.change(null, failureReason).session(sessionId, null).badgeOwner(owner) // step 6: a known badge's owner
 					.details("Badge refusé au scan pour « " + actionLabel(action) + " » : "
 							+ scanRefusal(failureReason, owner) + ".");
 			if (scannedBy != null) {
