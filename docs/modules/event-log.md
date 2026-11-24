@@ -559,6 +559,7 @@ throws and, off, it builds and reads nothing. The rules:
 | User | deleted | `USER_DELETED` (Alert) | `UserAccountAPI.deleteUser` |
 | Badge | generated, revoked (its reason), reactivated | `BADGE_GENERATED`, `BADGE_REVOKED`, `BADGE_REACTIVATED` (Notable) | `UserAccountAPI` |
 | Role | created / deleted | `ROLE_CREATED` (Notable) / `ROLE_DELETED` (Alert) | `AppRoleService` |
+| Role | renamed (its label; the events keep the name as text) | `ROLE_RENAMED` (Notable, new) | `AppRoleService.update` |
 | Role | rights added / taken off | `ROLE_RIGHTS_CHANGED` (Alert) | `AppRoleService.update` |
 | Setting | a value changed (a secret masked) | `SETTING_CHANGED` (Notable) | `GeneralSetupService.updateFromAdmin` (a `GeneralSetupChangeListener`) |
 | Sales price, discount | created, changed, deleted | `PRICE_SAVED`, `PRICE_DELETED` (Notable) | `SalesPriceAPI`, `SalesDiscountAPI` |
@@ -567,7 +568,7 @@ throws and, off, it builds and reads nothing. The rules:
 | Promotion | created, changed, deleted | `PROMOTION_SAVED`, `PROMOTION_DELETED` (Notable) | `PromotionAPI` |
 | Item | stock adjusted by hand | `STOCK_ADJUSTED` (Alert) | `ItemService.adjustStock` |
 | Item | CMP adjusted | `COST_ADJUSTED` (Notable) | `ItemService.adjustCost` |
-| Inventory | created / validated / deleted | `INVENTORY_CREATED` (Notable), `_VALIDATED`, `_DELETED` (Alert) | `InventoryCountService` |
+| Inventory | created / validated / deleted | `INVENTORY_CREATED` (Notable), `_VALIDATED` (Alert), `_DELETED` (Notable: only a draft can be deleted) | `InventoryCountService` |
 | Purchase | processed | `PURCHASE_PROCESSED` (Notable) | `PurchaseHeaderService.processPurchase` |
 | Reception | a BL received | `RECEPTION_DONE` (Notable) | `DeliveryReceptionService.receive` |
 | Import | one run, its counts | `IMPORT_RUN` (Notable) | `DataImportService.executeImport` |
@@ -579,8 +580,8 @@ throws and, off, it builds and reads nothing. The rules:
 gesture, and one event a run (every minute for the ERP poll) would bury the page in Steps; the jobs keep their own
 pages (ERP jobs, Head office link). The generic CRUD (`POST` / `DELETE` of `_BaseController`, e.g. `/general-setup`,
 `/sales-header`, `/payment`) writes no event: the generic-CRUD gap left for later. The automatic give-back of own prices
-when the head office takes the right off is the link's (no admin gesture). A role renamed without a change of rights
-writes nothing.
+when the head office takes the right off is the link's (no admin gesture).
+
 
 ## Tests
 

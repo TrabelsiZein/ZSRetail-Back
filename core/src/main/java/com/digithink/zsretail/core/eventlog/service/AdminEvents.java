@@ -167,7 +167,7 @@ public class AdminEvents implements GeneralSetupChangeListener {
 				.details("Rôle créé : " + roleName(role) + ", " + count(role.getPermissions()) + ".")));
 	}
 
-	/** The rights of a role changed: each right added or taken off (a role renamed only writes nothing). */
+	/** The rights of a role changed: each right added or taken off (a rename is ROLE_RENAMED). */
 	public void roleRightsChanged(AppRole role, Collection<String> before, Collection<String> after) {
 		run("ROLE_RIGHTS_CHANGED", () -> {
 			Set<String> added = new TreeSet<>(after == null ? new TreeSet<>() : after);
@@ -191,6 +191,15 @@ public class AdminEvents implements GeneralSetupChangeListener {
 			eventLog.write(NewEvent.of(EventCode.ROLE_RIGHTS_CHANGED).subject(role.getId(), roleName(role))
 					.change(size(before) + " droits", size(after) + " droits").details(text.append(".").toString()));
 		});
+	}
+
+	/** A role's name changed (shown name, the label): old → new; nothing when the same. */
+	public void roleRenamed(AppRole role, String before, String after) {
+		if (Objects.equals(norm(before), norm(after))) {
+			return;
+		}
+		run("ROLE_RENAMED", () -> eventLog.write(NewEvent.of(EventCode.ROLE_RENAMED).subject(role.getId(), roleName(role))
+				.change(before, after).details("Rôle renommé : " + text(before) + " → " + text(after) + ".")));
 	}
 
 	public void roleDeleted(AppRole role) {

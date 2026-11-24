@@ -94,6 +94,8 @@ public enum EventCode {
 	BADGE_REACTIVATED(EventSubject.USER, NOTABLE, "Badge réactivé"),
 	ROLE_CREATED(EventSubject.ROLE, NOTABLE, "Rôle créé"),
 	ROLE_RIGHTS_CHANGED(EventSubject.ROLE, ALERT, "Droits d'un rôle changés"),
+	/** Step 9: a role renamed, its rights the same (the events keep the role's name as text). */
+	ROLE_RENAMED(EventSubject.ROLE, NOTABLE, "Rôle renommé"),
 	ROLE_DELETED(EventSubject.ROLE, ALERT, "Rôle supprimé"),
 
 	// ── Settings, prices, promotions ──
@@ -120,7 +122,8 @@ public enum EventCode {
 	COST_ADJUSTED(EventSubject.ITEM, NOTABLE, "CMP ajusté"),
 	INVENTORY_CREATED(EventSubject.INVENTORY, NOTABLE, "Inventaire créé"),
 	INVENTORY_VALIDATED(EventSubject.INVENTORY, ALERT, "Inventaire validé"),
-	INVENTORY_DELETED(EventSubject.INVENTORY, ALERT, "Inventaire supprimé"),
+	/** Step 9: Notable, only a draft can be deleted (InventoryCountService.delete): the stock never changed. */
+	INVENTORY_DELETED(EventSubject.INVENTORY, NOTABLE, "Inventaire supprimé"),
 	PURCHASE_PROCESSED(EventSubject.PURCHASE_ORDER, NOTABLE, "Achat enregistré"),
 	RECEPTION_DONE(EventSubject.PURCHASE_ORDER, NOTABLE, "Réception effectuée"),
 

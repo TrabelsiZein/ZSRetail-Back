@@ -120,6 +120,12 @@ class AdminEventsTest {
 		assertEquals(EventImportance.ALERT, changed.getImportance());
 		assertEquals("Droits du rôle Chef de caisse changés : ajoutés read:day-journal ; retirés till:make-return.",
 				changed.getDetails());
+		events.roleRenamed(r, "Chef de caisse", "Chef de caisse");
+		assertEquals(2, log.rows.size(), "the same name: nothing");
+		events.roleRenamed(r, "Chef de caisse", "Responsable de caisse");
+		EventLogEntry renamed = log.only("ROLE_RENAMED");
+		assertEquals(EventImportance.NOTABLE, renamed.getImportance());
+		assertEquals("Rôle renommé : Chef de caisse → Responsable de caisse.", renamed.getDetails());
 		events.roleDeleted(r);
 		assertEquals(EventImportance.ALERT, log.only("ROLE_DELETED").getImportance());
 	}
@@ -227,6 +233,7 @@ class AdminEventsTest {
 		events.inventoryCreated(1L, "INV-0001", 120);
 		events.inventoryValidated(1L, "INV-0001", 120, 7, new BigDecimal("3"), new BigDecimal("5.5"));
 		events.inventoryDeleted(2L, "INV-0002");
+		assertEquals(EventImportance.NOTABLE, log.only("INVENTORY_DELETED").getImportance(), "a draft only");
 		assertEquals("Inventaire INV-0001 validé : 120 lignes, 7 avec un écart (+3 / -5,5 unités).",
 				log.only("INVENTORY_VALIDATED").getDetails());
 		events.purchaseProcessed(1L, "ACH-000012", "Fournisseur A", 3, 1234.5);

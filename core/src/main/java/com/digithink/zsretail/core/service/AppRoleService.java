@@ -47,12 +47,16 @@ public class AppRoleService {
         AppRole role = findById(id);
         // 3.4.0, event log step 9: the rights before (the live set is replaced below)
         Set<String> rightsBefore = role.getPermissions() == null ? new java.util.HashSet<>() : new java.util.HashSet<>(role.getPermissions());
+        String labelBefore = role.getLabel();
         role.setLabel(label);
         role.setIsPosRole(isPosRole);
         role.setPermissions(permissions);
         role.setUpdatedBy(updatedBy);
         AppRole saved = appRoleRepository.save(role);
-        if (adminEvents != null) adminEvents.roleRightsChanged(saved, rightsBefore, saved.getPermissions()); // 3.4.0
+        if (adminEvents != null) {
+            adminEvents.roleRenamed(saved, labelBefore, saved.getLabel()); // 3.4.0, event log step 9
+            adminEvents.roleRightsChanged(saved, rightsBefore, saved.getPermissions());
+        }
         return saved;
     }
 

@@ -54,6 +54,7 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   `sessionIds` and `newValues` (the "À surveiller" links), `/catalogue` the roles' names; a count kept in the amount
   column (`LOGIN_REFUSED_REPEATED`, `EVENTLOG_EVENTS_DROPPED`) is sent as `count`, never as an amount (page and Excel);
   `CashDifferencesDTO.WatchRow.sessionIds`.
+- Event log, step 9: `ROLE_RENAMED` (Notable, a role's name changed: the events keep it as text); `INVENTORY_DELETED` is Notable (only a draft can be deleted).
 - Event log, step 9: the administrator's gestures (`AdminEvents`, one call where each happens, only when a value really
   changed, never a password, a badge code or a secret setting's value): users (created, fields, role, active, password,
   deleted), badges, roles' rights, General setup (`SETTING_CHANGED`), sales prices and discounts, a local item's price
