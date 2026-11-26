@@ -4,7 +4,7 @@ One section per product version, newest first. Every commit that changes behavio
 its line here, under the version of its branch. The screens are in `ZSRetail-Front/CHANGELOG.md`. The French notes shown
 in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql` from this file when a version is closed.
 
-## 3.3.0 — in progress (branch `release/3.3.0`, opened from `release/3.2.0` on 2026-11-20)
+## 3.3.0 — released 2026-11-23 (branch `release/3.3.0`, opened from `release/3.2.0` on 2026-11-20)
 
 ### Before deployment
 - A database at 3.2.0: `db/3.3.0/update.sql`, then the 3.3.0 WAR (`AppVersionGuard`). The script stops, changing
@@ -208,6 +208,8 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   warranty.enabled=true to this store's file." (nothing changed). Both may run again.
   15) a store whose `hol_order` table has rows prints "Store orders exist: add storeorders.enabled=true to this store's
   file." (nothing changed; may run again).
+- Version closed (2026-11-23, written 2026-11-26): the French notes of 3.3.0 in `APP_RELEASE_NOTES` (5 lines, written
+  again on each run), the same as on `release/3.4.0`.
 
 ### Config
 - `communication.enabled` (store and head office): `true` turns the module on; absent, empty or `false` (core's
