@@ -36,12 +36,21 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   rate (`SessionReportService.ticketVatLines`).
 - POS machines: the printer's paper width (`paperWidth`, 58 / 80 / empty = the template's), checked
   (`POS_MACHINE_PAPER_WIDTH`), sent by `GET /pos-machine/my-machine`.
+- Ticket templates, step 2b part 1 (format 2): the template's layout (paper width, text size, spacing AIRY / NORMAL /
+  COMPACT, 0 to 6 blank lines before the cut, separators LINE / DASHES / NONE) and element options (the logo's width,
+  maximum height and position, the store name's and the TOTAL's size, the item name wrapped or cut) in the catalogue
+  (`TicketBlocks.Option`), checked on save (`TICKET_TEMPLATE_OPTION`, `TICKET_TEMPLATE_UNKNOWN_OPTION`); new item
+  elements: item code, its barcode's number (off), the promotion's name in the discount row (on). Every default is
+  today's ticket. A format 1 layout (`compact`) reads as COMPACT. The event log describes the layout and the options.
 
 ### DB script
 - `db/3.5.0/update.sql`: the version check and `APP_VERSION` 3.5.0; `TICKET_RENDERER` named in a comment only (the row
   is created at start-up, as every General Setup setting).
 - Step 2: the table `ticket_template` (store and head office; unique `document_type`) and the column
   `pos_machine.paper_width` (store, nullable), each guarded; no data written.
+- Step 2b: `ticket_template` in format 2: `layout` (JSON) in place of `paper_width`, `font_size`, `compact`,
+  `hide_zero_rows`; `format_version` default 2. A database that ran the draft of step 2 is converted in place (its rows'
+  layout built from the old columns, then the columns dropped); guarded, it may run again.
 
 ## 3.4.0 — released 2026-11-26 (branch `release/3.4.0`, tag `v3.4.0`, opened from `release/3.3.0` on 2026-11-23)
 

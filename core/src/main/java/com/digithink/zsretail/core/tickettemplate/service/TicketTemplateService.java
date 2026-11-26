@@ -20,6 +20,7 @@ import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.core.tickettemplate.TicketBlockLabels;
 import com.digithink.zsretail.core.tickettemplate.TicketBlocks;
 import com.digithink.zsretail.core.tickettemplate.TicketBlocks.Element;
+import com.digithink.zsretail.core.tickettemplate.TicketBlocks.Option;
 import com.digithink.zsretail.core.tickettemplate.TicketBlocks.Position;
 import com.digithink.zsretail.core.tickettemplate.TicketBlocks.Section;
 import com.digithink.zsretail.core.tickettemplate.TicketDocumentType;
@@ -36,17 +37,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
 
 /**
- * 3.5.0, ticket templates step 2 (docs/modules/ticket-templates.md): the templates of the documents, read by the page
+ * 3.5.0, ticket templates (docs/modules/ticket-templates.md): the templates of the documents, read by the page
  * "Modèles de tickets" and by the till, saved and reset by the page.
  * <ul>
- * <li>No row = the default: the catalogue's order and switches (TicketBlocks), 80 mm, NORMAL, not compact, the linked
- * elements taken from the old settings as they are now (Company Information, General setup). Those settings are never
- * changed here: the old print code keeps reading them.</li>
- * <li>A save is checked ({@link #normalise} strict): a known document that has a template, 58 or 80, a known size, known
- * codes once each, no locked block off, the line's VAT off only with "TVA par taux" on. What it lacks takes its default
- * (an element of a later version); the header is put first and the tombola last.</li>
- * <li>A row read back is normalised leniently (a code it does not know is dropped, a locked block put back on), so a
- * row of another version never breaks a print.</li>
+ * <li>No row = the default: the catalogue's layout, order, switches and options (TicketBlocks), every one today's ticket,
+ * the linked elements taken from the old settings as they are now (Company Information, General setup). Those settings
+ * are never changed here: the old print code keeps reading them.</li>
+ * <li>A save is checked ({@link #normalise} strict): a known document that has a template, each layout option and each
+ * element option among its allowed values, known codes once each, no locked block off, the line's VAT off only with
+ * "TVA par taux" on. What it lacks takes its default (an element of a later version); the header is put first and the
+ * tombola last.</li>
+ * <li>A row read back is normalised leniently (a code or an option it does not know is dropped, a wrong value takes its
+ * default, a locked block put back on), so a row of another version never breaks a print. A layout of format 1
+ * ("compact": true) reads as the spacing COMPACT.</li>
  * <li>A save or a reset is an administrator's gesture in the event log (AdminEvents), when it changed something.</li>
  * </ul>
  */
@@ -54,14 +57,15 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class TicketTemplateService {
 
-	public static final int FORMAT_VERSION = 1;
+	/** Step 2b: layout and options (format 1: columns, the switches only). */
+	public static final int FORMAT_VERSION = 2;
+	/** The paper widths, also a POS machine's (PosMachineService). */
 	public static final List<Integer> PAPER_WIDTHS = Arrays.asList(58, 80);
-	public static final List<String> FONT_SIZES = Arrays.asList("SMALL", "NORMAL", "LARGE");
-	public static final int DEFAULT_PAPER_WIDTH = 80;
-	public static final String DEFAULT_FONT_SIZE = "NORMAL";
 
 	private static final ObjectMapper JSON = new ObjectMapper();
 	private static final TypeReference<List<SectionDTO>> SECTIONS = new TypeReference<List<SectionDTO>>() {
+	};
+	private static final TypeReference<Map<String, Object>> MAP = new TypeReference<Map<String, Object>>() {
 	};
 
 	private final TicketTemplateRepository repository;
@@ -80,8 +84,8 @@ public class TicketTemplateService {
 	// ─── Reads ───────────────────────────────────────────────────────
 
 	/**
-	 * The page's data and the till's: per document its type, whether it has a template yet, its catalogue, its saved
-	 * template (null: none, the default prints) and its default; the widths and sizes; the linked settings' values now.
+	 * The page's data and the till's: per document its type, whether it has a template yet, its catalogue (layout
+	 * options, sections), its saved template (null: none, the default prints) and its default; the linked settings' values.
 	 */
 	@Transactional(readOnly = true)
 	public Map<String, Object> page() {
@@ -92,6 +96,7 @@ public class TicketTemplateService {
 			document.put("type", type.name());
 			document.put("available", type.isAvailable());
 			if (type.isAvailable()) {
+				document.put("layout", TicketBlocks.layout(type));
 				document.put("sections", TicketBlocks.of(type));
 				document.put("template", saved(type).orElse(null));
 				document.put("defaults", defaults(type, linked));
@@ -100,8 +105,7 @@ public class TicketTemplateService {
 		}
 		Map<String, Object> page = new LinkedHashMap<>();
 		page.put("documents", documents);
-		page.put("paperWidths", PAPER_WIDTHS);
-		page.put("fontSizes", FONT_SIZES);
+		page.put("formatVersion", FORMAT_VERSION);
 		page.put("linked", linked);
 		return page;
 	}
@@ -120,15 +124,19 @@ public class TicketTemplateService {
 	private TicketTemplateDTO defaults(TicketDocumentType type, Map<String, Boolean> linked) {
 		TicketTemplateDTO dto = new TicketTemplateDTO();
 		dto.setDocumentType(type.name());
-		dto.setPaperWidth(DEFAULT_PAPER_WIDTH);
-		dto.setFontSize(DEFAULT_FONT_SIZE);
-		dto.setCompact(false);
-		dto.setHideZeroRows(false);
+		dto.setFormatVersion(FORMAT_VERSION);
 		dto.setOrigin("LOCAL");
+		for (Option option : TicketBlocks.layout(type)) {
+			dto.getLayout().put(option.getKey(), option.getDefaultValue());
+		}
 		for (Section section : TicketBlocks.of(type)) {
-			List<ElementDTO> elements = section.getElements().stream()
-					.map(e -> new ElementDTO(e.getCode(), e.getLinked() != null ? linked.get(e.getLinked()) : e.isDefaultOn()))
-					.collect(Collectors.toList());
+			List<ElementDTO> elements = new ArrayList<>();
+			for (Element e : section.getElements()) {
+				Map<String, Object> options = new LinkedHashMap<>();
+				e.getOptions().forEach(option -> options.put(option.getKey(), option.getDefaultValue()));
+				elements.add(new ElementDTO(e.getCode(), e.getLinked() != null ? linked.get(e.getLinked()) : e.isDefaultOn(),
+						options));
+			}
 			dto.getSections().add(new SectionDTO(section.getCode(), section.isDefaultOn(), elements));
 		}
 		return dto;
@@ -172,10 +180,7 @@ public class TicketTemplateService {
 			created.setOrigin("LOCAL");
 			return created;
 		});
-		row.setPaperWidth(clean.getPaperWidth());
-		row.setFontSize(clean.getFontSize());
-		row.setCompact(clean.getCompact());
-		row.setHideZeroRows(clean.getHideZeroRows());
+		row.setLayout(write(clean.getLayout()));
 		row.setBlocks(write(clean.getSections()));
 		row.setFormatVersion(FORMAT_VERSION);
 		row.setUpdatedBy(by);
@@ -216,39 +221,26 @@ public class TicketTemplateService {
 	// ─── Normalising, checking ───────────────────────────────────────
 
 	/**
-	 * A template in its full form: every section of the catalogue once, the header first and the tombola last, the
-	 * others in the order sent (a section not sent goes after the one it follows in the catalogue), every element in the
-	 * catalogue's order. Strict (a save): anything wrong is refused. Lenient (a row read back): what is unknown is
-	 * dropped, a locked block is put back on, a wrong width or size takes the default.
+	 * A template in its full form: every layout option; every section of the catalogue once, the header first and the
+	 * tombola last, the others in the order sent (a section not sent goes after the one it follows in the catalogue);
+	 * every element in the catalogue's order with every one of its options. Strict (a save): anything wrong is refused.
+	 * Lenient (a row read back): what is unknown is dropped, a wrong value takes its default, a locked block is put back
+	 * on.
 	 */
 	static TicketTemplateDTO normalise(TicketDocumentType type, TicketTemplateDTO sent, boolean strict) {
 		TicketTemplateDTO in = sent != null ? sent : new TicketTemplateDTO();
 		TicketTemplateDTO out = new TicketTemplateDTO();
 		out.setDocumentType(type.name());
+		out.setFormatVersion(FORMAT_VERSION);
 		out.setOrigin(in.getOrigin() != null ? in.getOrigin() : "LOCAL");
 		out.setUpdatedAt(in.getUpdatedAt());
 		out.setUpdatedBy(in.getUpdatedBy());
 
-		Integer width = in.getPaperWidth();
-		if (width == null || !PAPER_WIDTHS.contains(width)) {
-			if (strict) {
-				throw TicketTemplateException.refused("TICKET_TEMPLATE_PAPER_WIDTH", "The paper width is 58 or 80",
-						"width", width);
-			}
-			width = DEFAULT_PAPER_WIDTH;
+		Map<String, Object> layoutIn = in.getLayout() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(in.getLayout());
+		if (!strict && Boolean.TRUE.equals(layoutIn.remove("compact")) && !layoutIn.containsKey("spacing")) {
+			layoutIn.put("spacing", "COMPACT"); // format 1
 		}
-		out.setPaperWidth(width);
-		String size = in.getFontSize() == null ? null : in.getFontSize().trim().toUpperCase();
-		if (size == null || !FONT_SIZES.contains(size)) {
-			if (strict) {
-				throw TicketTemplateException.refused("TICKET_TEMPLATE_FONT_SIZE", "The size is SMALL, NORMAL or LARGE",
-						"size", in.getFontSize());
-			}
-			size = DEFAULT_FONT_SIZE;
-		}
-		out.setFontSize(size);
-		out.setCompact(Boolean.TRUE.equals(in.getCompact()));
-		out.setHideZeroRows(Boolean.TRUE.equals(in.getHideZeroRows()));
+		out.setLayout(options(TicketBlocks.layout(type), layoutIn, strict, null, null));
 
 		List<Section> catalogue = TicketBlocks.of(type);
 		// the sections sent, known, once each, in their order
@@ -336,8 +328,55 @@ public class TicketTemplateService {
 		return out;
 	}
 
+	/**
+	 * Every option of a list, in its order: the value sent when allowed, else its default (lenient) or a refusal
+	 * (strict: TICKET_TEMPLATE_OPTION, a key it does not know TICKET_TEMPLATE_UNKNOWN_OPTION). A number sent as 58.0 by a
+	 * JSON reader is taken as 58.
+	 */
+	private static Map<String, Object> options(List<Option> catalogue, Map<String, Object> sent, boolean strict,
+			String section, String element) {
+		Map<String, Object> given = sent == null ? new LinkedHashMap<>() : sent;
+		if (strict) {
+			for (String key : given.keySet()) {
+				if (catalogue.stream().noneMatch(o -> o.getKey().equals(key))) {
+					throw TicketTemplateException.refused("TICKET_TEMPLATE_UNKNOWN_OPTION", "Unknown option: " + key,
+							"section", section, "element", element, "option", key);
+				}
+			}
+		}
+		Map<String, Object> out = new LinkedHashMap<>();
+		for (Option option : catalogue) {
+			if (!given.containsKey(option.getKey())) {
+				out.put(option.getKey(), option.getDefaultValue());
+				continue;
+			}
+			Object value = whole(given.get(option.getKey()));
+			if (!option.accepts(value)) {
+				if (strict) {
+					throw TicketTemplateException.refused("TICKET_TEMPLATE_OPTION",
+							"Option " + option.getKey() + ": " + value + " is not allowed", "section", section, "element",
+							element, "option", option.getKey(), "value", value);
+				}
+				value = option.getDefaultValue();
+			}
+			out.put(option.getKey(), value);
+		}
+		return out;
+	}
+
+	/** A whole number as an Integer (a JSON reader may give a Long or 58.0); anything else as it is. */
+	private static Object whole(Object value) {
+		if (value instanceof Number && !(value instanceof Integer)) {
+			double d = ((Number) value).doubleValue();
+			if (d == Math.rint(d) && Math.abs(d) <= Integer.MAX_VALUE) {
+				return (int) d;
+			}
+		}
+		return value;
+	}
+
 	private static List<ElementDTO> elements(Section section, SectionDTO sent, boolean strict) {
-		Map<String, Boolean> given = new LinkedHashMap<>();
+		Map<String, ElementDTO> given = new LinkedHashMap<>();
 		Set<String> seen = new HashSet<>();
 		for (ElementDTO element : sent == null || sent.getElements() == null ? new ArrayList<ElementDTO>()
 				: sent.getElements()) {
@@ -357,12 +396,12 @@ public class TicketTemplateService {
 				}
 				continue;
 			}
-			given.put(code, element.getOn());
+			given.put(code, element);
 		}
 		List<ElementDTO> out = new ArrayList<>();
 		for (Element element : section.getElements()) {
-			Boolean value = given.get(element.getCode());
-			boolean on = value == null ? element.isDefaultOn() : value;
+			ElementDTO value = given.get(element.getCode());
+			boolean on = value == null || value.getOn() == null ? element.isDefaultOn() : value.getOn();
 			if (!on && element.getLock() != null) {
 				if (strict) {
 					throw TicketTemplateException.refused("TICKET_TEMPLATE_LOCKED",
@@ -371,7 +410,8 @@ public class TicketTemplateService {
 				}
 				on = true;
 			}
-			out.add(new ElementDTO(element.getCode(), on));
+			out.add(new ElementDTO(element.getCode(), on, options(element.getOptions(),
+					value == null ? null : value.getOptions(), strict, section.getCode(), element.getCode())));
 		}
 		return out;
 	}
@@ -401,18 +441,27 @@ public class TicketTemplateService {
 
 	private static TicketTemplateDTO toDTO(TicketDocumentType type, TicketTemplate row) {
 		TicketTemplateDTO dto = new TicketTemplateDTO();
-		dto.setPaperWidth(row.getPaperWidth());
-		dto.setFontSize(row.getFontSize());
-		dto.setCompact(row.getCompact());
-		dto.setHideZeroRows(row.getHideZeroRows());
-		dto.setSections(read(row.getBlocks()));
+		dto.setLayout(readLayout(row.getLayout()));
+		dto.setSections(readSections(row.getBlocks()));
 		dto.setOrigin(row.getOrigin());
 		dto.setUpdatedAt(row.getUpdatedAt());
 		dto.setUpdatedBy(row.getUpdatedBy());
 		return normalise(type, dto, false);
 	}
 
-	private static List<SectionDTO> read(String blocks) {
+	private static Map<String, Object> readLayout(String layout) {
+		if (layout == null || layout.trim().isEmpty()) {
+			return new LinkedHashMap<>();
+		}
+		try {
+			return JSON.readValue(layout, MAP);
+		} catch (JsonProcessingException e) {
+			log.warn("Ticket template: layout not readable, the default is used ({})", e.getOriginalMessage());
+			return new LinkedHashMap<>();
+		}
+	}
+
+	private static List<SectionDTO> readSections(String blocks) {
 		if (blocks == null || blocks.trim().isEmpty()) {
 			return new ArrayList<>();
 		}
@@ -424,37 +473,58 @@ public class TicketTemplateService {
 		}
 	}
 
-	private static String write(List<SectionDTO> sections) {
+	private static String write(Object value) {
 		try {
-			return JSON.writeValueAsString(sections);
+			return JSON.writeValueAsString(value);
 		} catch (JsonProcessingException e) {
-			throw new IllegalStateException("Ticket template: blocks not written", e);
+			throw new IllegalStateException("Ticket template: not written", e);
 		}
 	}
 
 	/**
-	 * A template in words, for the event log: Papier, Taille, Compact, Ordre (the sections), Masqués (the sections and
-	 * elements off).
+	 * A template in words, for the event log: Papier, Taille, Espacement, Lignes avant la coupe, Séparateurs, Ordre (the
+	 * sections), Masqués (the sections and elements off), Options (each element option not at its default).
 	 */
 	static Map<String, String> describe(TicketTemplateDTO t) {
 		Map<String, String> m = new LinkedHashMap<>();
-		m.put("Papier", t.getPaperWidth() + " mm");
-		m.put("Taille", TicketBlockLabels.fr(t.getFontSize()));
-		m.put("Compact", Boolean.TRUE.equals(t.getCompact()) ? "oui" : "non");
+		Map<String, Object> layout = t.getLayout();
+		m.put("Papier", layout.get("paperWidth") + " mm");
+		m.put("Taille", TicketBlockLabels.fr(String.valueOf(layout.get("fontSize"))));
+		m.put("Espacement", TicketBlockLabels.fr("spacing." + layout.get("spacing")));
+		m.put("Lignes avant la coupe", String.valueOf(layout.get("feedLines")));
+		m.put("Séparateurs", TicketBlockLabels.fr("separator." + layout.get("separator")));
 		m.put("Ordre", t.getSections().stream().map(s -> TicketBlockLabels.fr(s.getCode())).collect(Collectors.joining(", ")));
 		List<String> off = new ArrayList<>();
+		List<String> options = new ArrayList<>();
+		TicketDocumentType type = TicketDocumentType.of(t.getDocumentType());
 		for (SectionDTO section : t.getSections()) {
 			if (!Boolean.TRUE.equals(section.getOn())) {
 				off.add(TicketBlockLabels.fr(section.getCode()));
-				continue;
 			}
+			Section catalogue = type == null ? null : TicketBlocks.section(type, section.getCode());
 			for (ElementDTO element : section.getElements()) {
-				if (!Boolean.TRUE.equals(element.getOn())) {
-					off.add(TicketBlockLabels.fr(section.getCode() + "." + element.getCode()));
+				String name = TicketBlockLabels.fr(section.getCode() + "." + element.getCode());
+				if (Boolean.TRUE.equals(section.getOn()) && !Boolean.TRUE.equals(element.getOn())) {
+					off.add(name);
+				}
+				Element definition = catalogue == null ? null : catalogue.element(element.getCode());
+				if (definition == null || element.getOptions() == null) {
+					continue;
+				}
+				List<String> changed = new ArrayList<>();
+				for (Option option : definition.getOptions()) {
+					Object value = element.getOptions().get(option.getKey());
+					if (value != null && !value.equals(option.getDefaultValue())) {
+						changed.add(TicketBlockLabels.fr("option." + option.getKey()) + " " + TicketBlockLabels.value(option.getKey(), value));
+					}
+				}
+				if (!changed.isEmpty()) {
+					options.add(name + " (" + String.join(", ", changed) + ")");
 				}
 			}
 		}
 		m.put("Masqués", off.isEmpty() ? "aucun" : String.join(", ", off));
+		m.put("Options", options.isEmpty() ? "par défaut" : String.join(", ", options));
 		return m;
 	}
 }

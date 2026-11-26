@@ -8,16 +8,20 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * 3.5.0, ticket templates step 2: the block catalogue, the back end's (docs/modules/ticket-templates.md, "The blocks").
- * A document's template is two levels: its <b>sections</b>, in print order (moved up and down on the page), and inside
- * each section its <b>elements</b>, switched on or off (their order is the section's). The header always prints first
- * and the tombola slip last ({@link Position}).
+ * 3.5.0, ticket templates: the block catalogue, the back end's (docs/modules/ticket-templates.md, "The blocks"). A
+ * document's template is its <b>layout</b> (paper width, size, spacing, blank lines before the cut, separator style) and
+ * its <b>sections</b>, in print order (moved up and down on the page), and inside each section its <b>elements</b>,
+ * switched on or off (their order is the section's), some with <b>options</b> (step 2b: the logo's width, height and
+ * position, a size, the item name wrapped or cut). The header always prints first and the tombola slip last
+ * ({@link Position}).
  * <ul>
  * <li>A locked section or element ({@link Lock}) cannot be switched off: the save is refused.</li>
  * <li>The VAT row of each item ({@code ITEMS.VAT}) may be off only while the section {@code VAT_BY_RATE} is on (the
  * rates stay on the ticket): {@link Element#getOffNeeds}.</li>
  * <li>A linked element ({@link Element#getLinked}) takes, while the document has no template row, the value of the old
  * setting it replaces (Company Information, General setup); the old code keeps reading those settings.</li>
+ * <li>Every default is today's ticket: an option's default ({@link Option#getDefaultValue}, null for the logo's width and
+ * height: today's 100 px and 40 px) prints what the old code prints.</li>
  * </ul>
  * The front renders the codes (src/libs/ticket/sale-template.js holds the same default, proved by
  * tools/ticket-render-check.mjs against the old ticket); the page names them in the screen's language.
@@ -39,7 +43,33 @@ public final class TicketBlocks {
 		FIRST, LAST
 	}
 
-	/** An element of a section: a switch. */
+	/**
+	 * Step 2b: an option of the layout or of an element. A choice among {@link #getValues} (texts or numbers), or a whole
+	 * number from {@link #getMin} to {@link #getMax}; {@link #isNullable}: null is allowed and means today's value.
+	 */
+	@Getter
+	@AllArgsConstructor
+	public static final class Option {
+		private final String key;
+		private final Object defaultValue;
+		private final List<Object> values;
+		private final Integer min;
+		private final Integer max;
+		private final boolean nullable;
+
+		/** Whether a value is allowed (a number given as 58.0 is not). */
+		public boolean accepts(Object value) {
+			if (value == null) {
+				return nullable;
+			}
+			if (values != null) {
+				return values.contains(value);
+			}
+			return value instanceof Integer && (Integer) value >= min && (Integer) value <= max;
+		}
+	}
+
+	/** An element of a section: a switch, with its options (step 2b). */
 	@Getter
 	@AllArgsConstructor
 	public static final class Element {
@@ -51,6 +81,20 @@ public final class TicketBlocks {
 		private final String linked;
 		/** The section that must be on for this element to be off (null: none). */
 		private final String offNeeds;
+		private final List<Option> options;
+
+		Element with(Option... more) {
+			return new Element(code, defaultOn, lock, linked, offNeeds, Collections.unmodifiableList(Arrays.asList(more)));
+		}
+
+		public Option option(String key) {
+			for (Option option : options) {
+				if (option.getKey().equals(key)) {
+					return option;
+				}
+			}
+			return null;
+		}
 	}
 
 	/** A section of a document: moved up and down, and switched off when it is not locked. */
@@ -89,19 +133,29 @@ public final class TicketBlocks {
 	public static final String VAT_BY_RATE = "VAT_BY_RATE";
 
 	private static Element on(String code) {
-		return new Element(code, true, null, null, null);
+		return new Element(code, true, null, null, null, Collections.emptyList());
 	}
 
 	private static Element off(String code) {
-		return new Element(code, false, null, null, null);
+		return new Element(code, false, null, null, null, Collections.emptyList());
 	}
 
 	private static Element locked(String code, Lock lock) {
-		return new Element(code, true, lock, null, null);
+		return new Element(code, true, lock, null, null, Collections.emptyList());
 	}
 
 	private static Element linked(String code, String setting) {
-		return new Element(code, true, null, setting, null);
+		return new Element(code, true, null, setting, null, Collections.emptyList());
+	}
+
+	/** A choice: the default first, then every value. */
+	private static Option choice(String key, Object defaultValue, Object... values) {
+		return new Option(key, defaultValue, Collections.unmodifiableList(Arrays.asList(values)), null, null, false);
+	}
+
+	/** A whole number from min to max, or null (today's value) when its default is null. */
+	private static Option number(String key, Integer defaultValue, int min, int max) {
+		return new Option(key, defaultValue, null, min, max, defaultValue == null);
 	}
 
 	private static Section section(String code, boolean defaultOn, Lock lock, Position position, boolean warnOff,
@@ -110,20 +164,43 @@ public final class TicketBlocks {
 	}
 
 	/**
+	 * Step 2b: the layout of a customer ticket. Paper 58 / 80 (80); text size SMALL / NORMAL / LARGE (NORMAL, 12 px);
+	 * spacing AIRY (today's) / NORMAL (about half the gaps) / COMPACT; blank lines added before the cut, 0 to 6 (0);
+	 * separators LINE (today's ━ and ═) / DASHES / NONE.
+	 */
+	private static final List<Option> CUSTOMER_LAYOUT = Collections.unmodifiableList(Arrays.asList(
+			choice("paperWidth", 80, 58, 80),
+			choice("fontSize", "NORMAL", "SMALL", "NORMAL", "LARGE"),
+			choice("spacing", "AIRY", "AIRY", "NORMAL", "COMPACT"),
+			number("feedLines", 0, 0, 6),
+			choice("separator", "LINE", "LINE", "DASHES", "NONE")));
+
+	/** A size level of one element: MEDIUM is today's. */
+	private static Option size() {
+		return choice("size", "MEDIUM", "SMALL", "MEDIUM", "LARGE");
+	}
+
+	/**
 	 * The sale ticket (its split bill, its duplicate, the tombola slip), in the order it prints today. Not locked, to check
-	 * with the accountant: the address, the unit price.
+	 * with the accountant: the address, the unit price. Step 2b: the logo's width (20 to 100 % of the printable width;
+	 * null: today's 100 px at most), its maximum height (5 to 60 mm; null: today's 40 px) and position; the store name's
+	 * and the TOTAL's size; the item name wrapped (today) or cut on one line; the item's code, its barcode number and the
+	 * promotion's name in the discount row (today).
 	 */
 	private static final List<Section> SALE = Collections.unmodifiableList(Arrays.asList(
 			section("HEADER", true, Lock.LEGAL, Position.FIRST, false,
-					on("LOGO"), locked("STORE_NAME", Lock.LEGAL), linked("ADDRESS", LINK_PRINT_ADDRESS), on("TITLE"),
+					on("LOGO").with(number("width", null, 20, 100), number("maxHeight", null, 5, 60),
+							choice("align", "CENTER", "LEFT", "CENTER", "RIGHT")),
+					locked("STORE_NAME", Lock.LEGAL).with(size()), linked("ADDRESS", LINK_PRINT_ADDRESS), on("TITLE"),
 					locked("DUPLICATE", Lock.LEGAL)),
 			section("INFO", true, Lock.LEGAL, null, false,
 					locked("NUMBER", Lock.LEGAL), locked("DATE", Lock.LEGAL), on("CASHIER"), on("CUSTOMER_CODE")),
 			section("ITEMS", true, Lock.LEGAL, null, false,
-					locked("LINES", Lock.LEGAL), off("UNIT_PRICE"), on("DISCOUNT"),
-					new Element("VAT", true, null, null, VAT_BY_RATE)),
+					locked("LINES", Lock.LEGAL).with(choice("name", "WRAP", "WRAP", "CUT")), off("ITEM_CODE"),
+					off("ITEM_BARCODE"), off("UNIT_PRICE"), on("DISCOUNT"), on("PROMOTION_NAME"),
+					new Element("VAT", true, null, null, VAT_BY_RATE, Collections.emptyList())),
 			section("TOTALS", true, Lock.LEGAL, null, false,
-					on("TICKET_DISCOUNT"), locked("TOTAL_VAT", Lock.LEGAL), locked("TOTAL", Lock.LEGAL)),
+					on("TICKET_DISCOUNT"), locked("TOTAL_VAT", Lock.LEGAL), locked("TOTAL", Lock.LEGAL).with(size())),
 			section(VAT_BY_RATE, false, null, null, false),
 			section("PAYMENTS", true, Lock.FUNCTIONAL, null, false),
 			section("LOYALTY", true, null, null, false,
@@ -140,6 +217,11 @@ public final class TicketBlocks {
 	/** A document's sections in their default order; empty for a document without a template yet. */
 	public static List<Section> of(TicketDocumentType type) {
 		return type == TicketDocumentType.SALE ? SALE : Collections.emptyList();
+	}
+
+	/** A document's layout options; empty for a document without a template yet. */
+	public static List<Option> layout(TicketDocumentType type) {
+		return type == TicketDocumentType.SALE ? CUSTOMER_LAYOUT : Collections.emptyList();
 	}
 
 	/** A section of a document by its code; null when unknown. */

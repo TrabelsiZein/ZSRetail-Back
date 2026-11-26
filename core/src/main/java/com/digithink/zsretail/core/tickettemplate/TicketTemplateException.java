@@ -8,7 +8,8 @@ import com.digithink.zsretail.core.exception.CodedRefusal;
 /**
  * 3.5.0, ticket templates step 2: a template refused, with its English message, its code and its values (the front shows
  * serverErrors.&lt;code&gt; in the screen's language) and its HTTP status. Codes: TICKET_TEMPLATE_TYPE_UNKNOWN (404,
- * type), TICKET_TEMPLATE_NOT_AVAILABLE (type), TICKET_TEMPLATE_PAPER_WIDTH (width), TICKET_TEMPLATE_FONT_SIZE (size),
+ * type), TICKET_TEMPLATE_NOT_AVAILABLE (type), step 2b: TICKET_TEMPLATE_OPTION (section, element, option, value: a layout
+ * option when section is null), TICKET_TEMPLATE_UNKNOWN_OPTION (section, element, option),
  * TICKET_TEMPLATE_UNKNOWN_SECTION (section), TICKET_TEMPLATE_UNKNOWN_ELEMENT (section, element),
  * TICKET_TEMPLATE_DUPLICATE (section, element), TICKET_TEMPLATE_LOCKED (section, element), TICKET_TEMPLATE_VAT_NEEDED,
  * TICKET_TEMPLATE_FORBIDDEN (403, permission).

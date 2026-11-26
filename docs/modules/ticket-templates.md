@@ -23,12 +23,9 @@ One row per document type, on a store and on a head office (the head office's ro
 |---|---|
 | `id`, `active`, `created_at`, `created_by`, `updated_at`, `updated_by` | `_BaseEntity` |
 | `document_type` varchar(40), unique `uk_ticket_template_document_type` | `TicketDocumentType`: `SALE` (step 2); `RETURN_VOUCHER`, `CASH_REFUND`, `WARRANTY`, `SESSION_REPORT`, `STORE_REPORT`, `CLOSING_DECLARED`, `CASH_MOVEMENT_SLIP`, `CLOSING_WITHDRAWAL_SLIP` listed as coming |
-| `paper_width` int | 58 or 80 |
-| `font_size` varchar(10) | `SMALL`, `NORMAL` (today's), `LARGE` |
-| `compact` bit | the gaps removed |
-| `hide_zero_rows` bit, default 0 | the internal tickets of step 4 |
-| `blocks` nvarchar(max) | JSON: `[{"code", "on", "elements": [{"code", "on"}]}]`, the sections in print order |
-| `format_version` int, default 1 | the JSON's format |
+| `layout` nvarchar(max) | JSON (step 2b): `{"paperWidth": 58 / 80, "fontSize": SMALL / NORMAL / LARGE, "spacing": AIRY / NORMAL / COMPACT, "feedLines": 0-6, "separator": LINE / DASHES / NONE}`; defaults 80, NORMAL, AIRY, 0, LINE (today's ticket) |
+| `blocks` nvarchar(max) | JSON: `[{"code", "on", "elements": [{"code", "on", "options": {...}}]}]`, the sections in print order; options (step 2b): the logo's `width` (20-100 %, null = today's 100 px), `maxHeight` (5-60 mm, null = today's 40 px), `align`; the store name's and the TOTAL's `size` (SMALL / MEDIUM / LARGE); the item lines' `name` (WRAP / CUT) |
+| `format_version` int, default 2 | the JSON's format (1: the draft of step 2, its columns `paper_width`, `font_size`, `compact`, `hide_zero_rows`, moved into `layout` by db/3.5.0; a layout `"compact": true` reads as COMPACT) |
 | `origin` varchar(20), default `LOCAL` | `HEAD_OFFICE` for a copy received (step 5) |
 
 Levels only, never a CSS value (so a printer's renderer, phase 2, reads the same row). "Réinitialiser" deletes the row.

@@ -27,8 +27,11 @@ public final class TicketBlockLabels {
 		l.put("INFO.CUSTOMER_CODE", "Code client");
 		l.put("ITEMS", "Articles");
 		l.put("ITEMS.LINES", "Lignes");
+		l.put("ITEMS.ITEM_CODE", "Code article");
+		l.put("ITEMS.ITEM_BARCODE", "Code-barres de l'article");
 		l.put("ITEMS.UNIT_PRICE", "Prix unitaire");
 		l.put("ITEMS.DISCOUNT", "Remise de la ligne");
+		l.put("ITEMS.PROMOTION_NAME", "Nom de la promotion");
 		l.put("ITEMS.VAT", "TVA de la ligne");
 		l.put("TOTALS", "Totaux");
 		l.put("TOTALS.TICKET_DISCOUNT", "Remise totale");
@@ -52,6 +55,26 @@ public final class TicketBlockLabels {
 		l.put("SMALL", "Petite");
 		l.put("NORMAL", "Normale");
 		l.put("LARGE", "Grande");
+		// step 2b: the layout and the element options
+		l.put("spacing.AIRY", "Aérée");
+		l.put("spacing.NORMAL", "Normale");
+		l.put("spacing.COMPACT", "Compacte");
+		l.put("separator.LINE", "Trait plein");
+		l.put("separator.DASHES", "Tirets");
+		l.put("separator.NONE", "Aucun");
+		l.put("option.width", "largeur");
+		l.put("option.maxHeight", "hauteur max.");
+		l.put("option.align", "position");
+		l.put("option.size", "taille");
+		l.put("option.name", "nom");
+		l.put("align.LEFT", "à gauche");
+		l.put("align.CENTER", "au centre");
+		l.put("align.RIGHT", "à droite");
+		l.put("size.SMALL", "petite");
+		l.put("size.MEDIUM", "moyenne");
+		l.put("size.LARGE", "grande");
+		l.put("name.WRAP", "sur plusieurs lignes");
+		l.put("name.CUT", "coupé sur une ligne");
 	}
 
 	private TicketBlockLabels() {
@@ -61,6 +84,17 @@ public final class TicketBlockLabels {
 	public static String fr(String code) {
 		String label = LABELS.get(code);
 		return label != null ? label : code;
+	}
+
+	/** An option's value in words: "50 %", "20 mm", "à gauche", "grande", "coupé sur une ligne". */
+	public static String value(String key, Object value) {
+		if ("width".equals(key)) {
+			return value + " %";
+		}
+		if ("maxHeight".equals(key)) {
+			return value + " mm";
+		}
+		return fr(key + "." + value);
 	}
 
 	static boolean known(String code) {

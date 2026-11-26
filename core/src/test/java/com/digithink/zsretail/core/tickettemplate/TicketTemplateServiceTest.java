@@ -13,7 +13,9 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -37,9 +39,10 @@ import com.digithink.zsretail.core.tickettemplate.repository.TicketTemplateRepos
 import com.digithink.zsretail.core.tickettemplate.service.TicketTemplateService;
 
 /**
- * 3.5.0, ticket templates step 2: the templates' service. No row = the default (the catalogue, the linked elements from
- * the old settings); a save is checked (locked blocks, the line's VAT and "TVA par taux", widths, sizes, codes) and
- * normalised (header first, tombola last); a row read back is normalised leniently; a save or a reset is an event.
+ * 3.5.0, ticket templates steps 2 and 2b: the templates' service. No row = the default (the catalogue, every option
+ * today's, the linked elements from the old settings); a save is checked (locked blocks, the line's VAT and "TVA par
+ * taux", the layout and element options, codes) and normalised (header first, tombola last); a row read back is
+ * normalised leniently (format 1 too); a save or a reset is an event.
  */
 class TicketTemplateServiceTest {
 
@@ -81,14 +84,16 @@ class TicketTemplateServiceTest {
 		return t.getSections().stream().filter(s -> s.getCode().equals(code)).findFirst().orElse(null);
 	}
 
+	static ElementDTO element(TicketTemplateDTO t, String sectionCode, String elementCode) {
+		return section(t, sectionCode).getElements().stream().filter(e -> e.getCode().equals(elementCode)).findFirst().get();
+	}
+
 	static Boolean on(TicketTemplateDTO t, String sectionCode, String elementCode) {
-		return section(t, sectionCode).getElements().stream().filter(e -> e.getCode().equals(elementCode)).findFirst()
-				.map(ElementDTO::getOn).orElse(null);
+		return element(t, sectionCode, elementCode).getOn();
 	}
 
 	static void set(TicketTemplateDTO t, String sectionCode, String elementCode, boolean value) {
-		section(t, sectionCode).getElements().stream().filter(e -> e.getCode().equals(elementCode)).findFirst().get()
-				.setOn(value);
+		element(t, sectionCode, elementCode).setOn(value);
 	}
 
 	/** The default with a change, as the page sends it. */
@@ -107,15 +112,35 @@ class TicketTemplateServiceTest {
 	}
 
 	@Test
-	@DisplayName("Default: the order of today's ticket, 80 mm, normal, not compact; unit price and VAT by rate off; the"
-			+ " linked switches read from Company Information and General setup as the old code reads them")
+	@DisplayName("Default: the order of today's ticket; the layout 80 mm, normal size, airy, no blank line, full lines;"
+			+ " every option today's (the logo's width and height null, centred; sizes medium; names wrapped); item code,"
+			+ " barcode, unit price and VAT by rate off, the promotion's name on; the linked switches from the old settings")
 	void defaults() {
 		TicketTemplateDTO d = service.defaults(TicketDocumentType.SALE);
 		assertEquals(SALE_ORDER, order(d));
-		assertEquals(80, d.getPaperWidth());
-		assertEquals("NORMAL", d.getFontSize());
-		assertFalse(d.getCompact());
+		assertEquals(2, d.getFormatVersion());
+		Map<String, Object> layout = new LinkedHashMap<>();
+		layout.put("paperWidth", 80);
+		layout.put("fontSize", "NORMAL");
+		layout.put("spacing", "AIRY");
+		layout.put("feedLines", 0);
+		layout.put("separator", "LINE");
+		assertEquals(layout, d.getLayout());
+		Map<String, Object> logo = new LinkedHashMap<>();
+		logo.put("width", null);
+		logo.put("maxHeight", null);
+		logo.put("align", "CENTER");
+		assertEquals(logo, element(d, "HEADER", "LOGO").getOptions());
+		assertEquals(Collections.singletonMap("size", "MEDIUM"), element(d, "HEADER", "STORE_NAME").getOptions());
+		assertEquals(Collections.singletonMap("size", "MEDIUM"), element(d, "TOTALS", "TOTAL").getOptions());
+		assertEquals(Collections.singletonMap("name", "WRAP"), element(d, "ITEMS", "LINES").getOptions());
+		assertTrue(element(d, "INFO", "CASHIER").getOptions().isEmpty());
+		assertEquals(Arrays.asList("LINES", "ITEM_CODE", "ITEM_BARCODE", "UNIT_PRICE", "DISCOUNT", "PROMOTION_NAME", "VAT"),
+				section(d, "ITEMS").getElements().stream().map(ElementDTO::getCode).collect(Collectors.toList()));
+		assertFalse(on(d, "ITEMS", "ITEM_CODE"));
+		assertFalse(on(d, "ITEMS", "ITEM_BARCODE"));
 		assertFalse(on(d, "ITEMS", "UNIT_PRICE"));
+		assertTrue(on(d, "ITEMS", "PROMOTION_NAME"));
 		assertFalse(section(d, "VAT_BY_RATE").getOn());
 		// nothing set: the address no (null = no), the thank-you, the label, the loyalty rows yes (null / absent = yes)
 		assertFalse(on(d, "HEADER", "ADDRESS"));
@@ -138,8 +163,8 @@ class TicketTemplateServiceTest {
 	}
 
 	@Test
-	@DisplayName("The page: the sale ticket with its catalogue, no template yet and its default; the other documents"
-			+ " listed as not available yet")
+	@DisplayName("The page: the sale ticket with its layout options, its sections, no template yet and its default; the"
+			+ " other documents listed as not available yet")
 	@SuppressWarnings("unchecked")
 	void page() {
 		Map<String, Object> page = service.page();
@@ -151,17 +176,19 @@ class TicketTemplateServiceTest {
 		assertNull(sale.get("template"));
 		assertEquals(SALE_ORDER, order((TicketTemplateDTO) sale.get("defaults")));
 		assertEquals(SALE_ORDER.size(), ((List<?>) sale.get("sections")).size());
+		assertEquals(Arrays.asList("paperWidth", "fontSize", "spacing", "feedLines", "separator"),
+				((List<TicketBlocks.Option>) sale.get("layout")).stream().map(TicketBlocks.Option::getKey)
+						.collect(Collectors.toList()));
 		for (Map<String, Object> other : documents.subList(1, documents.size())) {
 			assertEquals(false, other.get("available"), String.valueOf(other.get("type")));
 			assertFalse(other.containsKey("template"));
 		}
-		assertEquals(Arrays.asList(58, 80), page.get("paperWidths"));
-		assertEquals(Arrays.asList("SMALL", "NORMAL", "LARGE"), page.get("fontSizes"));
+		assertEquals(2, page.get("formatVersion"));
 	}
 
 	@Test
-	@DisplayName("Refused: a locked section or element off, the line's VAT off without VAT by rate, a width, a size, an"
-			+ " unknown or repeated code; nothing saved")
+	@DisplayName("Refused: a locked section or element off, the line's VAT off without VAT by rate, a layout option or an"
+			+ " element option out of its values, an unknown option, an unknown or repeated code; nothing saved")
 	void refusals() {
 		assertEquals("TICKET_TEMPLATE_LOCKED", refusal(t -> set(t, "HEADER", "STORE_NAME", false)));
 		assertEquals("TICKET_TEMPLATE_LOCKED", refusal(t -> set(t, "HEADER", "DUPLICATE", false)));
@@ -175,9 +202,22 @@ class TicketTemplateServiceTest {
 		assertEquals("TICKET_TEMPLATE_LOCKED", refusal(t -> section(t, "ITEMS").setOn(false)));
 		assertEquals("TICKET_TEMPLATE_LOCKED", refusal(t -> section(t, "TOMBOLA").setOn(false)));
 		assertEquals("TICKET_TEMPLATE_VAT_NEEDED", refusal(t -> set(t, "ITEMS", "VAT", false)));
-		assertEquals("TICKET_TEMPLATE_PAPER_WIDTH", refusal(t -> t.setPaperWidth(70)));
-		assertEquals("TICKET_TEMPLATE_PAPER_WIDTH", refusal(t -> t.setPaperWidth(null)));
-		assertEquals("TICKET_TEMPLATE_FONT_SIZE", refusal(t -> t.setFontSize("HUGE")));
+		assertEquals("TICKET_TEMPLATE_OPTION", refusal(t -> t.getLayout().put("paperWidth", 70)));
+		assertEquals("TICKET_TEMPLATE_OPTION", refusal(t -> t.getLayout().put("paperWidth", null)));
+		assertEquals("TICKET_TEMPLATE_OPTION", refusal(t -> t.getLayout().put("fontSize", "HUGE")));
+		assertEquals("TICKET_TEMPLATE_OPTION", refusal(t -> t.getLayout().put("spacing", "TIGHT")));
+		assertEquals("TICKET_TEMPLATE_OPTION", refusal(t -> t.getLayout().put("feedLines", 7)));
+		assertEquals("TICKET_TEMPLATE_OPTION", refusal(t -> t.getLayout().put("feedLines", -1)));
+		assertEquals("TICKET_TEMPLATE_OPTION", refusal(t -> t.getLayout().put("separator", "STARS")));
+		assertEquals("TICKET_TEMPLATE_UNKNOWN_OPTION", refusal(t -> t.getLayout().put("margin", 2)));
+		assertEquals("TICKET_TEMPLATE_OPTION", refusal(t -> element(t, "HEADER", "LOGO").getOptions().put("width", 19)));
+		assertEquals("TICKET_TEMPLATE_OPTION", refusal(t -> element(t, "HEADER", "LOGO").getOptions().put("width", 101)));
+		assertEquals("TICKET_TEMPLATE_OPTION", refusal(t -> element(t, "HEADER", "LOGO").getOptions().put("maxHeight", 61)));
+		assertEquals("TICKET_TEMPLATE_OPTION", refusal(t -> element(t, "HEADER", "LOGO").getOptions().put("align", "TOP")));
+		assertEquals("TICKET_TEMPLATE_OPTION", refusal(t -> element(t, "TOTALS", "TOTAL").getOptions().put("size", "HUGE")));
+		assertEquals("TICKET_TEMPLATE_OPTION", refusal(t -> element(t, "ITEMS", "LINES").getOptions().put("name", "HIDE")));
+		assertEquals("TICKET_TEMPLATE_UNKNOWN_OPTION",
+				refusal(t -> element(t, "INFO", "CASHIER").getOptions().put("size", "LARGE")));
 		assertEquals("TICKET_TEMPLATE_UNKNOWN_SECTION", refusal(t -> t.getSections().add(new SectionDTO("QR", true, null))));
 		assertEquals("TICKET_TEMPLATE_UNKNOWN_ELEMENT",
 				refusal(t -> section(t, "INFO").getElements().add(new ElementDTO("TABLE", true))));
@@ -194,18 +234,29 @@ class TicketTemplateServiceTest {
 	}
 
 	@Test
-	@DisplayName("Saved: the line's VAT off with VAT by rate on, the switches, width, size, compact kept; the header put"
-			+ " back first and the tombola last; a section not sent goes after the one before it; read back the same")
+	@DisplayName("Saved: the layout and the options kept (a number sent as 58.0 taken as 58), the line's VAT off with VAT"
+			+ " by rate on, the switches; the header put back first and the tombola last; a section not sent goes after the"
+			+ " one before it; an element without its options gets them; read back the same; format 2")
 	void saveAndNormalise() {
 		TicketTemplateDTO t = sent(x -> {
 			section(x, "VAT_BY_RATE").setOn(true);
 			set(x, "ITEMS", "VAT", false);
 			set(x, "ITEMS", "UNIT_PRICE", true);
+			set(x, "ITEMS", "ITEM_CODE", true);
+			set(x, "ITEMS", "PROMOTION_NAME", false);
 			set(x, "HEADER", "LOGO", false);
 			section(x, "BARCODE").setOn(false);
-			x.setPaperWidth(58);
-			x.setFontSize("small");
-			x.setCompact(true);
+			x.getLayout().put("paperWidth", 58.0);
+			x.getLayout().put("spacing", "NORMAL");
+			x.getLayout().put("feedLines", 3);
+			x.getLayout().put("separator", "DASHES");
+			x.getLayout().remove("fontSize");
+			element(x, "HEADER", "LOGO").getOptions().put("width", 50);
+			element(x, "HEADER", "LOGO").getOptions().put("maxHeight", 20);
+			element(x, "HEADER", "LOGO").getOptions().put("align", "LEFT");
+			element(x, "TOTALS", "TOTAL").getOptions().put("size", "LARGE");
+			element(x, "ITEMS", "LINES").getOptions().put("name", "CUT");
+			element(x, "HEADER", "STORE_NAME").setOptions(null);
 			// the header sent last, the tombola first, the loyalty before the totals, the footer not sent
 			SectionDTO header = section(x, "HEADER");
 			SectionDTO tombola = section(x, "TOMBOLA");
@@ -218,11 +269,21 @@ class TicketTemplateServiceTest {
 		TicketTemplateDTO saved = service.save("sale", t, "admin");
 		assertEquals(Arrays.asList("HEADER", "INFO", "ITEMS", "LOYALTY", "TOTALS", "VAT_BY_RATE", "PAYMENTS", "BARCODE",
 				"FOOTER", "TOMBOLA"), order(saved));
-		assertEquals(58, saved.getPaperWidth());
-		assertEquals("SMALL", saved.getFontSize());
-		assertTrue(saved.getCompact());
+		assertEquals(58, saved.getLayout().get("paperWidth"));
+		assertEquals("NORMAL", saved.getLayout().get("fontSize"), "an option not sent: its default");
+		assertEquals("NORMAL", saved.getLayout().get("spacing"));
+		assertEquals(3, saved.getLayout().get("feedLines"));
+		assertEquals("DASHES", saved.getLayout().get("separator"));
+		assertEquals(50, element(saved, "HEADER", "LOGO").getOptions().get("width"));
+		assertEquals(20, element(saved, "HEADER", "LOGO").getOptions().get("maxHeight"));
+		assertEquals("LEFT", element(saved, "HEADER", "LOGO").getOptions().get("align"));
+		assertEquals("LARGE", element(saved, "TOTALS", "TOTAL").getOptions().get("size"));
+		assertEquals("CUT", element(saved, "ITEMS", "LINES").getOptions().get("name"));
+		assertEquals(Collections.singletonMap("size", "MEDIUM"), element(saved, "HEADER", "STORE_NAME").getOptions());
 		assertFalse(on(saved, "ITEMS", "VAT"));
 		assertTrue(on(saved, "ITEMS", "UNIT_PRICE"));
+		assertTrue(on(saved, "ITEMS", "ITEM_CODE"));
+		assertFalse(on(saved, "ITEMS", "PROMOTION_NAME"));
 		assertFalse(on(saved, "HEADER", "LOGO"));
 		assertFalse(section(saved, "BARCODE").getOn());
 		assertTrue(section(saved, "FOOTER").getOn(), "a section not sent: its default");
@@ -231,57 +292,67 @@ class TicketTemplateServiceTest {
 		TicketTemplateDTO read = service.saved(TicketDocumentType.SALE).get();
 		assertEquals(order(saved), order(read));
 		assertEquals(saved.getSections(), read.getSections());
-		assertEquals(1, rows.get("SALE").getFormatVersion());
+		assertEquals(saved.getLayout(), read.getLayout());
+		assertEquals(2, rows.get("SALE").getFormatVersion());
 		assertEquals("LOCAL", rows.get("SALE").getOrigin());
 	}
 
 	@Test
-	@DisplayName("A row read back leniently: an unknown code dropped, a locked block and the line's VAT put back on, a"
-			+ " wrong width and size the defaults, unreadable blocks the default order")
+	@DisplayName("A row read back leniently: an unknown code or option dropped, a locked block and the line's VAT put back"
+			+ " on, a wrong value its default, unreadable JSON the default; a format 1 layout (compact) read as COMPACT")
 	void lenientRead() {
 		TicketTemplate row = new TicketTemplate();
 		row.setDocumentType("SALE");
-		row.setPaperWidth(66);
-		row.setFontSize("TINY");
-		row.setCompact(true);
-		row.setHideZeroRows(false);
+		row.setLayout("{\"paperWidth\":66,\"fontSize\":\"TINY\",\"compact\":true,\"margin\":3}");
 		row.setOrigin("LOCAL");
 		row.setFormatVersion(1);
 		row.setBlocks("[{\"code\":\"QR\",\"on\":true},{\"code\":\"TOTALS\",\"on\":true,\"elements\":[{\"code\":\"TOTAL\","
-				+ "\"on\":false}]},{\"code\":\"ITEMS\",\"on\":true,\"elements\":[{\"code\":\"VAT\",\"on\":false},"
-				+ "{\"code\":\"FOO\",\"on\":true}]}]");
+				+ "\"on\":false,\"options\":{\"size\":\"HUGE\",\"color\":\"red\"}}]},{\"code\":\"ITEMS\",\"on\":true,"
+				+ "\"elements\":[{\"code\":\"VAT\",\"on\":false},{\"code\":\"FOO\",\"on\":true}]}]");
 		rows.put("SALE", row);
 		TicketTemplateDTO read = service.saved(TicketDocumentType.SALE).get();
-		assertEquals(80, read.getPaperWidth());
-		assertEquals("NORMAL", read.getFontSize());
+		assertEquals(80, read.getLayout().get("paperWidth"));
+		assertEquals("NORMAL", read.getLayout().get("fontSize"));
+		assertEquals("COMPACT", read.getLayout().get("spacing"), "format 1: compact = COMPACT");
+		assertFalse(read.getLayout().containsKey("compact"));
+		assertFalse(read.getLayout().containsKey("margin"));
 		assertTrue(on(read, "TOTALS", "TOTAL"));
+		assertEquals(Collections.singletonMap("size", "MEDIUM"), element(read, "TOTALS", "TOTAL").getOptions());
 		assertTrue(on(read, "ITEMS", "VAT"));
 		// TOTALS before ITEMS as in the row; the sections it lacks after the one before them in the catalogue
 		assertEquals(Arrays.asList("HEADER", "INFO", "TOTALS", "VAT_BY_RATE", "PAYMENTS", "LOYALTY", "BARCODE", "FOOTER",
 				"ITEMS", "TOMBOLA"), order(read));
 
 		row.setBlocks("not json");
-		assertEquals(SALE_ORDER, order(service.saved(TicketDocumentType.SALE).get()));
+		row.setLayout("not json");
+		TicketTemplateDTO broken = service.saved(TicketDocumentType.SALE).get();
+		assertEquals(SALE_ORDER, order(broken));
+		assertEquals("AIRY", broken.getLayout().get("spacing"));
 	}
 
 	@Test
-	@DisplayName("Event log: the first save (its values), a change (only what changed), a save without change (nothing),"
-			+ " a reset (its values of before), a reset without a row (nothing, false)")
+	@DisplayName("Event log: the first save (its values), a change (only what changed: the layout, the switches, the"
+			+ " options), a save without change (nothing), a reset (its values of before), a reset without a row (nothing)")
 	void events() {
 		service.save("SALE", sent(t -> { }), "admin");
 		EventLogEntry created = log.only("TICKET_TEMPLATE_SAVED");
 		assertEquals("TICKET_TEMPLATE", created.getSubjectType());
 		assertEquals("SALE", created.getSubjectId());
 		assertTrue(created.getDetails().startsWith("Modèle de ticket « Ticket de vente » créé : Papier 80 mm ; Taille Normale ;"
-				+ " Compact non ; Ordre En-tête, "), created.getDetails());
+				+ " Espacement Aérée ; Lignes avant la coupe 0 ; Séparateurs Trait plein ; Ordre En-tête, "), created.getDetails());
+		assertTrue(created.getDetails().endsWith("; Options par défaut."), created.getDetails());
 
 		service.save("SALE", sent(t -> {
-			t.setCompact(true);
+			t.getLayout().put("spacing", "COMPACT");
 			set(t, "INFO", "CASHIER", false);
+			element(t, "HEADER", "LOGO").getOptions().put("width", 50);
+			element(t, "HEADER", "LOGO").getOptions().put("align", "RIGHT");
 		}), "admin");
 		assertEquals(2, log.rows.size());
-		assertEquals("Modèle de ticket « Ticket de vente » modifié : Compact : non → oui ; Masqués : Adresse, Prix unitaire,"
-				+ " TVA par taux → Adresse, Caissier, Prix unitaire, TVA par taux.", log.rows.get(1).getDetails());
+		assertEquals("Modèle de ticket « Ticket de vente » modifié : Espacement : Aérée → Compacte ; Masqués : Adresse,"
+				+ " Code article, Code-barres de l'article, Prix unitaire, TVA par taux → Adresse, Caissier, Code article,"
+				+ " Code-barres de l'article, Prix unitaire, TVA par taux ; Options : par défaut → Logo (largeur 50 %,"
+				+ " position à droite).", log.rows.get(1).getDetails());
 
 		service.save("SALE", service.saved(TicketDocumentType.SALE).get(), "admin");
 		assertEquals(2, log.rows.size(), "nothing changed: no event");
