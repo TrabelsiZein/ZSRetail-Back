@@ -2,9 +2,9 @@
 
 What the till's tickets print, in which order, on which width. Design and steps: `roadmap/ticket-templates.md`. Built so
 far: step 1 (the switch and the new renderer, the same ticket), step 2 (the table, the API, the page, the sale ticket's
-template) and step 2b (the layout, the options, the texts, the tombola, everything the sale ticket prints owned by the
-template). The other tickets come at steps 3 (return voucher, refund, warranty) and 4 (internal tickets); the head
-office sends its templates down at step 5.
+template), step 2b (the layout, the options, the texts, the tombola, everything the sale ticket prints owned by the
+template) and step 3 part 1 (the return voucher, its reprint, the cash refund slip). The warranty and the tombola slip
+come at step 3 part 2, the internal tickets at step 4; the head office sends its templates down at step 5.
 
 ## The rule
 
@@ -153,6 +153,27 @@ setup (the loyalty earned and balance rows, the tombola). None on `invoiceFooter
   the default layout.
 - Length of the 3-line cash sale (fixture 1, Chrome, CSS mm at 96 dpi, the barcode drawn): 80 mm 278 mm today (AIRY) →
   146 mm COMPACT; 58 mm 305 → 169 mm.
+
+## The return documents (step 3)
+
+The return voucher (`RETURN_VOUCHER`: its first print at the till, `ReturnProducts.printVoucherReceipt`, and its reprint
+in Retours, `ReturnsManagement.printVoucher`) and the cash refund slip (`CASH_REFUND`,
+`ReturnProducts.printCashRefundReceipt`) have their own template row, the same layout, logo, sizes and texts as the sale
+ticket, and their own blocks (`TicketBlocks`, `sale-template.js` `DOCUMENT_SECTIONS`):
+
+| Document | Sections (default order) | Locked |
+|---|---|---|
+| Bon de retour | En-tête (+ « BON # » badge, DUPLICATA on a reprint) · Texte d'en-tête · Informations (Numéro de bon, Ticket original, Date, Valide jusqu'au, Caissier, Code client) · Articles · Totaux (MONTANT DU BON) · Paiements ("Return Voucher" and its reference, as today) · Code-barres (the voucher's number) · Pied (the message "Ce bon peut être utilisé pour de futurs achats", its "Valide jusqu'au" reminder, contact, MF, footer text, ZS Retail) | store name, DUPLICATA, the voucher's number, original ticket, date, validity date, the lines, their VAT, Total TVA, the amount, the barcode, MF |
+| Remboursement en espèces | En-tête (+ « RETOUR # ») · Texte d'en-tête · Informations (Numéro de retour, Ticket original, Date, Caissier, Code client) · Articles · Totaux (Remise totale = the lines minus the amount paid back, REMBOURSÉ EN ESPÈCES) · Pied (the message "Montant remboursé en espèces", contact, MF, footer text, ZS Retail) | store name, the return's number, original ticket, date, the lines, their VAT, Total TVA, the amount, MF |
+
+No VAT by rate (the line's VAT is locked), no loyalty, no tombola on a return document. The document's message is the
+template's text (2 lines; null = today's). One builder, `return-ticket.js` (`buildReturnVoucher`, `buildCashRefund`), on
+the data of `return-formats.js` (COPIES of the old code). The voucher's reprint, new printing only: DUPLICATA under the
+title, the return's cashier (`createdByUser`), the first print's VAT (`voucherTaxAmount`, one calculation: the
+voucher's share of the lines' VAT). `RETURN_VOUCHER_VALIDITY_DAYS` stays in General setup.
+
+On the page, "Copier depuis un autre document" copies another document's layout, logo and sizes, top text and footer
+text into the form (not its blocks, not its own message); nothing is saved until "Enregistrer".
 
 ## The POS machine
 

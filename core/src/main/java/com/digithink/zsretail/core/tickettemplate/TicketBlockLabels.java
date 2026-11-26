@@ -14,17 +14,22 @@ public final class TicketBlockLabels {
 	static {
 		Map<String, String> l = LABELS;
 		l.put("SALE", "Ticket de vente");
+		l.put("RETURN_VOUCHER", "Bon de retour");
+		l.put("CASH_REFUND", "Remboursement en espèces");
 		l.put("HEADER", "En-tête");
 		l.put("HEADER.LOGO", "Logo");
 		l.put("HEADER.STORE_NAME", "Nom du magasin");
 		l.put("HEADER.ADDRESS", "Adresse");
-		l.put("HEADER.TITLE", "Titre « REÇU DE VENTE »");
+		l.put("HEADER.TITLE", "Titre du document");
+		l.put("HEADER.BADGE", "Numéro en bandeau");
 		l.put("HEADER.DUPLICATE", "DUPLICATA");
 		l.put("INFO", "Informations du ticket");
 		l.put("INFO.NUMBER", "Numéro de vente");
 		l.put("INFO.DATE", "Date et heure");
 		l.put("INFO.CASHIER", "Caissier");
 		l.put("INFO.CUSTOMER_CODE", "Code client");
+		l.put("INFO.ORIGINAL_TICKET", "Ticket original");
+		l.put("INFO.VALID_UNTIL", "Valide jusqu'au");
 		l.put("TOP_TEXT", "Texte d'en-tête");
 		l.put("TOP_TEXT.TEXT", "Lignes");
 		l.put("ITEMS", "Articles");
@@ -55,6 +60,8 @@ public final class TicketBlockLabels {
 		l.put("FOOTER.FAX", "Fax");
 		l.put("FOOTER.MF", "Matricule fiscal");
 		l.put("FOOTER.FOOTER_NOTE", "Texte de pied");
+		l.put("FOOTER.MESSAGE", "Message du document");
+		l.put("FOOTER.VALIDITY", "Rappel de la validité");
 		l.put("FOOTER.SOFTWARE_LABEL", "Mention ZS Retail");
 		l.put("TOMBOLA", "Ticket de tombola");
 		l.put("SMALL", "Petite");

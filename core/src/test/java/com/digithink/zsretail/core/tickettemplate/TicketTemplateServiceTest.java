@@ -164,7 +164,7 @@ class TicketTemplateServiceTest {
 
 	@Test
 	@DisplayName("The page: the sale ticket with its layout options, its sections, no template yet and its default; the"
-			+ " other documents listed as not available yet")
+			+ " return voucher and the cash refund slip available (step 3), the others listed as not available yet")
 	@SuppressWarnings("unchecked")
 	void page() {
 		Map<String, Object> page = service.page();
@@ -179,7 +179,9 @@ class TicketTemplateServiceTest {
 		assertEquals(Arrays.asList("paperWidth", "fontSize", "spacing", "feedLines", "separator"),
 				((List<TicketBlocks.Option>) sale.get("layout")).stream().map(TicketBlocks.Option::getKey)
 						.collect(Collectors.toList()));
-		for (Map<String, Object> other : documents.subList(1, documents.size())) {
+		assertEquals(Arrays.asList(true, true, true), documents.subList(0, 3).stream().map(d -> d.get("available"))
+				.collect(Collectors.toList()));
+		for (Map<String, Object> other : documents.subList(3, documents.size())) {
 			assertEquals(false, other.get("available"), String.valueOf(other.get("type")));
 			assertFalse(other.containsKey("template"));
 		}
@@ -224,7 +226,7 @@ class TicketTemplateServiceTest {
 				refusal(t -> t.getSections().add(new SectionDTO("BARCODE", true, new ArrayList<>()))));
 
 		TicketTemplateException other = assertThrows(TicketTemplateException.class,
-				() -> service.save("RETURN_VOUCHER", sent(t -> { }), "admin"));
+				() -> service.save("WARRANTY", sent(t -> { }), "admin"));
 		assertEquals("TICKET_TEMPLATE_NOT_AVAILABLE", other.getCode());
 		TicketTemplateException unknown = assertThrows(TicketTemplateException.class,
 				() -> service.save("MENU", sent(t -> { }), "admin"));
@@ -406,5 +408,69 @@ class TicketTemplateServiceTest {
 				.put("text", new String(new char[49]).replace('\0', 'x'))));
 		assertEquals("TICKET_TEMPLATE_TEXT", refusal(t -> element(t, "FOOTER", "THANK_YOU").getOptions().put("text", 12)));
 		assertEquals("TICKET_TEMPLATE_OPTION", refusal(t -> element(t, "INFO", "CUSTOMER_CODE").getOptions().put("passenger", "NO")));
+	}
+
+	/** A document's default with a change, saved; the refusal's code when refused (nothing saved). */
+	String refusalOf(TicketDocumentType type, Consumer<TicketTemplateDTO> change) {
+		TicketTemplateDTO t = service.defaults(type);
+		change.accept(t);
+		TicketTemplateException e = assertThrows(TicketTemplateException.class, () -> service.save(type.name(), t, "admin"));
+		assertTrue(rows.isEmpty(), "nothing saved");
+		return e.getCode();
+	}
+
+	@Test
+	@DisplayName("Step 3: the return voucher and the cash refund slip have their own blocks, the same layout and options;"
+			+ " their locked blocks refused off (the voucher's number, original ticket, date, validity, barcode; the"
+			+ " refund's number, original ticket, date; both the lines, the VAT, the amount, the MF); a save of each")
+	void returnDocuments() {
+		TicketTemplateDTO voucher = service.defaults(TicketDocumentType.RETURN_VOUCHER);
+		assertEquals(Arrays.asList("HEADER", "TOP_TEXT", "INFO", "ITEMS", "TOTALS", "PAYMENTS", "BARCODE", "FOOTER"),
+				order(voucher));
+		assertEquals(service.defaults(TicketDocumentType.SALE).getLayout(), voucher.getLayout());
+		assertEquals(Arrays.asList("NUMBER", "ORIGINAL_TICKET", "DATE", "VALID_UNTIL", "CASHIER", "CUSTOMER_CODE"),
+				section(voucher, "INFO").getElements().stream().map(ElementDTO::getCode).collect(Collectors.toList()));
+		assertEquals(Collections.singletonMap("text", null), element(voucher, "FOOTER", "MESSAGE").getOptions());
+		assertTrue(element(voucher, "INFO", "CUSTOMER_CODE").getOptions().isEmpty(),
+				"no passenger option on a return document");
+		TicketTemplateDTO refund = service.defaults(TicketDocumentType.CASH_REFUND);
+		assertEquals(Arrays.asList("HEADER", "TOP_TEXT", "INFO", "ITEMS", "TOTALS", "FOOTER"), order(refund));
+
+		for (String[] locked : new String[][] { { "INFO", "NUMBER" }, { "INFO", "ORIGINAL_TICKET" }, { "INFO", "DATE" },
+				{ "INFO", "VALID_UNTIL" }, { "ITEMS", "LINES" }, { "ITEMS", "VAT" }, { "TOTALS", "TOTAL" },
+				{ "TOTALS", "TOTAL_VAT" }, { "FOOTER", "MF" }, { "HEADER", "STORE_NAME" }, { "HEADER", "DUPLICATE" } }) {
+			assertEquals("TICKET_TEMPLATE_LOCKED", refusalOf(TicketDocumentType.RETURN_VOUCHER,
+					t -> set(t, locked[0], locked[1], false)), "voucher " + locked[1]);
+		}
+		assertEquals("TICKET_TEMPLATE_LOCKED", refusalOf(TicketDocumentType.RETURN_VOUCHER, t -> section(t, "BARCODE").setOn(false)));
+		for (String[] locked : new String[][] { { "INFO", "NUMBER" }, { "INFO", "ORIGINAL_TICKET" }, { "INFO", "DATE" },
+				{ "ITEMS", "VAT" }, { "TOTALS", "TOTAL" }, { "FOOTER", "MF" } }) {
+			assertEquals("TICKET_TEMPLATE_LOCKED", refusalOf(TicketDocumentType.CASH_REFUND,
+					t -> set(t, locked[0], locked[1], false)), "refund " + locked[1]);
+		}
+		assertEquals("TICKET_TEMPLATE_UNKNOWN_SECTION", refusalOf(TicketDocumentType.CASH_REFUND,
+				t -> t.getSections().add(new SectionDTO("TOMBOLA", true, new ArrayList<>()))));
+
+		TicketTemplateDTO saved = service.save("RETURN_VOUCHER", with(voucher, t -> {
+			t.getLayout().put("spacing", "COMPACT");
+			set(t, "HEADER", "BADGE", false);
+			section(t, "PAYMENTS").setOn(false);
+			element(t, "FOOTER", "MESSAGE").getOptions().put("text", "Valable dans tous nos magasins");
+		}), "admin");
+		assertEquals("COMPACT", saved.getLayout().get("spacing"));
+		assertFalse(on(saved, "HEADER", "BADGE"));
+		assertFalse(section(saved, "PAYMENTS").getOn());
+		assertEquals("Valable dans tous nos magasins", element(saved, "FOOTER", "MESSAGE").getOptions().get("text"));
+		assertTrue(rows.containsKey("RETURN_VOUCHER"));
+		assertFalse(rows.containsKey("SALE"), "one row per document");
+		assertEquals("TICKET_TEMPLATE_SAVED", log.rows.get(log.rows.size() - 1).getCode());
+		assertTrue(log.rows.get(log.rows.size() - 1).getDetails().startsWith("Modèle de ticket « Bon de retour » créé"));
+		assertTrue(service.reset("RETURN_VOUCHER"));
+		assertFalse(rows.containsKey("RETURN_VOUCHER"));
+	}
+
+	private static TicketTemplateDTO with(TicketTemplateDTO t, Consumer<TicketTemplateDTO> change) {
+		change.accept(t);
+		return t;
 	}
 }

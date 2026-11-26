@@ -255,17 +255,82 @@ public final class TicketBlocks {
 					linked("SOFTWARE_LABEL", LINK_SOFTWARE_LABEL)),
 			linkedSection("TOMBOLA", LINK_TOMBOLA, Position.LAST)));
 
+	/**
+	 * Step 3: the return voucher (its first print at the till and its reprint), in the order it prints today: the item
+	 * lines as the sale's (no VAT by rate: the line's VAT locked), the TOTAL its amount, the footer with its own message
+	 * (`text` 2 lines, null = today's) in place of the thank-you and its validity line. Locked:
+	 * the store's name, the voucher's number, the original ticket, the date, the validity date, the lines, the VAT, the
+	 * amount, the MF, DUPLICATA on a reprint, the barcode (the till scans it to take the voucher).
+	 */
+	private static final List<Section> RETURN_VOUCHER = Collections.unmodifiableList(Arrays.asList(
+			section("HEADER", true, Lock.LEGAL, Position.FIRST, false,
+					on("LOGO").with(number("width", null, 20, 100), number("maxHeight", null, 5, 60),
+							choice("align", "CENTER", "LEFT", "CENTER", "RIGHT")),
+					locked("STORE_NAME", Lock.LEGAL).with(size()), linked("ADDRESS", LINK_PRINT_ADDRESS), on("TITLE"),
+					locked("DUPLICATE", Lock.LEGAL), on("BADGE")),
+			section("TOP_TEXT", true, null, null, false,
+					on("TEXT").with(text("text", "", 3, 48))),
+			section("INFO", true, Lock.LEGAL, null, false,
+					locked("NUMBER", Lock.LEGAL), locked("ORIGINAL_TICKET", Lock.LEGAL), locked("DATE", Lock.LEGAL),
+					locked("VALID_UNTIL", Lock.FUNCTIONAL), on("CASHIER"), on("CUSTOMER_CODE")),
+			section("ITEMS", true, Lock.LEGAL, null, false,
+					locked("LINES", Lock.LEGAL).with(choice("name", "WRAP", "WRAP", "CUT")), off("ITEM_CODE"),
+					off("ITEM_BARCODE"), off("UNIT_PRICE"), on("DISCOUNT"), on("PROMOTION_NAME"), locked("VAT", Lock.LEGAL)),
+			section("TOTALS", true, Lock.LEGAL, null, false,
+					on("TICKET_DISCOUNT"), locked("TOTAL_VAT", Lock.LEGAL), locked("TOTAL", Lock.LEGAL).with(size())),
+			section("PAYMENTS", true, null, null, false),
+			section("BARCODE", true, Lock.FUNCTIONAL, null, false),
+			section("FOOTER", true, Lock.LEGAL, null, false,
+					on("MESSAGE").with(text("text", null, 2, 48)), on("VALIDITY"), on("WEBSITE"), on("EMAIL"), on("PHONE"),
+					on("FAX"), locked("MF", Lock.LEGAL), on("FOOTER_NOTE").with(text("text", null, 6, 48)),
+					linked("SOFTWARE_LABEL", LINK_SOFTWARE_LABEL))));
+
+	/**
+	 * Step 3: the cash refund slip (a return refunded in cash), in the order it prints today: no payment, no barcode, no
+	 * duplicate. Locked: the store's name, the return's number, the original ticket, the date, the lines, the VAT, the
+	 * amount refunded, the MF.
+	 */
+	private static final List<Section> CASH_REFUND = Collections.unmodifiableList(Arrays.asList(
+			section("HEADER", true, Lock.LEGAL, Position.FIRST, false,
+					on("LOGO").with(number("width", null, 20, 100), number("maxHeight", null, 5, 60),
+							choice("align", "CENTER", "LEFT", "CENTER", "RIGHT")),
+					locked("STORE_NAME", Lock.LEGAL).with(size()), linked("ADDRESS", LINK_PRINT_ADDRESS), on("TITLE"),
+					on("BADGE")),
+			section("TOP_TEXT", true, null, null, false,
+					on("TEXT").with(text("text", "", 3, 48))),
+			section("INFO", true, Lock.LEGAL, null, false,
+					locked("NUMBER", Lock.LEGAL), locked("ORIGINAL_TICKET", Lock.LEGAL), locked("DATE", Lock.LEGAL),
+					on("CASHIER"), on("CUSTOMER_CODE")),
+			section("ITEMS", true, Lock.LEGAL, null, false,
+					locked("LINES", Lock.LEGAL).with(choice("name", "WRAP", "WRAP", "CUT")), off("ITEM_CODE"),
+					off("ITEM_BARCODE"), off("UNIT_PRICE"), on("DISCOUNT"), on("PROMOTION_NAME"), locked("VAT", Lock.LEGAL)),
+			section("TOTALS", true, Lock.LEGAL, null, false,
+					on("TICKET_DISCOUNT"), locked("TOTAL_VAT", Lock.LEGAL), locked("TOTAL", Lock.LEGAL).with(size())),
+			section("FOOTER", true, Lock.LEGAL, null, false,
+					on("MESSAGE").with(text("text", null, 2, 48)), on("WEBSITE"), on("EMAIL"), on("PHONE"), on("FAX"),
+					locked("MF", Lock.LEGAL), on("FOOTER_NOTE").with(text("text", null, 6, 48)),
+					linked("SOFTWARE_LABEL", LINK_SOFTWARE_LABEL))));
+
 	private TicketBlocks() {
 	}
 
 	/** A document's sections in their default order; empty for a document without a template yet. */
 	public static List<Section> of(TicketDocumentType type) {
-		return type == TicketDocumentType.SALE ? SALE : Collections.emptyList();
+		if (type == TicketDocumentType.SALE) {
+			return SALE;
+		}
+		if (type == TicketDocumentType.RETURN_VOUCHER) {
+			return RETURN_VOUCHER;
+		}
+		if (type == TicketDocumentType.CASH_REFUND) {
+			return CASH_REFUND;
+		}
+		return Collections.emptyList();
 	}
 
-	/** A document's layout options; empty for a document without a template yet. */
+	/** A document's layout options (every customer ticket the same); empty for a document without a template yet. */
 	public static List<Option> layout(TicketDocumentType type) {
-		return type == TicketDocumentType.SALE ? CUSTOMER_LAYOUT : Collections.emptyList();
+		return of(type).isEmpty() ? Collections.emptyList() : CUSTOMER_LAYOUT;
 	}
 
 	/** A section of a document by its code; null when unknown. */

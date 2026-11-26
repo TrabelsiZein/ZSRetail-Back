@@ -4,13 +4,15 @@ package com.digithink.zsretail.core.tickettemplate;
  * 3.5.0, ticket templates (docs/modules/ticket-templates.md): the documents a template is made for, one template row
  * each (ticket_template.document_type, written as its name). Step 2 makes the sale ticket's only ({@link #available});
  * the others are listed so that the page shows them as coming: steps 3 (the other customer tickets) and 4 (the internal
- * tickets).
+ * tickets). Step 3: the return voucher and the cash refund slip.
  */
 public enum TicketDocumentType {
 	/** The sale ticket, its split bill, its duplicate and the tombola slip under it. */
 	SALE(true),
-	RETURN_VOUCHER(false),
-	CASH_REFUND(false),
+	/** Step 3: the return voucher, its first print and its reprint. */
+	RETURN_VOUCHER(true),
+	/** Step 3: the cash refund slip. */
+	CASH_REFUND(true),
 	WARRANTY(false),
 	SESSION_REPORT(false),
 	STORE_REPORT(false),

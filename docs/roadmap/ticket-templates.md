@@ -182,7 +182,7 @@ still reads them, so switching back to `OLD` gives back exactly the old ticket.
 |---|---|---|
 | 1 | **Done 2026-11-26** (below). Builder + HTML renderer for the sale ticket and its duplicate, **tombola included**, behind the switch; same output as today (no table yet: the default only, reading today's settings) | back: the switch row and `GET /config`; front: the renderer |
 | 2 | **Done 2026-11-26** (below; `modules/ticket-templates.md`; **2b**, the template owning the whole ticket: below). Table, API and page "Modèles de tickets" with live preview, for the sale ticket: switches, order up / down, width, size, compact; new blocks off by default: unit price on the line, VAT by rate; `pos_machine.paper_width` | both |
-| 3 | Return voucher, voucher reprint, refund slip, warranty, and the tombola's own look; the old bugs, one Fixes line each | front mostly |
+| 3 | **Part 1 done 2026-11-26** (below): return voucher, voucher reprint, refund slip, the three reprint bugs, the document selector and "Copier depuis un autre document". Part 2: warranty and its duplicate, and the tombola slip's own look | front mostly |
 | 4 | Internal tickets (families B and C): width, size, compact, hide the rows at zero | front mostly |
 | 5 | Copies down from the head office (`DataDomain` + `ownership.<x>`, a `DownDomainProvider` calling `CopiesDownFeed.recordChange`, a store `DownHandler`, a copy DTO in `core.link.dto`); the store's page read-only when HEAD_OFFICE | both |
 
@@ -248,6 +248,9 @@ The old files stay untouched, so the new renderer carries **copies** of what it 
   `formatDiscountPercentage`, `formatDate`, `getLineTotalForDisplay`, `getLineDiscountDisplay`, `getVatPercent`,
   `totalDiscountDisplay`, `addressLines`, `thankYouLines`, `softwareLabels`, `receiptFooterNote`;
 - `ticket-styles.js`: `receiptPrintStyles.js` (the stylesheet and the print document), the same text.
+- step 3: `return-formats.js`: from `ReceiptTemplate.vue` the voucher / refund branches of `getLineTotalForDisplay` and
+  `getVatPercent`; from `ReturnProducts.vue` the data of `printVoucherReceipt` and `printCashRefundReceipt` (the
+  voucher's VAT in one function, used by its reprint too: the reprint's fixes).
 
 They exist only because the old code and the switch exist; they are removed **together with the old code and the
 switch**, in the same change (when Zein says so): the old originals go, and these copies lose their "COPY" header and
@@ -345,3 +348,34 @@ Left after step 2b:
 - On screen: part 2 (Zein restarts the store first: the catalogue changed).
 - The accountant's answer on the locks (address, unit price; an RNE field does not exist).
 - Steps 3 to 5.
+
+## Step 3, part 1 — done (2026-11-26)
+
+What it is now: `modules/ticket-templates.md`, "The return documents". Built:
+- The page's document list is a selector: the sale ticket, the return voucher, the cash refund slip (a document without a
+  template yet: "Bientôt"); one row per document type, no row = the default, "Réinitialiser" deletes the row. The same
+  four tabs; the layout, the logo and sizes and the texts are the same catalogue for every document, only the blocks
+  differ. A document's own sample in the preview (`SAMPLE_RETURN`: 2 items, the ticket's discount share, a voucher with
+  its number and validity date). Adding the warranty or the tombola slip: their `TicketDocumentType` available, their
+  list in `TicketBlocks` and in `sale-template.js` (`DOCUMENT_SECTIONS`), their builder, their sample.
+- The return voucher (its first print at the till and its reprint in Retours) and the cash refund slip on the new
+  renderer: one builder (`return-ticket.js`) for the three prints; the default template gives today's tickets (6
+  fixtures in `tools/ticket-render-check.mjs`, each with no template and with the default as a template).
+- The three old bugs of the voucher's reprint, fixed in the new printing only: its VAT is the first print's (one
+  calculation, `voucherTaxAmount`: the voucher's share of the lines' VAT; the old reprint printed the lines' VAT, e.g.
+  24.748 for 22.433), its cashier is the return's (`createdByUser`, not "System"), it prints DUPLICATA under the title.
+- "Copier depuis un autre document": the layout, the logo and sizes, the top text and the footer text of another
+  document (its saved template, else its default) copied into the form; not the blocks, not a document's own message
+  (the thank-you, the voucher's or the refund's message: they belong to their document); nothing saved until
+  "Enregistrer".
+- `RETURN_VOUCHER_VALIDITY_DAYS` stays a General setup feature setting (the date the voucher prints); the template only
+  prints it.
+
+Choices: the return documents have no VAT by rate (the back end sends none for a return; the line's VAT is locked
+there), no loyalty and no tombola (they never print one today); the voucher's payment block ("Return Voucher" and its
+reference, today's) is kept and can be switched off; its "Valide jusqu'au" prints twice today (info and footer): the
+footer's reminder is a switch (`VALIDITY`), the info row is locked. The refund slip has no reason row today: none was
+added (it would change today's slip); it can be a new element of part 2 if wanted.
+
+Left for part 2: the warranty and its duplicate (and the old bug "Total TVA : 0,000"), the tombola slip's own document
+and look (its page break, its border), their samples and fixtures; screen tests of part 1.

@@ -48,6 +48,13 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   EMAIL, PHONE, FAX); the customer code's option `passenger` SHOW / HIDE (`GET /ticket-templates` sends
   `passengerCode`); the tombola section's switch linked to `TOMBOLA_ENABLED` (no lock: a saved template decides). The
   old settings are never changed; the old printing keeps reading them. Docs: `docs/modules/ticket-templates.md`.
+- Ticket templates, step 3 part 1: the return voucher (`RETURN_VOUCHER`) and the cash refund slip (`CASH_REFUND`) have
+  their template: one row each, the same layout and options as the sale ticket, their own blocks in `TicketBlocks`
+  (the voucher: its number badge, original ticket, validity date, payments, barcode, its message and its validity
+  reminder; the refund: its number badge, original ticket, its message), their locked blocks refused off by the save
+  (the voucher's number, original ticket, date, validity date, barcode; the refund's number, original ticket, date;
+  both the store name, the lines, their VAT, Total TVA, the amount, MF; DUPLICATA on the voucher). `TicketBlockLabels`:
+  the documents and blocks named as the page names them ("Titre du document" for every document's title).
 
 ### DB script
 - `db/3.5.0/update.sql`: the version check and `APP_VERSION` 3.5.0; `TICKET_RENDERER` named in a comment only (the row
