@@ -148,6 +148,26 @@ pieces on top, counted by the new rule from the pieces it sends (buy 2 get 1: 3 
 none), and the stock stays right: the payment payload did not change (`quantity` = paid, `freeQuantity` = free). Reload
 the till's page after the upgrade.
 
+## Upgrade from 3.2.0 to 3.4.0: two scripts, in order
+
+A database at 3.2.0 (a store or a head office) is brought to 3.4.0 by the two scripts, one after the other, each
+followed by its version check, before the 3.4.0 WAR (`AppVersionGuard` refuses to start while `APP_VERSION` differs
+from the WAR's version):
+
+1. `core/src/main/resources/db/3.3.0/update.sql` (sqlcmd `-f 65001`; in SSMS open it as UTF-8). Then check:
+   `SELECT version FROM APP_VERSION` gives `3.3.0`. Read the PRINT lines: "Warranties exist: add warranty.enabled=true
+   to this store's file." and "Store orders exist: add storeorders.enabled=true to this store's file." name the lines
+   to add to the store's outside file (both pages are off by default from 3.3.0).
+2. `core/src/main/resources/db/3.4.0/update.sql`, the same way. Then check: `SELECT version FROM APP_VERSION` gives
+   `3.4.0`.
+3. Deploy the 3.4.0 WAR of the installation's type, and the 3.4.0 front.
+
+Each script stops, changing nothing, when the database is not at the version before it (3.3.0's needs 3.2.0 or 3.3.0,
+3.4.0's needs 3.3.0 or 3.4.0), and each may run again. An older database first runs the scripts of the versions in
+between, in order. A **new installation** (an empty database) runs no script: its tables are created at the first
+start, which also writes `APP_VERSION` (3.4.0). The Communication module (`communication.enabled`) and the event log
+(`eventlog.enabled`, a store only) stay off unless the outside file says `true`.
+
 ## Rollback from 2.3.0 to 2.2.2
 
 2.2.2 is the single WAR (`zsretailws.war`) and reads the outside file of 2.2.2. Stop Tomcat, then:

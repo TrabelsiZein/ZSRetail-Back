@@ -24,6 +24,14 @@ Checked again 2026-11-13 (3.2.0, step 7): the two payment rows above are still o
 cheque or voucher fail with no field to fill; the fix is the modal's fields (the payment page's method card) and the
 sale's payment path on the server, one step of its own.
 
+## A "Nouveautés" screen for the release notes (idea for a later version)
+
+Logged 2026-11-26, at the close of 3.4.0. `APP_RELEASE_NOTES` is written (the notes of each version by its
+`db/<version>/update.sql`, one `SETUP` row by the first start of a new database) but nothing reads it: no API serves it
+(`AppReleaseNoteRepository.findByVersionOrderByIdAsc` is never called) and no screen shows it. A "Nouveautés" screen
+would need an endpoint and a page. The lines of an optional module say "(option, activée sur demande)" (3.3.0
+Communication, 3.4.0 Journal des événements, 3.1.0 RFID); the screen could also hide them where the module is off.
+
 ## Item cost in the till's JSON
 
 Logged 2026-11-02. `Item.costPrice` (the CMP) has no `@JsonIgnore`: every item the till reads (search, the item of

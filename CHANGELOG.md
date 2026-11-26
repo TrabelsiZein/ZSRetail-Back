@@ -4,7 +4,7 @@ One section per product version, newest first. Every commit that changes behavio
 its line here, under the version of its branch. The screens are in `ZSRetail-Front/CHANGELOG.md`. The French notes shown
 in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql` from this file when a version is closed.
 
-## 3.4.0 — in progress (branch `release/3.4.0`, opened from `release/3.3.0` on 2026-11-23)
+## 3.4.0 — released 2026-11-26 (branch `release/3.4.0`, tag `v3.4.0`, opened from `release/3.3.0` on 2026-11-23)
 
 ### Before deployment
 - A database at 3.3.0: `db/3.4.0/update.sql`, then the 3.4.0 WAR (`AppVersionGuard`). The script stops, changing
@@ -109,6 +109,9 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   not a role pass) copied once into `event_log` as today's event, imported, without a number (`event_uuid`
   `badge-scan-<id>`; a scan that has its event is not copied). Re-runnable: a second run copies nothing.
 - `db/3.4.0/update.sql` step 6 (event log step 8): `event_log_sequence.cleaned_to` (0). Re-runnable.
+- Version closed: the French notes of 3.4.0 in `APP_RELEASE_NOTES` (`db/3.4.0/update.sql`, 4 lines) and of 3.3.0
+  (`db/3.3.0/update.sql`, 5 lines), written again on each run. No screen reads them yet (a "Nouveautés" screen is an
+  idea for later, `docs/roadmap/open-points.md`).
 
 ### Config
 - General setup (a store, created at the start): `EVENTLOG_STORE_FROM` (STEP), `EVENTLOG_KEEP_STEP_MONTHS` (3),
@@ -117,7 +120,7 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
   false; `true` on a head office stops the start. `GET /config` `eventLogEnabled`; startup summary "event log on".
   Commented in `configs/machine-model.properties`; the configuration keys record (keys 123).
 
-## 3.3.0 — in progress (branch `release/3.3.0`, opened from `release/3.2.0` on 2026-11-20)
+## 3.3.0 — released 2026-11-23 (branch `release/3.3.0`, opened from `release/3.2.0` on 2026-11-20)
 
 ### Before deployment
 - A database at 3.2.0: `db/3.3.0/update.sql`, then the 3.3.0 WAR (`AppVersionGuard`). The script stops, changing

@@ -1,5 +1,5 @@
 -- ============================================================
--- Version 3.4.0 (in progress) — event log ("Journal des événements"): event_log, event_log_sequence (step 1);
+-- Version 3.4.0 (released 2026-11-26) —event log ("Journal des événements"): event_log, event_log_sequence (step 1);
 -- event_log.install_id and doubt (step 4); occurred_at, badge_owner_*, group_key (step 6); the badge scans of before copied (step 7); event_log_sequence.cleaned_to (step 8)
 -- ============================================================
 -- Deployment order (a database at 3.3.0; CHANGELOG.md, 3.4.0, "Before deployment"):
@@ -211,7 +211,15 @@ GO
 
 UPDATE APP_VERSION SET version = '3.4.0';
 
--- The release notes of 3.4.0 are written from CHANGELOG.md when the version is closed (nothing to tell the users yet).
+-- The notes of 3.4.0 are written again on each run (the script may run more than once). Written from CHANGELOG.md when
+-- the version was closed (2026-11-26).
+DELETE FROM APP_RELEASE_NOTES WHERE version = '3.4.0';
+
+INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
+('3.4.0', 'NEW', N'Journal des événements (option, activée sur demande) : ce que font les utilisateurs en caisse et en administration (ventes, retours, remises, sessions de caisse, connexions, badges, changements de prix et de réglages), avec leurs noms et les montants, dans une page filtrable avec export Excel.'),
+('3.4.0', 'NEW', N'Journal des événements : la durée de conservation et le nettoyage de nuit se règlent dans la Configuration générale ; la page signale les événements manquants.'),
+('3.4.0', 'IMPROVE', N'Journal des événements : il reprend l''historique des scans de badge et remplace « Journal de scan badge » dans le menu Utilisateurs.'),
+('3.4.0', 'FIX', N'Utilisateurs : le code de badge et sa date d''expiration saisis à la création d''un utilisateur sont enregistrés.');
 
 GO
 

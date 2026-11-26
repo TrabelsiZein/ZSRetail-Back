@@ -1,5 +1,5 @@
 -- ============================================================
--- Version 3.3.0 (in progress) — communication module: comm_event, comm_message (step 1), comm_state (step 2), comm_template, comm_rule (step 3), comm_campaign (step 7), comm_channel_state (step 8a part 2), comm_message.send_ref (step 8b), WhatsApp columns (step 8c), the Vendor balance permission removed, the warranties and store orders notices (13 to 15)
+-- Version 3.3.0 (released 2026-11-23) —communication module: comm_event, comm_message (step 1), comm_state (step 2), comm_template, comm_rule (step 3), comm_campaign (step 7), comm_channel_state (step 8a part 2), comm_message.send_ref (step 8b), WhatsApp columns (step 8c), the Vendor balance permission removed, the warranties and store orders notices (13 to 15)
 -- ============================================================
 -- Deployment order (a database at 3.2.0; CHANGELOG.md, 3.3.0, "Before deployment"):
 --   1) Bring the database to 3.2.0 first (db/3.2.0/update.sql). This script stops, without changing anything, while
@@ -222,7 +222,16 @@ GO
 
 UPDATE APP_VERSION SET version = '3.3.0';
 
--- The release notes of 3.3.0 are written from CHANGELOG.md when the version is closed (nothing to tell the users yet).
+-- The notes of 3.3.0 are written again on each run (the script may run more than once). Written from CHANGELOG.md when
+-- the version was closed (2026-11-23).
+DELETE FROM APP_RELEASE_NOTES WHERE version = '3.3.0';
+
+INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
+('3.3.0', 'NEW', N'Communication (option, activée sur demande) : messages aux membres fidélité par e-mail, SMS ou WhatsApp, messages automatiques (bienvenue, remerciement) et campagnes, depuis la page Communication.'),
+('3.3.0', 'NEW', N'Communication : sur la fiche du membre fidélité, son accord pour recevoir des messages (non par défaut) ; seuls les membres qui ont accepté en reçoivent.'),
+('3.3.0', 'IMPROVE', N'Les pages Garanties et Commandes centrale deviennent des options, masquées par défaut et activées sur demande pour les magasins qui les utilisent.'),
+('3.3.0', 'IMPROVE', N'La page Balance fournisseurs est retirée, au magasin et au siège ; les fournisseurs, les achats et les factures d''achat ne changent pas.'),
+('3.3.0', 'FIX', N'Tableau de bord du magasin : les montants sont écrits comme dans le reste de l''application ; le bouton de langue nomme chaque langue dans sa propre langue.');
 
 GO
 
