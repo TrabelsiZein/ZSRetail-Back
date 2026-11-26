@@ -45,7 +45,7 @@ public class PosMachineAPI extends _BaseController<PosMachine, Long, PosMachineS
 		String address = PosMachineAddresses.normalise(request.getRemoteAddr());
 		return service.findByRequestAddress(address)
 				.map(machine -> new MyPosMachine(address, machine.getId(), machine.getName(),
-						Boolean.TRUE.equals(machine.getActive())))
+						Boolean.TRUE.equals(machine.getActive()), machine.getPaperWidth()))
 				.orElseGet(() -> new MyPosMachine(address, null, null, null));
 	}
 

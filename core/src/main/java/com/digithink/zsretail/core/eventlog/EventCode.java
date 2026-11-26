@@ -116,6 +116,10 @@ public enum EventCode {
 	LOYALTY_POINTS_ADJUSTED(EventSubject.LOYALTY, ALERT, "Points de fidélité ajustés"),
 	LOYALTY_PROGRAM_SAVED(EventSubject.LOYALTY, NOTABLE, "Programme de fidélité enregistré"),
 	LOYALTY_PROGRAM_DELETED(EventSubject.LOYALTY, NOTABLE, "Programme de fidélité supprimé"),
+	/** 3.5.0, ticket templates step 2: a template saved on "Modèles de tickets" (its values before → after). */
+	TICKET_TEMPLATE_SAVED(EventSubject.TICKET_TEMPLATE, NOTABLE, "Modèle de ticket enregistré"),
+	/** 3.5.0, ticket templates step 2: a template reset (its row deleted: the default prints again). */
+	TICKET_TEMPLATE_RESET(EventSubject.TICKET_TEMPLATE, NOTABLE, "Modèle de ticket réinitialisé"),
 
 	// ── Stock, inventory, purchases ──
 	STOCK_ADJUSTED(EventSubject.ITEM, ALERT, "Stock ajusté"),

@@ -335,3 +335,11 @@ Step 3: `StoreReportServiceTest` (`cashierUnchanged`: no group and no machine in
 `groupsAndSubtotals`: two machines and "—", each group's figures, the groups adding up to the store; `zOfOneMachine`,
 `xOfOneMachine` (closed today and open now, counted null); `machineWithoutSession`: the 404s; `excelPerMachine`: the sheet
 and its subtotal rows, the X today and the Z another day).
+
+## Paper width (3.5.0, ticket templates step 2)
+
+`pos_machine.paper_width` (int, nullable, `db/3.5.0/update.sql`): the width of the machine's ticket printer, 58 or 80;
+empty (every machine of before) = the ticket template's width. The page's field "Largeur du papier" (Celle du modèle de
+ticket / 58 mm / 80 mm) is sent with every save; another value is refused (`POS_MACHINE_PAPER_WIDTH`).
+`GET /pos-machine/my-machine` sends it as `paperWidth`; the till's print (new printing, `TICKET_RENDERER` = `NEW`) takes
+the width of the machine at the PC's address first. `modules/ticket-templates.md`.

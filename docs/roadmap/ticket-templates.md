@@ -181,7 +181,7 @@ still reads them, so switching back to `OLD` gives back exactly the old ticket.
 | # | What | Both repos? |
 |---|---|---|
 | 1 | **Done 2026-11-26** (below). Builder + HTML renderer for the sale ticket and its duplicate, **tombola included**, behind the switch; same output as today (no table yet: the default only, reading today's settings) | back: the switch row and `GET /config`; front: the renderer |
-| 2 | Table, API and page "Modèles de tickets" with live preview, for the sale ticket: switches, order up / down, width, size, compact; new blocks off by default: unit price on the line, VAT by rate; `pos_machine.paper_width` | both |
+| 2 | **Done 2026-11-26** (below; `modules/ticket-templates.md`). Table, API and page "Modèles de tickets" with live preview, for the sale ticket: switches, order up / down, width, size, compact; new blocks off by default: unit price on the line, VAT by rate; `pos_machine.paper_width` | both |
 | 3 | Return voucher, voucher reprint, refund slip, warranty, and the tombola's own look; the old bugs, one Fixes line each | front mostly |
 | 4 | Internal tickets (families B and C): width, size, compact, hide the rows at zero | front mostly |
 | 5 | Copies down from the head office (`DataDomain` + `ownership.<x>`, a `DownDomainProvider` calling `CopiesDownFeed.recordChange`, a store `DownHandler`, a copy DTO in `core.link.dto`); the store's page read-only when HEAD_OFFICE | both |
@@ -290,5 +290,30 @@ changes seen.
 
 ### Left after step 1
 
-- On screen: the barcode of each renderer compared in Chrome (a sale, a duplicate, a sale with the tombola).
+- On screen: the barcode of each renderer compared in Chrome: done by Zein, 2026-11-26 (a sale, three duplicates, the same).
 - Steps 2 to 5 (table above); no paper test is possible here (no ticket printer).
+
+## Step 2 — done (2026-11-26)
+
+What it is now: `modules/ticket-templates.md`. Decisions taken with Zein before coding:
+- **Two levels**: sections move (the header always first, the tombola always last), elements inside are switches.
+- **Unit price** on the line: a new element, off by default; **VAT by rate**: a new section, off by default, the
+  breakdown sent by the back end with the sale (the tickets X / Z's spread, the millime to the largest rate).
+- **The line's VAT** is not fully locked: off only while "TVA par taux" is on (the back end refuses both off); Total
+  TVA and TOTAL stay locked.
+- One template for the sale ticket, its split bill, its duplicate and the tombola slip.
+- The width of the **POS machine at this PC's address** wins over the template's (the printer belongs to the PC); a
+  reprint on a registered PC takes it too.
+- `GET /ticket-templates` open to any logged user (the till prints with it); the writes check
+  `write:admin-ticket-templates`; the page `read:admin-ticket-templates`.
+- The page in the user menu after "Informations société"; a blue line on Company Information and General setup once a
+  template is saved.
+- `db/3.5.0/update.sql` run on `pos_franchise_customer` (Zein's Eclipse Happyness store) before the entity existed,
+  so Hibernate never made the table its own way.
+- The table in core (both applications have it, for step 5); the API in the store (the page is a store's until step 5).
+
+Left after step 2:
+- On screen with the back end: the page, a save, a reset, a print with a template (Zein restarts the store first: the
+  new table's entity, the API, the rights).
+- The accountant's answer on the locks (address, unit price; an RNE field does not exist).
+- Steps 3 to 5.

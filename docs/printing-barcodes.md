@@ -3,7 +3,9 @@
 - Barcode shown on printed sales receipts, returns vouchers, and duplicate ticket prints by rendering `ReceiptTemplate` + `JsBarcode`.
 - 3.5.0: with the General Setup setting `TICKET_RENDERER` on `NEW`, the sale ticket (and its split bill), its duplicate
   and the tombola slip print through the ticket templates' renderer (`src/libs/ticket`), the same ticket; `OLD`, the
-  default, keeps `ReceiptTemplate`. `roadmap/ticket-templates.md`, "Step 1 — done".
+  default, keeps `ReceiptTemplate`. `roadmap/ticket-templates.md`, "Step 1 — done". Step 2: they follow the sale
+  ticket's template ("Modèles de tickets": blocks, width 58 / 80, size, compact, the POS machine's width first);
+  `modules/ticket-templates.md`.
 - Cash refund slip (3.1.0, test log I-56): a return refunded in cash (`SIMPLE_RETURN`) prints
   `ReturnProducts.printCashRefundReceipt`, `ReceiptTemplate` with the prop `isRefund`: the voucher's layout without its
   voucher parts and without a barcode ("REMBOURSEMENT", return number, original ticket, date, cashier, returned lines

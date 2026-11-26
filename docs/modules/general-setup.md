@@ -86,6 +86,10 @@ untouched; `NEW` prints the tickets that already have their builder through the 
 1: the sale ticket, its split bill and its duplicate, the tombola slip; the others stay on the old code). Sent by
 `GET /config` as `ticketRenderer` (`NEW` in any case, else `OLD`; null on a head office), read through the getter
 `appConfig/newTicketRenderer`. `roadmap/ticket-templates.md`, "Step 1 — done". Test: `AppConfigAPITest#ticketRenderer`.
+Step 2: the templates themselves are not General setup settings (the table `ticket_template`, `modules/ticket-templates.md`);
+`TICKET_RENDERER` stays the only line. Once a sale ticket template is saved, the tab "Programme de fidélité" says above
+`TICKET_SHOW_LOYALTY_BALANCE` / `_EARNED` that the template decides them for the new printing (their values are kept and
+still read by the old printing).
 
 ## The cash drawer belongs to (3.2.0)
 

@@ -116,6 +116,7 @@ final class AdminLabels {
 		r.put("read:admin-sessions-history", "Sessions et écarts de caisse");
 		r.put("read:admin-statistics", "Statistiques");
 		r.put("read:admin-store-orders", "Commandes centrale (consulter)");
+		r.put("read:admin-ticket-templates", "Modèles de tickets (consulter)");
 		r.put("read:admin-users", "Utilisateurs (lecture)");
 		r.put("read:admin-vendors", "Fournisseurs (lecture)");
 		r.put("read:admin-warranty", "Garanties (lecture)");
@@ -143,6 +144,7 @@ final class AdminLabels {
 		r.put("write:admin-payment-methods", "Modes de paiement (modifier)");
 		r.put("write:admin-roles", "Rôles (modifier)");
 		r.put("write:admin-store-orders", "Commandes centrale (commander, envoyer)");
+		r.put("write:admin-ticket-templates", "Modèles de tickets (modifier)");
 		r.put("write:admin-users", "Utilisateurs (modifier)");
 		r.put("write:admin-vendors", "Fournisseurs (modifier)");
 		r.put("write:admin-warranty", "Garanties (modifier)");

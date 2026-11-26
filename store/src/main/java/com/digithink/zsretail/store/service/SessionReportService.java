@@ -310,6 +310,40 @@ public class SessionReportService {
 	}
 
 	/**
+	 * 3.5.0, ticket templates step 2: one ticket's VAT by rate, as the block "TVA par taux" prints it (the sale responses,
+	 * the duplicate's details): the tickets X / Z's spread ({@link #addTicketTtcByRate}, {@link #vatLines}), the fiscal
+	 * stamp left out. On a ticket without a ticket-wide reduction the header's VAT is the till's (the lines' VAT rounded
+	 * one by one): when the spread differs from it by at most a millime per line, the difference goes to the largest rate
+	 * (a VAT rate above 0 when there is one; its HT the other way), so the rates add up to the printed "Total TVA". Empty
+	 * for a ticket without lines.
+	 */
+	public static List<VatLine> ticketVatLines(SalesHeader sale, List<SalesLine> lines) {
+		if (sale == null || lines == null || lines.isEmpty()) {
+			return new ArrayList<>();
+		}
+		Map<Integer, Double> ttcByRate = new TreeMap<>();
+		double[] totalAndStamp = addTicketTtcByRate(sale, lines, ttcByRate);
+		List<VatLine> result = vatLines(ttcByRate, bd(totalAndStamp[0]).subtract(bd(totalAndStamp[1])));
+		if (sale.getTaxAmount() == null || result.isEmpty()) {
+			return result;
+		}
+		BigDecimal spread = result.stream().map(line -> bd(line.getVatAmount())).reduce(BigDecimal.ZERO, BigDecimal::add);
+		BigDecimal difference = bd(sale.getTaxAmount()).subtract(spread);
+		BigDecimal allowed = new BigDecimal("0.001").multiply(BigDecimal.valueOf(Math.max(1, lines.size())));
+		if (difference.signum() == 0 || difference.abs().compareTo(allowed) > 0) {
+			return result;
+		}
+		VatLine largest = result.stream().filter(line -> line.getRate() > 0)
+				.max(Comparator.comparing(line -> Math.abs(line.getTotalTTC())))
+				.orElse(null);
+		if (largest != null) {
+			largest.setVatAmount(bd(largest.getVatAmount()).add(difference).doubleValue());
+			largest.setBaseHT(bd(largest.getBaseHT()).subtract(difference).doubleValue());
+		}
+		return result;
+	}
+
+	/**
 	 * The VAT lines, their TTC rounded to the millime and adding up to goodsTtc exactly (the rounding remainder goes to
 	 * the largest rate); HT = TTC / (1 + rate) to the millime, VAT = TTC - HT.
 	 */

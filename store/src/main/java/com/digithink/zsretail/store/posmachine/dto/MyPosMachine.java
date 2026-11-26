@@ -22,4 +22,11 @@ public class MyPosMachine {
 
 	/** Whether that machine is active; null when none. */
 	private Boolean posMachineActive;
+
+	/** 3.5.0, ticket templates step 2: its printer's paper width (58 / 80); null when none or not set (the template's). */
+	private Integer paperWidth;
+
+	public MyPosMachine(String address, Long posMachineId, String posMachineName, Boolean posMachineActive) {
+		this(address, posMachineId, posMachineName, posMachineActive, null);
+	}
 }

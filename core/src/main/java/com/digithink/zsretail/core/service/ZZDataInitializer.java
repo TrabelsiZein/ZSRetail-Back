@@ -209,6 +209,7 @@ public class ZZDataInitializer {
 			wanted.addAll(SCANNED_TICKETS_ADMIN_PERMISSIONS); // 3.2.0, step 7: the scanned tickets taken
 			wanted.addAll(POS_MACHINES_ADMIN_PERMISSIONS); // 3.2.0: the POS machines page, RFID or not
 			wanted.addAll(EVENT_LOG_ADMIN_PERMISSIONS); // 3.4.0, event log step 6: the Journal page
+			wanted.addAll(TICKET_TEMPLATE_ADMIN_PERMISSIONS); // 3.5.0, ticket templates step 2: "Modèles de tickets"
 			wanted.addAll(CASH_MOVEMENT_PERMISSIONS); // 3.2.0, POS machines step 5: the cash movements at the till
 			// 3.1.1: the "Head office" pages (Jobs, Communications, Data exchanged) on a store linked after its database was
 			// created (its ADMIN role was made without them)
@@ -293,6 +294,7 @@ public class ZZDataInitializer {
 		permissions.addAll(CASH_MOVEMENT_PERMISSIONS); // 3.2.0, POS machines step 5
 		permissions.addAll(POS_MACHINES_ADMIN_PERMISSIONS); // 3.2.0: the POS machines page, RFID or not
 		permissions.addAll(EVENT_LOG_ADMIN_PERMISSIONS); // 3.4.0, event log step 6: the Journal page
+		permissions.addAll(TICKET_TEMPLATE_ADMIN_PERMISSIONS); // 3.5.0, ticket templates step 2: "Modèles de tickets"
 		if (!applicationModeService.isSupplyFromErp()) {
 			permissions.addAll(INVENTORY_ADMIN_PERMISSIONS);
 		}
@@ -475,6 +477,17 @@ public class ZZDataInitializer {
 	static final Set<String> EVENT_LOG_ADMIN_PERMISSIONS = new HashSet<>(
 			Arrays.asList(com.digithink.zsretail.core.eventlog.service.EventLog.PAGE_PERMISSION,
 					com.digithink.zsretail.core.eventlog.service.EventLog.CLEANUP_PERMISSION)); // step 8: the cleanup
+
+	/**
+	 * 3.5.0, ticket templates step 2: the page "Modèles de tickets" (read) and its save and reset, the key the API checks
+	 * (store.tickettemplate.TicketTemplateAPI). Every store: in ADMIN's set of a new store database, given to ADMIN at
+	 * every start of a store (a database of before gets them once). Never on a head office (no page there before step 5).
+	 * Other roles: the Roles page.
+	 */
+	public static final String TICKET_TEMPLATES_READ_PERMISSION = "read:admin-ticket-templates";
+	public static final String TICKET_TEMPLATES_WRITE_PERMISSION = "write:admin-ticket-templates";
+	static final Set<String> TICKET_TEMPLATE_ADMIN_PERMISSIONS = new HashSet<>(
+			Arrays.asList(TICKET_TEMPLATES_READ_PERMISSION, TICKET_TEMPLATES_WRITE_PERMISSION));
 
 	static final Set<String> POS_MACHINES_ADMIN_PERMISSIONS = new HashSet<>(
 			Arrays.asList("read:admin-rfid-pos-machines"));

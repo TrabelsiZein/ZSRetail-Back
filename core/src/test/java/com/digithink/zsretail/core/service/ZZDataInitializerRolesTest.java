@@ -141,6 +141,7 @@ class ZZDataInitializerRolesTest {
 		expected.add(CASH_MOVEMENT); // 3.2.0, POS machines step 5
 		expected.addAll(POS_MACHINES); // 3.2.0: the POS machines page, every store
 		expected.addAll(EVENT_LOG); // 3.4.0, event log step 6: the Journal page, every store
+		expected.addAll(TICKET_TEMPLATES); // 3.5.0, ticket templates step 2: the page, every store
 		if (standalone) {
 			expected.addAll(INVENTORY);
 			expected.addAll(COST); // CMP: "Ajuster le CMP", the stock is kept here
@@ -374,6 +375,9 @@ class ZZDataInitializerRolesTest {
 	/** 3.4.0, event log step 6: the Journal page, ADMIN of every store (module on or off), never a head office. */
 	private static final Set<String> EVENT_LOG = new HashSet<>(java.util.Arrays.asList("read:admin-event-log",
 			"delete:admin-event-log")); // step 8: the cleanup button
+	/** 3.5.0, ticket templates step 2: the page "Modèles de tickets" and its save, every store. */
+	private static final Set<String> TICKET_TEMPLATES = new HashSet<>(java.util.Arrays.asList("read:admin-ticket-templates",
+			"write:admin-ticket-templates"));
 
 	@Test
 	@DisplayName("Licence page: ADMIN of a new store has it, and of a new head office the head office one; a store and a head office"
@@ -393,6 +397,7 @@ class ZZDataInitializerRolesTest {
 		before.addAll(SCANNED_TICKETS);
 		before.addAll(POS_MACHINES);
 		before.addAll(EVENT_LOG); // 3.4.0, event log step 6: the Journal page, every store
+		before.addAll(TICKET_TEMPLATES); // 3.5.0, ticket templates step 2: the page, every store
 		before.add(CASH_MOVEMENT); // 3.2.0, step 5: given to ADMIN at each start
 		assertEquals(before, store.get("ADMIN").getPermissions());
 
@@ -513,6 +518,7 @@ class ZZDataInitializerRolesTest {
 		rfidStore.get("ADMIN").getPermissions().addAll(RFID);
 		rfidStore.get("ADMIN").getPermissions().addAll(POS_MACHINES);
 		rfidStore.get("ADMIN").getPermissions().addAll(EVENT_LOG); // 3.4.0, event log step 6: the Journal page, every store
+		rfidStore.get("ADMIN").getPermissions().addAll(TICKET_TEMPLATES); // 3.5.0, ticket templates step 2: the page, every store
 		rfidStore.get("ADMIN").getPermissions().add(CASH_MOVEMENT); // 3.2.0, step 5: given to ADMIN at each start
 		List<String> saves = new ArrayList<>();
 		seedRoles(new MockEnvironment().withProperty("rfid.enabled", "true"), false, rfidStore, saves);
@@ -539,6 +545,25 @@ class ZZDataInitializerRolesTest {
 		seedRoles(new MockEnvironment(), false, storeBefore, new ArrayList<>());
 		assertTrue(storeBefore.get("ADMIN").getPermissions().containsAll(EVENT_LOG), "a store of before, at its start");
 		assertTrue(Collections.disjoint(EVENT_LOG, storeBefore.get("RESPONSIBLE").getPermissions()));
+	}
+
+	@Test
+	@DisplayName("3.5.0, ticket templates step 2: ADMIN of every new store has the page and its save; a store of before gets"
+			+ " them at its start, once; never on a head office, never in RESPONSIBLE or POS_USER")
+	void ticketTemplatesGivenToAdmin() throws Exception {
+		assertEquals(TICKET_TEMPLATES, staticSet("TICKET_TEMPLATE_ADMIN_PERMISSIONS"));
+		for (boolean[] flags : STORE_PROFILES) {
+			Map<String, AppRole> roles = seedRoles(new MockEnvironment(), flags[0], Collections.emptyMap());
+			assertTrue(roles.get("ADMIN").getPermissions().containsAll(TICKET_TEMPLATES), "new store");
+			assertTrue(Collections.disjoint(TICKET_TEMPLATES, roles.get("RESPONSIBLE").getPermissions()));
+			assertTrue(Collections.disjoint(TICKET_TEMPLATES, roles.get("POS_USER").getPermissions()));
+		}
+		assertTrue(Collections.disjoint(TICKET_TEMPLATES, seedRoles(headOffice(), false, Collections.emptyMap()).get("ADMIN")
+				.getPermissions()), "new head office");
+		Map<String, AppRole> storeBefore = existingRoles("read:home", LICENSE);
+		seedRoles(new MockEnvironment(), false, storeBefore, new ArrayList<>());
+		assertTrue(storeBefore.get("ADMIN").getPermissions().containsAll(TICKET_TEMPLATES), "a store of before, at its start");
+		assertTrue(Collections.disjoint(TICKET_TEMPLATES, storeBefore.get("RESPONSIBLE").getPermissions()));
 	}
 
 	@Test
@@ -569,6 +594,7 @@ class ZZDataInitializerRolesTest {
 		expected.addAll(SCANNED_TICKETS);
 		expected.addAll(POS_MACHINES);
 		expected.addAll(EVENT_LOG); // 3.4.0, event log step 6: the Journal page, every store
+		expected.addAll(TICKET_TEMPLATES); // 3.5.0, ticket templates step 2: the page, every store
 		expected.add(CASH_MOVEMENT); // 3.2.0, step 5: given to ADMIN at each start
 		expected.addAll(RFID);
 		assertEquals(expected, existing.get("ADMIN").getPermissions());
@@ -582,6 +608,7 @@ class ZZDataInitializerRolesTest {
 		offStore.get("ADMIN").getPermissions().addAll(SCANNED_TICKETS);
 		offStore.get("ADMIN").getPermissions().addAll(POS_MACHINES);
 		offStore.get("ADMIN").getPermissions().addAll(EVENT_LOG); // 3.4.0, event log step 6: the Journal page, every store
+		offStore.get("ADMIN").getPermissions().addAll(TICKET_TEMPLATES); // 3.5.0, ticket templates step 2: the page, every store
 		offStore.get("ADMIN").getPermissions().add(CASH_MOVEMENT); // 3.2.0, step 5: given to ADMIN at each start
 		List<String> offSaves = new ArrayList<>();
 		seedRoles(new MockEnvironment(), false, offStore, offSaves);
@@ -614,6 +641,7 @@ class ZZDataInitializerRolesTest {
 				expected.addAll(SCANNED_TICKETS);
 				expected.addAll(POS_MACHINES);
 				expected.addAll(EVENT_LOG); // 3.4.0, event log step 6: the Journal page, every store
+				expected.addAll(TICKET_TEMPLATES); // 3.5.0, ticket templates step 2: the page, every store
 				expected.add(CASH_MOVEMENT); // 3.2.0, step 5: given to ADMIN at each start
 				if (flags[0]) {
 					expected.addAll(INVENTORY);
@@ -666,6 +694,7 @@ class ZZDataInitializerRolesTest {
 		toppedUp.addAll(SCANNED_TICKETS);
 		toppedUp.addAll(POS_MACHINES);
 		toppedUp.addAll(EVENT_LOG); // 3.4.0, event log step 6: the Journal page, every store
+		toppedUp.addAll(TICKET_TEMPLATES); // 3.5.0, ticket templates step 2: the page, every store
 		toppedUp.add(CASH_MOVEMENT); // 3.2.0, step 5: given to ADMIN at each start
 		toppedUp.addAll(INVENTORY);
 		toppedUp.addAll(COST);

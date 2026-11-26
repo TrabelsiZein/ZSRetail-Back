@@ -34,6 +34,8 @@ public enum EventSubject {
 	PAYMENT_METHOD,
 	/** Step 9: a loyalty member's points or a loyalty program. */
 	LOYALTY,
+	/** 3.5.0, ticket templates step 2: a document's template, identified by the document type (SALE). */
+	TICKET_TEMPLATE,
 	/** The event log itself: its start, its settings, its cleanups. */
 	EVENT_LOG
 }

@@ -6,21 +6,42 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 
 ## 3.5.0 — in progress (branch `release/3.5.0`, opened from `release/3.4.0` on 2026-11-26)
 
-Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.md`; step 1 done.
+Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.md`; steps 1 and 2 done
+(`docs/modules/ticket-templates.md`).
 
 ### Before deployment
 - A database at 3.4.0: `db/3.5.0/update.sql`, then the 3.5.0 WAR (`AppVersionGuard`). The script stops, changing
   nothing, while APP_VERSION is not 3.4.0 or 3.5.0; it may run again. Same script on a store and a head office.
+- Run the script **before** the first start of the 3.5.0 WAR: it creates `ticket_template` and
+  `pos_machine.paper_width` in their own form (Hibernate's `ddl-auto=update` would otherwise create them first).
 
 ### Features
 - Ticket templates, step 1: the store setting `TICKET_RENDERER` (General Setup, "Caisse et clôture", `OLD` / `NEW`,
   `OLD` by default: the print code of before, untouched), created at start-up on a store, sent by `GET /config` as
   `ticketRenderer` (`NEW` in any case, else `OLD`; null on a head office). Its label in the event log (`AdminLabels`).
   `docs/modules/general-setup.md`, "Ticket printing".
+- Ticket templates, step 2 (`docs/modules/ticket-templates.md`): the templates of the documents (core:
+  `TicketTemplate`, `TicketBlocks` the block catalogue with its locks, `TicketTemplateService`), the sale ticket's only
+  for now. `GET /ticket-templates` (any logged user), `PUT` / `DELETE /ticket-templates/{type}` (save, reset; the right
+  `write:admin-ticket-templates`), store only (`TicketTemplateAPI`). A save is checked: a locked block switched off, the
+  line's VAT off without "TVA par taux", an unknown code, a width other than 58 / 80, an unknown size are refused with
+  their code. No row = the default, today's ticket, its linked switches read from Company Information and General setup
+  as the old code reads them (never changed).
+- The rights `read:admin-ticket-templates` and `write:admin-ticket-templates` (store), given to ADMIN on a new store
+  and at every start of a store; their labels in `AdminLabels`.
+- Event log: `TICKET_TEMPLATE_SAVED` and `TICKET_TEMPLATE_RESET` (Notable, subject `TICKET_TEMPLATE`), the values
+  before → after, with the French names of the page (`TicketBlockLabels`).
+- The VAT by rate of a ticket in the sale responses (`vatLines`: `process-sale`, `complete-pending`, `split-and-pay`,
+  `details`), the tickets X / Z's spread; a difference of a millime per line with the till's VAT goes to the largest
+  rate (`SessionReportService.ticketVatLines`).
+- POS machines: the printer's paper width (`paperWidth`, 58 / 80 / empty = the template's), checked
+  (`POS_MACHINE_PAPER_WIDTH`), sent by `GET /pos-machine/my-machine`.
 
 ### DB script
 - `db/3.5.0/update.sql`: the version check and `APP_VERSION` 3.5.0; `TICKET_RENDERER` named in a comment only (the row
   is created at start-up, as every General Setup setting).
+- Step 2: the table `ticket_template` (store and head office; unique `document_type`) and the column
+  `pos_machine.paper_width` (store, nullable), each guarded; no data written.
 
 ## 3.4.0 — released 2026-11-26 (branch `release/3.4.0`, tag `v3.4.0`, opened from `release/3.3.0` on 2026-11-23)
 

@@ -71,6 +71,13 @@ public class PosMachine extends _BaseEntity {
 	@Column(name = "user_account_id", nullable = false)
 	private Set<Long> allowedUserIds;
 
+	/**
+	 * 3.5.0, ticket templates step 2: the paper width of the machine's ticket printer, 58 or 80 (mm); null (every machine
+	 * of before) = the width of the ticket template. The till prints with it (GET /pos-machine/my-machine).
+	 */
+	@Column(name = "paper_width")
+	private Integer paperWidth;
+
 	/** "Seulement": the list applies (null reads as "Tous"). */
 	public boolean restrictsUsers() {
 		return Boolean.TRUE.equals(usersRestricted);

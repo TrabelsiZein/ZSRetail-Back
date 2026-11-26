@@ -28,6 +28,7 @@ import com.digithink.zsretail.store.dto.ProcessSaleRequestDTO;
 import com.digithink.zsretail.store.dto.SplitBillRequestDTO;
 import com.digithink.zsretail.store.exception.TillRightRequiredException;
 import com.digithink.zsretail.store.service.SalesHeaderService;
+import com.digithink.zsretail.store.service.SessionReportService;
 import com.digithink.zsretail.store.service.TicketsHistoryExport;
 import com.digithink.zsretail.store.posmachine.service.SessionPosMachineService;
 
@@ -166,6 +167,8 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			saleResponse.put("loyaltyDeductionAmount", salesHeader.getLoyaltyDeductionAmount());
 			saleResponse.put("showLoyaltyBalance", getLoyaltyConfigFlag("TICKET_SHOW_LOYALTY_BALANCE"));
 			saleResponse.put("showLoyaltyEarned", getLoyaltyConfigFlag("TICKET_SHOW_LOYALTY_EARNED"));
+			// 3.5.0, ticket templates step 2: the VAT by rate, for the block "TVA par taux"
+			saleResponse.put("vatLines", SessionReportService.ticketVatLines(salesHeader, salesLines));
 
 			return ResponseEntity.ok(saleResponse);
 
@@ -479,6 +482,8 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			saleResponse.put("loyaltyDeductionAmount", salesHeader.getLoyaltyDeductionAmount());
 			saleResponse.put("showLoyaltyBalance", getLoyaltyConfigFlag("TICKET_SHOW_LOYALTY_BALANCE"));
 			saleResponse.put("showLoyaltyEarned", getLoyaltyConfigFlag("TICKET_SHOW_LOYALTY_EARNED"));
+			// 3.5.0, ticket templates step 2: the VAT by rate, for the block "TVA par taux"
+			saleResponse.put("vatLines", SessionReportService.ticketVatLines(salesHeader, salesLines));
 
 			return ResponseEntity.ok(saleResponse);
 
@@ -552,6 +557,8 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			response.put("customer", splitSale.getCustomer());
 			java.util.List<SalesLine> lines = salesLineRepository.findBySalesHeader(splitSale);
 			response.put("salesLines", lines);
+			// 3.5.0, ticket templates step 2: the VAT by rate, for the block "TVA par taux" of the split bill
+			response.put("vatLines", SessionReportService.ticketVatLines(splitSale, lines));
 			return ResponseEntity.ok(response);
 		} catch (IllegalStateException e) {
 			log.warn("SalesHeaderAPI::splitAndPay:conflict: " + e.getMessage());
@@ -784,6 +791,8 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			ticketMap.put("loyaltyMember", ticket.getLoyaltyMember());
 			ticketMap.put("showLoyaltyBalance", getLoyaltyConfigFlag("TICKET_SHOW_LOYALTY_BALANCE"));
 			ticketMap.put("showLoyaltyEarned", getLoyaltyConfigFlag("TICKET_SHOW_LOYALTY_EARNED"));
+			// 3.5.0, ticket templates step 2: the VAT by rate, for the block "TVA par taux" of the duplicate
+			ticketMap.put("vatLines", SessionReportService.ticketVatLines(ticket, salesLines));
 			// 3.1.2: the unit cost frozen on each line, by line id, only for a user with the margins right
 			if (currentUserProvider != null && currentUserProvider.currentUserHasPermission(MARGINS_PERMISSION)) {
 				ticketMap.put("lineCosts", lineCosts(salesLines));

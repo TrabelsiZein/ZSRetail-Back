@@ -12,6 +12,7 @@ import com.digithink.zsretail.core.model.enumeration.SessionStatus;
 import com.digithink.zsretail.core.repository.UserAccountRepository;
 import com.digithink.zsretail.core.repository._BaseRepository;
 import com.digithink.zsretail.core.service._BaseService;
+import com.digithink.zsretail.core.tickettemplate.service.TicketTemplateService;
 import com.digithink.zsretail.store.posmachine.PosMachineException;
 import com.digithink.zsretail.store.posmachine.PosMachineException.Reason;
 import com.digithink.zsretail.store.posmachine.model.PosMachine;
@@ -128,6 +129,12 @@ public class PosMachineService extends _BaseService<PosMachine, Long> {
 		}
 		if (machine.getActive() == null) {
 			machine.setActive(true);
+		}
+		// 3.5.0, ticket templates step 2: the printer's width, 58 or 80, or none (the template's)
+		if (machine.getPaperWidth() != null && !TicketTemplateService.PAPER_WIDTHS.contains(machine.getPaperWidth())) {
+			throw new PosMachineException(Reason.INVALID, "POS_MACHINE_PAPER_WIDTH",
+					"The paper width of a POS machine is 58 or 80 (or empty: the ticket template's).", "width",
+					machine.getPaperWidth());
 		}
 		checkUsers(machine);
 		// Part B, rule 5: the drawer of the POS machine, a machine with an open session stays active (its address can be

@@ -462,6 +462,25 @@ public class AdminEvents implements GeneralSetupChangeListener {
 				describe(p), "Mode de paiement " + text(p.getCode())));
 	}
 
+	// ─── Ticket templates (3.5.0) ────────────────────────────────────
+
+	/**
+	 * A document's template saved on "Modèles de tickets" ({@code before} empty: its first save); the values that changed,
+	 * nothing when none did. TicketTemplateService.describe gives the values.
+	 */
+	public void ticketTemplateSaved(String type, String label, Map<String, String> before, Map<String, String> after) {
+		run("TICKET_TEMPLATE_SAVED", () -> saved(EventCode.TICKET_TEMPLATE_SAVED, type, "Modèle « " + label + " »", before,
+				after, "Modèle de ticket « " + label + " »"));
+	}
+
+	/** A document's template reset: its row deleted, the default prints again; its values of before. */
+	public void ticketTemplateReset(String type, String label, Map<String, String> before) {
+		run("TICKET_TEMPLATE_RESET", () -> eventLog.write(NewEvent.of(EventCode.TICKET_TEMPLATE_RESET)
+				.subject(type, "Modèle « " + label + " »").details("Modèle de ticket « " + label
+						+ " » réinitialisé (le modèle par défaut s'imprime) ; il était : " + String.join(" ; ", values(before))
+						+ ".")));
+	}
+
 	/** Points given or taken by hand on a loyalty member's account (money: an Alert). */
 	public void loyaltyPointsAdjusted(Object memberId, String memberLabel, Number before, Number after, String reason) {
 		if (Objects.equals(before == null ? null : before.doubleValue(), after == null ? null : after.doubleValue())) {

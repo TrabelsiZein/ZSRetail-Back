@@ -132,6 +132,22 @@ class PosMachineServiceTest {
 	}
 
 	@Test
+	@DisplayName("3.5.0, ticket templates step 2: the printer's paper width, 58, 80 or none (the template's); any other"
+			+ " refused with its code")
+	void paperWidth() throws Exception {
+		PosMachine none = rfid.machineService.save(machine("PC caisse 1", "192.168.1.11", null));
+		assertNull(none.getPaperWidth(), "a machine of before: the template's width");
+		PosMachine narrow = machine("PC caisse 2", "192.168.1.12", null);
+		narrow.setPaperWidth(58);
+		assertEquals(58, rfid.machineService.save(narrow).getPaperWidth());
+		PosMachine wrong = machine("PC caisse 3", "192.168.1.13", null);
+		wrong.setPaperWidth(76);
+		PosMachineException refused = assertThrows(PosMachineException.class, () -> rfid.machineService.save(wrong));
+		assertEquals("POS_MACHINE_PAPER_WIDTH", refused.getCode());
+		assertEquals(76, refused.getParams().get("width"));
+	}
+
+	@Test
 	@DisplayName("Step 2: a machine a session was opened on cannot be deleted (deactivate it); one without sessions can")
 	void deleteWithSessions() {
 		PosMachine used = rfid.machine("PC caisse 1", "192.168.1.11", null);

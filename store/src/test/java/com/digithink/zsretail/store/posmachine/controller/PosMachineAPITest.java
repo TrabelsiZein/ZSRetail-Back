@@ -146,12 +146,18 @@ class PosMachineAPITest {
 				.andExpect(jsonPath("$.address").value("192.168.1.11"))
 				.andExpect(jsonPath("$.posMachineId").value(lan.getId()))
 				.andExpect(jsonPath("$.posMachineName").value("PC caisse 1"))
-				.andExpect(jsonPath("$.posMachineActive").value(true));
+				.andExpect(jsonPath("$.posMachineActive").value(true))
+				.andExpect(jsonPath("$.paperWidth").isEmpty());
 		mvc.perform(from("0:0:0:0:0:0:0:1", get("/pos-machine/my-machine"))).andExpect(status().isOk())
 				.andExpect(jsonPath("$.address").value("127.0.0.1"))
 				.andExpect(jsonPath("$.posMachineId").isEmpty())
 				.andExpect(jsonPath("$.posMachineName").isEmpty())
-				.andExpect(jsonPath("$.posMachineActive").isEmpty());
+				.andExpect(jsonPath("$.posMachineActive").isEmpty())
+				.andExpect(jsonPath("$.paperWidth").isEmpty());
+		// 3.5.0, ticket templates step 2: the machine's printer width, for the till's print
+		lan.setPaperWidth(58);
+		mvc.perform(from("192.168.1.11", get("/pos-machine/my-machine"))).andExpect(status().isOk())
+				.andExpect(jsonPath("$.paperWidth").value(58));
 	}
 
 	@Test
