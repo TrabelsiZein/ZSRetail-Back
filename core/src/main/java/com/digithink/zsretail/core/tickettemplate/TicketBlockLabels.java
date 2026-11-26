@@ -25,6 +25,8 @@ public final class TicketBlockLabels {
 		l.put("INFO.DATE", "Date et heure");
 		l.put("INFO.CASHIER", "Caissier");
 		l.put("INFO.CUSTOMER_CODE", "Code client");
+		l.put("TOP_TEXT", "Texte d'en-tête");
+		l.put("TOP_TEXT.TEXT", "Lignes");
 		l.put("ITEMS", "Articles");
 		l.put("ITEMS.LINES", "Lignes");
 		l.put("ITEMS.ITEM_CODE", "Code article");
@@ -47,7 +49,10 @@ public final class TicketBlockLabels {
 		l.put("BARCODE", "Code-barres");
 		l.put("FOOTER", "Pied du ticket");
 		l.put("FOOTER.THANK_YOU", "Remerciement");
-		l.put("FOOTER.CONTACT", "Contact");
+		l.put("FOOTER.WEBSITE", "Site web");
+		l.put("FOOTER.EMAIL", "E-mail");
+		l.put("FOOTER.PHONE", "Téléphone");
+		l.put("FOOTER.FAX", "Fax");
 		l.put("FOOTER.MF", "Matricule fiscal");
 		l.put("FOOTER.FOOTER_NOTE", "Texte de pied");
 		l.put("FOOTER.SOFTWARE_LABEL", "Mention ZS Retail");
@@ -67,6 +72,8 @@ public final class TicketBlockLabels {
 		l.put("option.align", "position");
 		l.put("option.size", "taille");
 		l.put("option.name", "nom");
+		l.put("option.text", "texte");
+		l.put("option.passenger", "client passager");
 		l.put("align.LEFT", "à gauche");
 		l.put("align.CENTER", "au centre");
 		l.put("align.RIGHT", "à droite");
@@ -75,6 +82,8 @@ public final class TicketBlockLabels {
 		l.put("size.LARGE", "grande");
 		l.put("name.WRAP", "sur plusieurs lignes");
 		l.put("name.CUT", "coupé sur une ligne");
+		l.put("passenger.SHOW", "code affiché");
+		l.put("passenger.HIDE", "code masqué");
 	}
 
 	private TicketBlockLabels() {
@@ -93,6 +102,10 @@ public final class TicketBlockLabels {
 		}
 		if ("maxHeight".equals(key)) {
 			return value + " mm";
+		}
+		if ("text".equals(key)) {
+			String text = String.valueOf(value).replace("\n", " / ");
+			return "« " + (text.length() > 120 ? text.substring(0, 117) + "…" : text) + " »";
 		}
 		return fr(key + "." + value);
 	}

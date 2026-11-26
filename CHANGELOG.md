@@ -42,6 +42,12 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   (`TicketBlocks.Option`), checked on save (`TICKET_TEMPLATE_OPTION`, `TICKET_TEMPLATE_UNKNOWN_OPTION`); new item
   elements: item code, its barcode's number (off), the promotion's name in the discount row (on). Every default is
   today's ticket. A format 1 layout (`compact`) reads as COMPACT. The event log describes the layout and the options.
+- Ticket templates, step 2b part 2: the template owns everything the sale ticket prints. New section TOP_TEXT (its
+  text: 3 lines, empty); texts of the thank-you (2 lines) and of the footer (6 lines), 48 characters a line, null =
+  Company Information's as today, checked on save (`TICKET_TEMPLATE_TEXT`); the contact in four elements (WEBSITE,
+  EMAIL, PHONE, FAX); the customer code's option `passenger` SHOW / HIDE (`GET /ticket-templates` sends
+  `passengerCode`); the tombola section's switch linked to `TOMBOLA_ENABLED` (no lock: a saved template decides). The
+  old settings are never changed; the old printing keeps reading them. Docs: `docs/modules/ticket-templates.md`.
 
 ### DB script
 - `db/3.5.0/update.sql`: the version check and `APP_VERSION` 3.5.0; `TICKET_RENDERER` named in a comment only (the row

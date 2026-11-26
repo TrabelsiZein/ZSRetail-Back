@@ -66,3 +66,11 @@ of 0 or 1 line rendered with `v-for`, so a field left empty renders nothing at a
 fields empty the HTML of a sale ticket, a duplicate, a return voucher and a warranty is the one of 2.2.1 (compared in the
 browser, 2026-10-10: identical apart from the barcode's random element id, which differs between any two renders). The
 page writes a switch only when it is moved, so opening and saving the page keeps null.
+
+## Ticket templates (3.5.0)
+
+With the new printing (`TICKET_RENDERER` = `NEW`) and a saved sale ticket template, the template decides what the five
+ticket fields above did (the address, the thank-you switch and text, the ZS Retail label, the footer text): each says
+"Décidé par Modèles de tickets (nouvelle impression)". Their values are never changed and the old printing keeps reading
+them; without a saved template the template's default reads them. The identity (name, MF, address, contact, logo) and
+`invoiceFooterNote` (the A4 invoices) stay here. `ticket-templates.md`.

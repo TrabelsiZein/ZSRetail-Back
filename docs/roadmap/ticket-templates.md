@@ -181,7 +181,7 @@ still reads them, so switching back to `OLD` gives back exactly the old ticket.
 | # | What | Both repos? |
 |---|---|---|
 | 1 | **Done 2026-11-26** (below). Builder + HTML renderer for the sale ticket and its duplicate, **tombola included**, behind the switch; same output as today (no table yet: the default only, reading today's settings) | back: the switch row and `GET /config`; front: the renderer |
-| 2 | **Done 2026-11-26** (below; `modules/ticket-templates.md`). Table, API and page "Modèles de tickets" with live preview, for the sale ticket: switches, order up / down, width, size, compact; new blocks off by default: unit price on the line, VAT by rate; `pos_machine.paper_width` | both |
+| 2 | **Done 2026-11-26** (below; `modules/ticket-templates.md`; **2b**, the template owning the whole ticket: below). Table, API and page "Modèles de tickets" with live preview, for the sale ticket: switches, order up / down, width, size, compact; new blocks off by default: unit price on the line, VAT by rate; `pos_machine.paper_width` | both |
 | 3 | Return voucher, voucher reprint, refund slip, warranty, and the tombola's own look; the old bugs, one Fixes line each | front mostly |
 | 4 | Internal tickets (families B and C): width, size, compact, hide the rows at zero | front mostly |
 | 5 | Copies down from the head office (`DataDomain` + `ownership.<x>`, a `DownDomainProvider` calling `CopiesDownFeed.recordChange`, a store `DownHandler`, a copy DTO in `core.link.dto`); the store's page read-only when HEAD_OFFICE | both |
@@ -315,5 +315,33 @@ What it is now: `modules/ticket-templates.md`. Decisions taken with Zein before 
 Left after step 2:
 - On screen with the back end: the page, a save, a reset, a print with a template (Zein restarts the store first: the
   new table's entity, the API, the rights).
+- The accountant's answer on the locks (address, unit price; an RNE field does not exist).
+- Steps 3 to 5.
+
+Screen test of step 2: passed (Zein, 2026-11-26), with three page fixes (the preview's length and frame, this PC's
+width said, the saved date's format).
+
+## Step 2b — done (2026-11-26)
+
+Zein's rule: everything about the printed sale ticket is configured in the template; nothing new in General setup or
+Company Information; the old settings stay for the old printing only. What it is now: `modules/ticket-templates.md`.
+
+- **Part 1** (screen-tested): format 2 (`layout` JSON in place of the draft's columns; db/3.5.0 rewritten, the draft
+  table converted in place), the option catalogue (`TicketBlocks.Option`), spacing AIRY / NORMAL / COMPACT (the Compact
+  switch became COMPACT), 0 to 6 blank lines before the cut, separators LINE / DASHES / NONE, the item line (code,
+  barcode number from the item card, promotion name, the name cut on one line), the store name's and the TOTAL's size,
+  the logo (width %, maximum height, position), all live in the preview, the page's settings in tabs.
+- **Part 2**: the top text (section "Texte d'en-tête", 3 lines, empty), the thank-you sentence (2 lines) and the footer
+  text (6 lines) owned by the template (null: Company Information's; a longer old text shown, never cut silently), the
+  58 mm warning above 32 characters, the tombola's switch (from `TOMBOLA_ENABLED`; a saved template decides), the contact
+  in four rows, "hide the passenger code", the per-field notices on Company Information and General setup (none on
+  `invoiceFooterNote`). Fixes of part 1's test: a logo width with the height "as today" wins; the sample sale has item
+  barcodes and a long name; the preview's frame rounded up.
+- Decisions: the identity stays in Company Information (the template owns whether and how it prints); options in JSON
+  with a format version, not a column each; one text per template, printed as typed (the fixed labels stay French;
+  ticket language is a later topic); the item barcode is its number, not a drawn barcode.
+
+Left after step 2b:
+- On screen: part 2 (Zein restarts the store first: the catalogue changed).
 - The accountant's answer on the locks (address, unit price; an RNE field does not exist).
 - Steps 3 to 5.

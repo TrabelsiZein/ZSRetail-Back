@@ -107,6 +107,8 @@ public class TicketTemplateService {
 		page.put("documents", documents);
 		page.put("formatVersion", FORMAT_VERSION);
 		page.put("linked", linked);
+		// step 2b: the passenger's customer code (General setup PASSENGER_CUSTOMER), for "hide the passenger code"
+		page.put("passengerCode", generalSetupService.findValueByCode("PASSENGER_CUSTOMER"));
 		return page;
 	}
 
@@ -137,7 +139,9 @@ public class TicketTemplateService {
 				elements.add(new ElementDTO(e.getCode(), e.getLinked() != null ? linked.get(e.getLinked()) : e.isDefaultOn(),
 						options));
 			}
-			dto.getSections().add(new SectionDTO(section.getCode(), section.isDefaultOn(), elements));
+			boolean on = section.getLinked() != null ? Boolean.TRUE.equals(linked.get(section.getLinked()))
+					: section.isDefaultOn();
+			dto.getSections().add(new SectionDTO(section.getCode(), on, elements));
 		}
 		return dto;
 	}
@@ -156,6 +160,8 @@ public class TicketTemplateService {
 				company == null || !Boolean.FALSE.equals(company.getReceiptShowSoftwareLabel()));
 		linked.put(TicketBlocks.LINK_LOYALTY_EARNED, settingOn("TICKET_SHOW_LOYALTY_EARNED"));
 		linked.put(TicketBlocks.LINK_LOYALTY_BALANCE, settingOn("TICKET_SHOW_LOYALTY_BALANCE"));
+		// step 2b: the tombola slip, "true" only (absent or anything else = no, as GET /config reads it)
+		linked.put(TicketBlocks.LINK_TOMBOLA, "true".equalsIgnoreCase(generalSetupService.findValueByCode("TOMBOLA_ENABLED")));
 		return linked;
 	}
 
@@ -351,7 +357,17 @@ public class TicketTemplateService {
 				continue;
 			}
 			Object value = whole(given.get(option.getKey()));
+			if (value instanceof String && option.getMaxLines() != null) {
+				value = ((String) value).replace("\r", ""); // a text's lines: \n only
+			}
 			if (!option.accepts(value)) {
+				if (strict && option.getMaxLines() != null) {
+					throw TicketTemplateException.refused("TICKET_TEMPLATE_TEXT",
+							"Text " + option.getKey() + ": at most " + option.getMaxLines() + " lines of "
+									+ option.getMaxLength() + " characters",
+							"section", section, "element", element, "maxLines", option.getMaxLines(), "maxLength",
+							option.getMaxLength());
+				}
 				if (strict) {
 					throw TicketTemplateException.refused("TICKET_TEMPLATE_OPTION",
 							"Option " + option.getKey() + ": " + value + " is not allowed", "section", section, "element",
@@ -514,7 +530,7 @@ public class TicketTemplateService {
 				List<String> changed = new ArrayList<>();
 				for (Option option : definition.getOptions()) {
 					Object value = element.getOptions().get(option.getKey());
-					if (value != null && !value.equals(option.getDefaultValue())) {
+					if (value != null && !value.equals(option.getDefaultValue()) && !"".equals(value)) {
 						changed.add(TicketBlockLabels.fr("option." + option.getKey()) + " " + TicketBlockLabels.value(option.getKey(), value));
 					}
 				}

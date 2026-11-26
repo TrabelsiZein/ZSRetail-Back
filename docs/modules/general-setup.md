@@ -87,9 +87,10 @@ untouched; `NEW` prints the tickets that already have their builder through the 
 `GET /config` as `ticketRenderer` (`NEW` in any case, else `OLD`; null on a head office), read through the getter
 `appConfig/newTicketRenderer`. `roadmap/ticket-templates.md`, "Step 1 — done". Test: `AppConfigAPITest#ticketRenderer`.
 Step 2: the templates themselves are not General setup settings (the table `ticket_template`, `modules/ticket-templates.md`);
-`TICKET_RENDERER` stays the only line. Once a sale ticket template is saved, the tab "Programme de fidélité" says above
-`TICKET_SHOW_LOYALTY_BALANCE` / `_EARNED` that the template decides them for the new printing (their values are kept and
-still read by the old printing).
+`TICKET_RENDERER` stays the only line. Step 2b: once a sale ticket template is saved, the tab "Programme de fidélité"
+says under `TICKET_SHOW_LOYALTY_BALANCE`, `TICKET_SHOW_LOYALTY_EARNED` and `TOMBOLA_ENABLED` "Décidé par Modèles de
+tickets (nouvelle impression)" (their values are kept and still read by the old printing; without a saved template the
+template's default reads them).
 
 ## The cash drawer belongs to (3.2.0)
 

@@ -46,7 +46,7 @@ import com.digithink.zsretail.core.tickettemplate.service.TicketTemplateService;
  */
 class TicketTemplateServiceTest {
 
-	static final List<String> SALE_ORDER = Arrays.asList("HEADER", "INFO", "ITEMS", "TOTALS", "VAT_BY_RATE", "PAYMENTS",
+	static final List<String> SALE_ORDER = Arrays.asList("HEADER", "TOP_TEXT", "INFO", "ITEMS", "TOTALS", "VAT_BY_RATE", "PAYMENTS",
 			"LOYALTY", "BARCODE", "FOOTER", "TOMBOLA");
 
 	final Map<String, TicketTemplate> rows = new HashMap<>();
@@ -200,7 +200,6 @@ class TicketTemplateServiceTest {
 		assertEquals("TICKET_TEMPLATE_LOCKED", refusal(t -> set(t, "FOOTER", "MF", false)));
 		assertEquals("TICKET_TEMPLATE_LOCKED", refusal(t -> section(t, "PAYMENTS").setOn(false)));
 		assertEquals("TICKET_TEMPLATE_LOCKED", refusal(t -> section(t, "ITEMS").setOn(false)));
-		assertEquals("TICKET_TEMPLATE_LOCKED", refusal(t -> section(t, "TOMBOLA").setOn(false)));
 		assertEquals("TICKET_TEMPLATE_VAT_NEEDED", refusal(t -> set(t, "ITEMS", "VAT", false)));
 		assertEquals("TICKET_TEMPLATE_OPTION", refusal(t -> t.getLayout().put("paperWidth", 70)));
 		assertEquals("TICKET_TEMPLATE_OPTION", refusal(t -> t.getLayout().put("paperWidth", null)));
@@ -263,11 +262,11 @@ class TicketTemplateServiceTest {
 			SectionDTO loyalty = section(x, "LOYALTY");
 			x.getSections().removeIf(s -> Arrays.asList("HEADER", "TOMBOLA", "LOYALTY", "FOOTER").contains(s.getCode()));
 			x.getSections().add(0, tombola);
-			x.getSections().add(3, loyalty);
+			x.getSections().add(4, loyalty);
 			x.getSections().add(header);
 		});
 		TicketTemplateDTO saved = service.save("sale", t, "admin");
-		assertEquals(Arrays.asList("HEADER", "INFO", "ITEMS", "LOYALTY", "TOTALS", "VAT_BY_RATE", "PAYMENTS", "BARCODE",
+		assertEquals(Arrays.asList("HEADER", "TOP_TEXT", "INFO", "ITEMS", "LOYALTY", "TOTALS", "VAT_BY_RATE", "PAYMENTS", "BARCODE",
 				"FOOTER", "TOMBOLA"), order(saved));
 		assertEquals(58, saved.getLayout().get("paperWidth"));
 		assertEquals("NORMAL", saved.getLayout().get("fontSize"), "an option not sent: its default");
@@ -320,7 +319,7 @@ class TicketTemplateServiceTest {
 		assertEquals(Collections.singletonMap("size", "MEDIUM"), element(read, "TOTALS", "TOTAL").getOptions());
 		assertTrue(on(read, "ITEMS", "VAT"));
 		// TOTALS before ITEMS as in the row; the sections it lacks after the one before them in the catalogue
-		assertEquals(Arrays.asList("HEADER", "INFO", "TOTALS", "VAT_BY_RATE", "PAYMENTS", "LOYALTY", "BARCODE", "FOOTER",
+		assertEquals(Arrays.asList("HEADER", "TOP_TEXT", "INFO", "TOTALS", "VAT_BY_RATE", "PAYMENTS", "LOYALTY", "BARCODE", "FOOTER",
 				"ITEMS", "TOMBOLA"), order(read));
 
 		row.setBlocks("not json");
@@ -350,8 +349,9 @@ class TicketTemplateServiceTest {
 		}), "admin");
 		assertEquals(2, log.rows.size());
 		assertEquals("Modèle de ticket « Ticket de vente » modifié : Espacement : Aérée → Compacte ; Masqués : Adresse,"
-				+ " Code article, Code-barres de l'article, Prix unitaire, TVA par taux → Adresse, Caissier, Code article,"
-				+ " Code-barres de l'article, Prix unitaire, TVA par taux ; Options : par défaut → Logo (largeur 50 %,"
+				+ " Code article, Code-barres de l'article, Prix unitaire, TVA par taux, Ticket de tombola → Adresse, Caissier,"
+				+ " Code article, Code-barres de l'article, Prix unitaire, TVA par taux, Ticket de tombola ; Options : par défaut"
+				+ " → Logo (largeur 50 %,"
 				+ " position à droite).", log.rows.get(1).getDetails());
 
 		service.save("SALE", service.saved(TicketDocumentType.SALE).get(), "admin");
@@ -364,5 +364,47 @@ class TicketTemplateServiceTest {
 
 		assertFalse(service.reset("SALE"));
 		assertEquals(3, log.rows.size());
+	}
+
+	@Test
+	@DisplayName("Part 2: the top text (3 lines, empty), the thank-you (2 lines) and the footer text (6 lines) of 48"
+			+ " characters, null = Company Information's; a longer one refused (TICKET_TEMPLATE_TEXT), \\r dropped; the"
+			+ " tombola's switch from TOMBOLA_ENABLED and free; the contact in four rows; the passenger code hidden or not")
+	void part2() {
+		TicketTemplateDTO d = service.defaults(TicketDocumentType.SALE);
+		assertEquals(Collections.singletonMap("text", ""), element(d, "TOP_TEXT", "TEXT").getOptions());
+		assertEquals(Collections.singletonMap("text", null), element(d, "FOOTER", "THANK_YOU").getOptions());
+		assertEquals(Collections.singletonMap("text", null), element(d, "FOOTER", "FOOTER_NOTE").getOptions());
+		assertEquals(Collections.singletonMap("passenger", "SHOW"), element(d, "INFO", "CUSTOMER_CODE").getOptions());
+		assertEquals(Arrays.asList("THANK_YOU", "WEBSITE", "EMAIL", "PHONE", "FAX", "MF", "FOOTER_NOTE", "SOFTWARE_LABEL"),
+				section(d, "FOOTER").getElements().stream().map(ElementDTO::getCode).collect(Collectors.toList()));
+		assertFalse(section(d, "TOMBOLA").getOn(), "TOMBOLA_ENABLED absent: off");
+		settings.put("TOMBOLA_ENABLED", "true");
+		assertTrue(section(service.defaults(TicketDocumentType.SALE), "TOMBOLA").getOn(), "TOMBOLA_ENABLED true: on");
+		settings.put("PASSENGER_CUSTOMER", "PASSAGER");
+		assertEquals("PASSAGER", service.page().get("passengerCode"));
+
+		String six = "Ligne 1\nLigne 2\nLigne 3\nLigne 4\nLigne 5\n" + new String(new char[48]).replace('\0', 'x');
+		TicketTemplateDTO saved = service.save("SALE", sent(t -> {
+			element(t, "TOP_TEXT", "TEXT").getOptions().put("text", "Soldes d'hiver\r\njusqu'au 31/01");
+			element(t, "FOOTER", "THANK_YOU").getOptions().put("text", "À bientôt !");
+			element(t, "FOOTER", "FOOTER_NOTE").getOptions().put("text", six);
+			element(t, "INFO", "CUSTOMER_CODE").getOptions().put("passenger", "HIDE");
+			set(t, "FOOTER", "FAX", false);
+			section(t, "TOMBOLA").setOn(false);
+		}), "admin");
+		assertEquals("Soldes d'hiver\njusqu'au 31/01", element(saved, "TOP_TEXT", "TEXT").getOptions().get("text"));
+		assertEquals(six, element(saved, "FOOTER", "FOOTER_NOTE").getOptions().get("text"));
+		assertEquals("HIDE", element(saved, "INFO", "CUSTOMER_CODE").getOptions().get("passenger"));
+		assertFalse(on(saved, "FOOTER", "FAX"));
+		assertFalse(section(saved, "TOMBOLA").getOn(), "the template decides, TOMBOLA_ENABLED true or not");
+		rows.clear();
+
+		assertEquals("TICKET_TEMPLATE_TEXT", refusal(t -> element(t, "TOP_TEXT", "TEXT").getOptions().put("text", "1\n2\n3\n4")));
+		assertEquals("TICKET_TEMPLATE_TEXT", refusal(t -> element(t, "FOOTER", "FOOTER_NOTE").getOptions().put("text", six + "\n7")));
+		assertEquals("TICKET_TEMPLATE_TEXT", refusal(t -> element(t, "FOOTER", "THANK_YOU").getOptions()
+				.put("text", new String(new char[49]).replace('\0', 'x'))));
+		assertEquals("TICKET_TEMPLATE_TEXT", refusal(t -> element(t, "FOOTER", "THANK_YOU").getOptions().put("text", 12)));
+		assertEquals("TICKET_TEMPLATE_OPTION", refusal(t -> element(t, "INFO", "CUSTOMER_CODE").getOptions().put("passenger", "NO")));
 	}
 }

@@ -33,9 +33,7 @@ public final class TicketBlocks {
 		/** A mention a ticket must carry (Zein confirms the list with his accountant). */
 		LEGAL,
 		/** Needed by the store (the payments of a sale). */
-		FUNCTIONAL,
-		/** Decided by its own setting, not here (the tombola slip: TOMBOLA_ENABLED). */
-		SETTING
+		FUNCTIONAL
 	}
 
 	/** A section that does not move. */
@@ -44,8 +42,10 @@ public final class TicketBlocks {
 	}
 
 	/**
-	 * Step 2b: an option of the layout or of an element. A choice among {@link #getValues} (texts or numbers), or a whole
-	 * number from {@link #getMin} to {@link #getMax}; {@link #isNullable}: null is allowed and means today's value.
+	 * Step 2b: an option of the layout or of an element. A choice among {@link #getValues} (texts or numbers), a whole
+	 * number from {@link #getMin} to {@link #getMax}, or a text of at most {@link #getMaxLines} lines of
+	 * {@link #getMaxLength} characters; {@link #isNullable}: null is allowed and means today's value (a text: the one
+	 * Company Information gives today).
 	 */
 	@Getter
 	@AllArgsConstructor
@@ -56,11 +56,28 @@ public final class TicketBlocks {
 		private final Integer min;
 		private final Integer max;
 		private final boolean nullable;
+		private final Integer maxLines;
+		private final Integer maxLength;
 
-		/** Whether a value is allowed (a number given as 58.0 is not). */
+		/** Whether a value is allowed (a number given as 58.0 is not; a text by its lines and their length). */
 		public boolean accepts(Object value) {
 			if (value == null) {
 				return nullable;
+			}
+			if (maxLines != null) {
+				if (!(value instanceof String)) {
+					return false;
+				}
+				String[] lines = ((String) value).split("\n", -1);
+				if (lines.length > maxLines) {
+					return false;
+				}
+				for (String line : lines) {
+					if (line.length() > maxLength) {
+						return false;
+					}
+				}
+				return true;
 			}
 			if (values != null) {
 				return values.contains(value);
@@ -107,6 +124,8 @@ public final class TicketBlocks {
 		private final Position position;
 		/** Switching it off is allowed but the page warns (the sale's barcode: the returns scan it). */
 		private final boolean warnOff;
+		/** Step 2b: the old setting its switch takes its default from while no template exists (null: none). */
+		private final String linked;
 		private final List<Element> elements;
 
 		public Element element(String elementCode) {
@@ -129,6 +148,8 @@ public final class TicketBlocks {
 	public static final String LINK_LOYALTY_EARNED = "generalSetup.TICKET_SHOW_LOYALTY_EARNED";
 	/** General setup TICKET_SHOW_LOYALTY_BALANCE (absent = yes). */
 	public static final String LINK_LOYALTY_BALANCE = "generalSetup.TICKET_SHOW_LOYALTY_BALANCE";
+	/** Step 2b: General setup TOMBOLA_ENABLED (absent = no), the tombola slip's switch. */
+	public static final String LINK_TOMBOLA = "generalSetup.TOMBOLA_ENABLED";
 
 	public static final String VAT_BY_RATE = "VAT_BY_RATE";
 
@@ -150,17 +171,33 @@ public final class TicketBlocks {
 
 	/** A choice: the default first, then every value. */
 	private static Option choice(String key, Object defaultValue, Object... values) {
-		return new Option(key, defaultValue, Collections.unmodifiableList(Arrays.asList(values)), null, null, false);
+		return new Option(key, defaultValue, Collections.unmodifiableList(Arrays.asList(values)), null, null, false, null,
+				null);
 	}
 
 	/** A whole number from min to max, or null (today's value) when its default is null. */
 	private static Option number(String key, Integer defaultValue, int min, int max) {
-		return new Option(key, defaultValue, null, min, max, defaultValue == null);
+		return new Option(key, defaultValue, null, min, max, defaultValue == null, null, null);
+	}
+
+	/**
+	 * Step 2b: a text of at most maxLines lines of maxLength characters (48: a line at 80 mm; the page warns above 32, a
+	 * line at 58 mm, and the ticket wraps, never cuts); null allowed: the text Company Information gives today.
+	 */
+	private static Option text(String key, String defaultValue, int maxLines, int maxLength) {
+		return new Option(key, defaultValue, null, null, null, true, maxLines, maxLength);
 	}
 
 	private static Section section(String code, boolean defaultOn, Lock lock, Position position, boolean warnOff,
 			Element... elements) {
-		return new Section(code, defaultOn, lock, position, warnOff, Collections.unmodifiableList(Arrays.asList(elements)));
+		return new Section(code, defaultOn, lock, position, warnOff, null,
+				Collections.unmodifiableList(Arrays.asList(elements)));
+	}
+
+	/** Step 2b: a section whose switch starts from an old setting (the tombola slip: TOMBOLA_ENABLED). */
+	private static Section linkedSection(String code, String setting, Position position, Element... elements) {
+		return new Section(code, false, null, position, false, setting,
+				Collections.unmodifiableList(Arrays.asList(elements)));
 	}
 
 	/**
@@ -185,7 +222,10 @@ public final class TicketBlocks {
 	 * with the accountant: the address, the unit price. Step 2b: the logo's width (20 to 100 % of the printable width;
 	 * null: today's 100 px at most), its maximum height (5 to 60 mm; null: today's 40 px) and position; the store name's
 	 * and the TOTAL's size; the item name wrapped (today) or cut on one line; the item's code, its barcode number and the
-	 * promotion's name in the discount row (today).
+	 * promotion's name in the discount row (today). Part 2: the top text (3 lines, empty), the thank-you sentence (2
+	 * lines) and the footer text (6 lines) owned by the template (null: Company Information's, as today); the contact
+	 * split into its four rows; the passenger's customer code hidden or not; the tombola slip's switch (from
+	 * TOMBOLA_ENABLED).
 	 */
 	private static final List<Section> SALE = Collections.unmodifiableList(Arrays.asList(
 			section("HEADER", true, Lock.LEGAL, Position.FIRST, false,
@@ -193,8 +233,11 @@ public final class TicketBlocks {
 							choice("align", "CENTER", "LEFT", "CENTER", "RIGHT")),
 					locked("STORE_NAME", Lock.LEGAL).with(size()), linked("ADDRESS", LINK_PRINT_ADDRESS), on("TITLE"),
 					locked("DUPLICATE", Lock.LEGAL)),
+			section("TOP_TEXT", true, null, null, false,
+					on("TEXT").with(text("text", "", 3, 48))),
 			section("INFO", true, Lock.LEGAL, null, false,
-					locked("NUMBER", Lock.LEGAL), locked("DATE", Lock.LEGAL), on("CASHIER"), on("CUSTOMER_CODE")),
+					locked("NUMBER", Lock.LEGAL), locked("DATE", Lock.LEGAL), on("CASHIER"),
+					on("CUSTOMER_CODE").with(choice("passenger", "SHOW", "SHOW", "HIDE"))),
 			section("ITEMS", true, Lock.LEGAL, null, false,
 					locked("LINES", Lock.LEGAL).with(choice("name", "WRAP", "WRAP", "CUT")), off("ITEM_CODE"),
 					off("ITEM_BARCODE"), off("UNIT_PRICE"), on("DISCOUNT"), on("PROMOTION_NAME"),
@@ -207,9 +250,10 @@ public final class TicketBlocks {
 					on("CARD"), linked("EARNED", LINK_LOYALTY_EARNED), on("USED"), linked("BALANCE", LINK_LOYALTY_BALANCE)),
 			section("BARCODE", true, null, null, true),
 			section("FOOTER", true, Lock.LEGAL, null, false,
-					linked("THANK_YOU", LINK_THANK_YOU), on("CONTACT"), locked("MF", Lock.LEGAL), on("FOOTER_NOTE"),
+					linked("THANK_YOU", LINK_THANK_YOU).with(text("text", null, 2, 48)), on("WEBSITE"), on("EMAIL"),
+					on("PHONE"), on("FAX"), locked("MF", Lock.LEGAL), on("FOOTER_NOTE").with(text("text", null, 6, 48)),
 					linked("SOFTWARE_LABEL", LINK_SOFTWARE_LABEL)),
-			section("TOMBOLA", true, Lock.SETTING, Position.LAST, false)));
+			linkedSection("TOMBOLA", LINK_TOMBOLA, Position.LAST)));
 
 	private TicketBlocks() {
 	}

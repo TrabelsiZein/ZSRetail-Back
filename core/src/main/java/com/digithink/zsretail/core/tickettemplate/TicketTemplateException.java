@@ -10,7 +10,8 @@ import com.digithink.zsretail.core.exception.CodedRefusal;
  * serverErrors.&lt;code&gt; in the screen's language) and its HTTP status. Codes: TICKET_TEMPLATE_TYPE_UNKNOWN (404,
  * type), TICKET_TEMPLATE_NOT_AVAILABLE (type), step 2b: TICKET_TEMPLATE_OPTION (section, element, option, value: a layout
  * option when section is null), TICKET_TEMPLATE_UNKNOWN_OPTION (section, element, option),
- * TICKET_TEMPLATE_UNKNOWN_SECTION (section), TICKET_TEMPLATE_UNKNOWN_ELEMENT (section, element),
+ * TICKET_TEMPLATE_TEXT (section, element, maxLines, maxLength), TICKET_TEMPLATE_UNKNOWN_SECTION (section),
+ * TICKET_TEMPLATE_UNKNOWN_ELEMENT (section, element),
  * TICKET_TEMPLATE_DUPLICATE (section, element), TICKET_TEMPLATE_LOCKED (section, element), TICKET_TEMPLATE_VAT_NEEDED,
  * TICKET_TEMPLATE_FORBIDDEN (403, permission).
  */
