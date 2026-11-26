@@ -42,6 +42,7 @@ the tables, the catalogue and the helper)
 - `roadmap/regression-checklist.md` — the scenarios replayed by hand before a merge, per installation
 - `roadmap/standalone-tasks.md` — standalone backlog
 - `roadmap/2.3-families-by-stock-point.md` — 2.3 analysis, not built
+- `roadmap/ticket-templates.md` — 3.5.0 ticket templates: today's tickets, the agreed design, the steps
 - `roadmap/open-points.md` — gaps seen and left for later (split bill, the item cost in the till's JSON)
 
 ## History — `history/`
