@@ -17,7 +17,7 @@ Added two columns to `general_setup`:
 | BOOLEAN | `ENABLE_SIMPLE_RETURN`, `AUTO_ADD_CASH_PAYMENT_ON_PAYMENT_PAGE`, `ENABLE_CASH_DISCREPANCY_CHECK`, `ENABLE_TAX_STAMP`, `LOYALTY_ENABLED`, `ALLOW_NEGATIVE_STOCK`, `POS_SHOW_IMAGES`, `ALLOW_DECIMAL_QUANTITY` (2.2.1, stores only, see `decimal-quantities.md`), `POS_HIDE_EMPTY_FAMILIES`, `POS_HIDE_EMPTY_SUB_FAMILIES`, `POS_AMOUNTS_3_DECIMALS` (2.2.2, stores only, see below), `POS_CATALOGUE_VISIBLE` (3.1.1, stores only, see below) (`ALWAYS_SHOW_BADGE_SCAN_POPUP` retired at 3.1.0, step C: `badge-permissions.md`) |
 | NUMBER | `MAX_DAYS_FOR_RETURN`, `RETURN_VOUCHER_VALIDITY_DAYS`, `TAX_STAMP_VALUE_MILLIMES`, `TILL_GRANT_MAX_MINUTES` (3.1.0, step D, stores only, `badge-permissions.md`) |
 | DATETIME | All `ERP_SYNC_LAST_*` checkpoints (×9) (the two `FRANCHISE_LAST_*` rows of an older install stay, unused since step 9) |
-| SELECT | `ERP_SYNC_TRACKING_LEVEL` (options: `ERRORS_ONLY,ERRORS_AND_WARNINGS,ALL`), `CASHIER_CLOSING_TICKET` (3.1.0, stores only, options `Z,DECLARED`, see below), `CASH_DRAWER_OWNER` (3.2.0, stores only, options `CASHIER,POS_MACHINE`, see below) |
+| SELECT | `ERP_SYNC_TRACKING_LEVEL` (options: `ERRORS_ONLY,ERRORS_AND_WARNINGS,ALL`), `CASHIER_CLOSING_TICKET` (3.1.0, stores only, options `Z,DECLARED`, see below), `CASH_DRAWER_OWNER` (3.2.0, stores only, options `CASHIER,POS_MACHINE`, see below), `TICKET_RENDERER` (3.5.0, stores only, options `OLD,NEW`, see below) |
 | STRING | Default — all other codes not listed above |
 
 ## POS screen: catalogue visible by default (3.1.1)
@@ -75,6 +75,17 @@ values as before). Sent by `GET /config` as `cashierClosingTicket` (`DECLARED` i
 is absent; null on a head office), read in the front through the getter `appConfig/closingPrintsTicketZ`; saving the
 setting refreshes `/config`, and a till reads it again at its next login. What the till prints with each value:
 `cash-sessions.md`, "The cashier's closing ticket". Test: `AppConfigAPITest#cashierClosingTicket`.
+
+## Ticket printing (3.5.0)
+
+A store setting (General Setup, tab "Caisse et clôture", after `CASHIER_CLOSING_TICKET`, SELECT, created at start-up on a
+store only, `OLD`; never on a head office): `TICKET_RENDERER` (`AppConfigAPI.TICKET_RENDERER`), label "Impression des
+tickets", options `OLD` "Ancienne impression (par défaut)" and `NEW` "Nouvelle impression (modèles de tickets)", a help
+text (`fields.ticketRendererHelp`). `OLD` (also no row, a blank or unknown value) prints with the code of before,
+untouched; `NEW` prints the tickets that already have their builder through the ticket templates' renderer (since step
+1: the sale ticket, its split bill and its duplicate, the tombola slip; the others stay on the old code). Sent by
+`GET /config` as `ticketRenderer` (`NEW` in any case, else `OLD`; null on a head office), read through the getter
+`appConfig/newTicketRenderer`. `roadmap/ticket-templates.md`, "Step 1 — done". Test: `AppConfigAPITest#ticketRenderer`.
 
 ## The cash drawer belongs to (3.2.0)
 

@@ -61,13 +61,14 @@ class AppConfigAPITest {
 	 * then 3.1.1 store orders (storeOrdersPost), the POS screen's catalogue shown when it opens (posCatalogueVisible) and
 	 * the head office's points de stock (headOfficeStockPoints); then 3.3.0 the communication module (communication) and
 	 * the Warranties page (warrantyEnabled), then the store orders switch (storeOrdersEnabled); then 3.4.0 the event log
-	 * (eventLogEnabled), and the codes its till may send (eventLogTillCodes). */
+	 * (eventLogEnabled), and the codes its till may send (eventLogTillCodes); then 3.5.0 the ticket renderer
+	 * (ticketRenderer). */
 	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
 			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock", "supplySource",
 			"allowDecimalQuantity", "taxStampActive", "posAmountsThreeDecimals", "rfidEnabled", "cashierClosingTicket",
 			"navItems", "itemCategories", "itemSections", "tillActions", "storeOrdersPost", "posCatalogueVisible",
 			"headOfficeStockPoints", "communication", "warrantyEnabled", "storeOrdersEnabled", "eventLogEnabled",
-			"eventLogTillCodes");
+			"eventLogTillCodes", "ticketRenderer");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";
@@ -86,6 +87,7 @@ class AppConfigAPITest {
 		values.put(AppConfigAPI.POS_AMOUNTS_THREE_DECIMALS, "TRUE");
 		values.put(AppConfigAPI.CASHIER_CLOSING_TICKET, "declared");
 		values.put(AppConfigAPI.POS_CATALOGUE_VISIBLE, "True");
+		values.put(AppConfigAPI.TICKET_RENDERER, "new");
 		values.putAll(SETUP_OVERRIDES);
 		return values;
 	}
@@ -383,6 +385,24 @@ class AppConfigAPITest {
 			assertEquals("Z", dynamics().getCashierClosingTicket());
 			SETUP_OVERRIDES.put(AppConfigAPI.CASHIER_CLOSING_TICKET, "anything");
 			assertEquals("Z", dynamics().getCashierClosingTicket());
+		} finally {
+			SETUP_OVERRIDES.clear();
+		}
+	}
+
+	@Test
+	@DisplayName("3.5.0: ticketRenderer: NEW in any case, OLD otherwise and when the row is absent, null on a head office")
+	void ticketRenderer() throws Exception {
+		try {
+			assertEquals("NEW", dynamics().getTicketRenderer()); // the stub: "new"
+			assertEquals("NEW", linkedStore().getTicketRenderer());
+			assertNull(headOffice().getTicketRenderer(), "a head office has no till");
+			SETUP_OVERRIDES.put(AppConfigAPI.TICKET_RENDERER, null);
+			assertEquals("OLD", standalone().getTicketRenderer(), "the row absent: the print code of before");
+			SETUP_OVERRIDES.put(AppConfigAPI.TICKET_RENDERER, "OLD");
+			assertEquals("OLD", dynamics().getTicketRenderer());
+			SETUP_OVERRIDES.put(AppConfigAPI.TICKET_RENDERER, "anything");
+			assertEquals("OLD", dynamics().getTicketRenderer());
 		} finally {
 			SETUP_OVERRIDES.clear();
 		}

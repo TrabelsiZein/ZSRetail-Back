@@ -156,8 +156,8 @@ setting of the POS machine.
 
 ### The switch
 
-One General setup row (store), for example `TICKET_RENDERER` = `OLD` (default) / `NEW`, sent in `GET /config`. Every
-print call site asks it: `OLD` runs today's code untouched; `NEW` runs the new renderer for the tickets that already
+One General setup row (store): `TICKET_RENDERER` = `OLD` (default) / `NEW` (built at step 1, below), sent in
+`GET /config`. Every print call site asks it: `OLD` runs today's code untouched; `NEW` runs the new renderer for the tickets that already
 have their builder, the others stay on the old code until their step. The template page applies only with `NEW` (the
 page says so while the switch is `OLD`).
 
@@ -173,14 +173,14 @@ still reads them, so switching back to `OLD` gives back exactly the old ticket.
   blocks changed), when `eventlog.enabled` is on.
 - The live preview uses fixed sample data (a sale with a discount, a promotion, two VAT rates, a loyalty member,
   the timbre), at the chosen width.
-- Fixture check: `tools/ticket-render-check.mjs` in the front, as the other tools: fixtures of each ticket's data and
-  the expected lines, run on the builders. It comes on top of the switch, not instead of it.
+- Fixture check: `tools/ticket-render-check.mjs` in the front, as the other tools: fixtures of each ticket's data, the
+  old ticket and the new one compared (step 1, below). It comes on top of the switch, not instead of it.
 
 ## Steps
 
 | # | What | Both repos? |
 |---|---|---|
-| 1 | Builder + HTML renderer for the sale ticket and its duplicate, **tombola included**, behind the switch; same output as today (no table yet: the default only, reading today's settings) | back: the switch row and `GET /config`; front: the renderer |
+| 1 | **Done 2026-11-26** (below). Builder + HTML renderer for the sale ticket and its duplicate, **tombola included**, behind the switch; same output as today (no table yet: the default only, reading today's settings) | back: the switch row and `GET /config`; front: the renderer |
 | 2 | Table, API and page "Modèles de tickets" with live preview, for the sale ticket: switches, order up / down, width, size, compact; new blocks off by default: unit price on the line, VAT by rate; `pos_machine.paper_width` | both |
 | 3 | Return voucher, voucher reprint, refund slip, warranty, and the tombola's own look; the old bugs, one Fixes line each | front mostly |
 | 4 | Internal tickets (families B and C): width, size, compact, hide the rows at zero | front mostly |
@@ -202,3 +202,93 @@ still reads them, so switching back to `OLD` gives back exactly the old ticket.
 - **Order 3 before 4 is right**: family A's other tickets reuse step 1's builder pieces; families B and C are a
   separate builder with a smaller template (no blocks).
 - The head office has no till: before step 5 the page exists on a store only.
+
+## Step 1 — done (2026-11-26)
+
+### The switch
+
+`TICKET_RENDERER` (General setup, tab "Caisse et clôture", label "Impression des tickets", SELECT `OLD` "Ancienne
+impression (par défaut)" / `NEW` "Nouvelle impression (modèles de tickets)", a help text; fr / en / ar). A store only:
+created at start-up by `ZZDataInitializer` (`OLD`), as every General setup setting; `db/3.5.0/update.sql` only names it
+in a comment. `GET /config` sends `ticketRenderer`: `NEW` in any case, else `OLD` (no row, a blank or unknown value);
+null on a head office (`AppConfigAPI.TICKET_RENDERER`, test `AppConfigAPITest#ticketRenderer`). The front:
+`appConfig.ticketRenderer`, the getter `appConfig/newTicketRenderer`; saving the setting refreshes `/config`. The event
+log names it "Caisse et clôture › Impression des tickets" (`AdminLabels`).
+
+### Where the sale ticket and its duplicate are printed
+
+Only two places print them (checked 2026-11-26), each with one branch at its top, the old code below it unchanged:
+- `src/views/pos/Payment.vue` `printReceipt`: the sale (process-sale, complete-pending) and the **split bill**
+  (`onSplitDone`, the answer of `POST /sales-header/split-and-pay`); the tombola slip under the sale when
+  `TOMBOLA_ENABLED` and a loyalty member.
+- `src/views/admin/TicketsHistory.vue` `printTicketData`: the duplicate (the till's and the back office's reprint);
+  the event log's `tillReprint` stays before the branch.
+
+The other users of `ReceiptTemplate.vue` are the tickets of step 3, still on the old code with either value:
+`ReturnProducts.vue` (return voucher, cash refund slip), `ReturnsManagement.vue` (voucher reprint),
+`WarrantyCreate.vue` and `WarrantyList.vue` (warranty).
+
+### The files (front, `src/libs/ticket/`)
+
+- `lines.js`: the neutral list (text, columns, divider, gap, barcode, image, cut, group; blocks; roles and levels, no
+  CSS value).
+- `sale-ticket.js`: `buildSaleTicket(sale, { companyInfo, tombola })`, `buildSaleDuplicate(sale, { companyInfo })`.
+- `tombola-slip.js`: `buildTombolaSlip(sale)`, the slip as it prints today (no cut: its page break never reached the
+  print).
+- `html-renderer.js`: `renderTicketHtml(ticket)` → `{ html, barcodes }`, the old ticket's elements and classes; the
+  barcodes' JsBarcode options by size. Step 2's preview renders through it.
+- `print.js`: draws the barcodes (JsBarcode, in a detached element as the old component) and prints in the same
+  window as the old code (`printTicket`).
+- `sale-formats.js` and `ticket-styles.js`: the copies of the old code, below.
+
+### The copies of the old code
+
+The old files stay untouched, so the new renderer carries **copies** of what it needs from them:
+- `sale-formats.js`: from `ReceiptTemplate.vue`, the sale's branch only: `formatTunCurrency`,
+  `formatDiscountPercentage`, `formatDate`, `getLineTotalForDisplay`, `getLineDiscountDisplay`, `getVatPercent`,
+  `totalDiscountDisplay`, `addressLines`, `thankYouLines`, `softwareLabels`, `receiptFooterNote`;
+- `ticket-styles.js`: `receiptPrintStyles.js` (the stylesheet and the print document), the same text.
+
+They exist only because the old code and the switch exist; they are removed **together with the old code and the
+switch**, in the same change (when Zein says so): the old originals go, and these copies lose their "COPY" header and
+stay as the only version (nothing to merge). Until then a fix of the old code is not copied here (the old bugs are fixed
+in the new renderer only, rules above).
+
+### The check
+
+`node tools/ticket-render-check.mjs` (with `tools/ticket-render-loader.mjs`, no new dependency): for each fixture it
+renders the **old** ticket with `ReceiptTemplate.vue` itself (Vue's render, its template compiled as the build compiles
+it: `whitespace: 'condense'`) and the **new** one (builder, then HTML renderer), and compares the two element trees
+(tags, classes, attributes, texts, order), the barcodes' values and JsBarcode options, the two stylesheets and print
+documents. A self-test makes five changes to a new ticket (a text, a divider, two rows swapped, a class, the tombola
+slip) and checks each is listed. `--out <dir>` writes each fixture's `old.html`, `new.html` and `lines.json`.
+
+Fixtures (13): a cash sale of 3 lines (the three VAT sources, a decimal quantity); discounts and promotions (manual, by
+promotion name, the ticket's discount, two return vouchers as payment); a loyalty member (earned, redeemed, deduction,
+balance); `TICKET_SHOW_LOYALTY_BALANCE` and `_EARNED` off; the tax stamp line; the duplicate (a loyalty member, no
+tombola); the tombola slip; the slip of a member without phone; `TOMBOLA_ENABLED` without a member; the split bill;
+Company Information with the address, a footer text with line breaks and an own thank-you text; the thank-you and the
+ZS Retail label off, no logo, no contact; no sale number (no barcode, the payments' closing line), `payments` in place
+of `paymentHeaders`, a user without full name, HTML characters in a name.
+
+Result on 2026-11-26: the stylesheet and the print document the same text; the 13 fixtures the same tree; the 5
+changes seen.
+
+### What differs between the old and the new ticket (none on paper)
+
+- Not reproduced, as they print nothing: Vue's empty comments (`<!---->`), the `data-v-…` attributes of the old
+  component's scoped style (its rules never reach the print window), the whitespace a browser does not show (between
+  elements, at both ends of a text; the footer text's line breaks are compared as they are).
+- The barcode ids are random on both sides (the same form, `barcode-…` / `tombola-…`).
+- Timing: the new code draws the barcodes at once, so it opens the print window without the old 200 ms wait (the
+  duplicate's window also opens before, not after, that wait). The print (500 ms) and the closing (500 ms after the
+  sale, 1000 ms after the duplicate) are the old ones.
+- The barcode drawing (the SVG JsBarcode fills) is not compared in node: same library, same value, same options; to
+  be compared on screen in Chrome.
+- Old bugs reproduced, not fixed (step 3): the double divider between the loyalty block and the barcode. None of the
+  old behaviours of the sale ticket could not be reproduced.
+
+### Left after step 1
+
+- On screen: the barcode of each renderer compared in Chrome (a sale, a duplicate, a sale with the tombola).
+- Steps 2 to 5 (table above); no paper test is possible here (no ticket printer).

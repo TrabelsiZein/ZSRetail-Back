@@ -1218,6 +1218,10 @@ public class ZZDataInitializer {
 			ensureConfigWithOptions(AppConfigAPI.CASHIER_CLOSING_TICKET, "Z",
 					"Ticket printed when the cashier closes the session: Z = the full ticket Z (sales, VAT, returns, payments, control), DECLARED = the amounts declared only.",
 					false, ConfigType.SELECT, "Z,DECLARED");
+			// 3.5.0, ticket templates step 1: which code prints the tickets (docs/roadmap/ticket-templates.md); a store only
+			ensureConfigWithOptions(AppConfigAPI.TICKET_RENDERER, "OLD",
+					"Ticket printing: OLD = the print code of before 3.5.0 (default); NEW = the ticket templates' renderer (the sale ticket and its duplicate for now; the other tickets stay on the old code until their step).",
+					false, ConfigType.SELECT, "OLD,NEW");
 			// Step D (3.1.0): how long a badge scan's grant stays good (TillGrantService, docs/modules/badge-permissions.md)
 			ensureConfig("TILL_GRANT_MAX_MINUTES", "240",
 					"Minutes a badge scan's authorisation stays good at the till when no ticket used it (one action, once, while the cashier's session is open). Not a positive number: 240.",

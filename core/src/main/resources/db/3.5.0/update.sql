@@ -1,5 +1,6 @@
 -- ============================================================
--- Version 3.5.0 (in progress) — ticket templates ("Modèles de tickets"): nothing yet, the version only
+-- Version 3.5.0 (in progress) — ticket templates ("Modèles de tickets"): the version only so far (step 1's setting is
+-- created at start-up)
 -- ============================================================
 -- Deployment order (a database at 3.4.0; CHANGELOG.md, 3.5.0, "Before deployment"):
 --   1) Bring the database to 3.4.0 first (db/3.4.0/update.sql). This script stops, without changing anything, while
@@ -25,6 +26,10 @@ END
 GO
 
 UPDATE APP_VERSION SET version = '3.5.0';
+
+-- Ticket templates, step 1: the store setting TICKET_RENDERER (General Setup, tab "Caisse et clôture", OLD / NEW, OLD by
+-- default: the print code of before) is created at start-up on a store, as every General Setup setting
+-- (ZZDataInitializer); no statement here. A head office has none.
 
 -- The release notes of 3.5.0 are written from CHANGELOG.md when the version is closed (nothing to tell the users yet).
 

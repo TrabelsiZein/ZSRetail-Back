@@ -6,14 +6,21 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 
 ## 3.5.0 — in progress (branch `release/3.5.0`, opened from `release/3.4.0` on 2026-11-26)
 
-Topic: ticket templates ("Modèles de tickets"), analysis first. Nothing changed yet but the version.
+Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.md`; step 1 done.
 
 ### Before deployment
 - A database at 3.4.0: `db/3.5.0/update.sql`, then the 3.5.0 WAR (`AppVersionGuard`). The script stops, changing
   nothing, while APP_VERSION is not 3.4.0 or 3.5.0; it may run again. Same script on a store and a head office.
 
+### Features
+- Ticket templates, step 1: the store setting `TICKET_RENDERER` (General Setup, "Caisse et clôture", `OLD` / `NEW`,
+  `OLD` by default: the print code of before, untouched), created at start-up on a store, sent by `GET /config` as
+  `ticketRenderer` (`NEW` in any case, else `OLD`; null on a head office). Its label in the event log (`AdminLabels`).
+  `docs/modules/general-setup.md`, "Ticket printing".
+
 ### DB script
-- `db/3.5.0/update.sql`: the version check and `APP_VERSION` 3.5.0, nothing else yet.
+- `db/3.5.0/update.sql`: the version check and `APP_VERSION` 3.5.0; `TICKET_RENDERER` named in a comment only (the row
+  is created at start-up, as every General Setup setting).
 
 ## 3.4.0 — released 2026-11-26 (branch `release/3.4.0`, tag `v3.4.0`, opened from `release/3.3.0` on 2026-11-23)
 
