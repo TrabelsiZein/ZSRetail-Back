@@ -4,6 +4,17 @@ One section per product version, newest first. Every commit that changes behavio
 its line here, under the version of its branch. The screens are in `ZSRetail-Front/CHANGELOG.md`. The French notes shown
 in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql` from this file when a version is closed.
 
+## 3.5.0 — in progress (branch `release/3.5.0`, opened from `release/3.4.0` on 2026-11-26)
+
+Topic: ticket templates ("Modèles de tickets"), analysis first. Nothing changed yet but the version.
+
+### Before deployment
+- A database at 3.4.0: `db/3.5.0/update.sql`, then the 3.5.0 WAR (`AppVersionGuard`). The script stops, changing
+  nothing, while APP_VERSION is not 3.4.0 or 3.5.0; it may run again. Same script on a store and a head office.
+
+### DB script
+- `db/3.5.0/update.sql`: the version check and `APP_VERSION` 3.5.0, nothing else yet.
+
 ## 3.4.0 — released 2026-11-26 (branch `release/3.4.0`, tag `v3.4.0`, opened from `release/3.3.0` on 2026-11-23)
 
 ### Before deployment
