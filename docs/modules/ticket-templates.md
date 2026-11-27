@@ -193,13 +193,17 @@ other customer tickets; its blocks:
 
 | Sections (default order) | Locked |
 |---|---|
-| En-tête (GARANTIE, DUPLICATA on the duplicate, « GARANTIE # » badge) · Texte d'en-tête · Informations (N° de garantie, Ticket d'achat, Article garanti, Début, Fin, Date) · Articles (the sold line: item, quantity covered, its TTC; item code, unit price, line VAT rate: off) · Totaux (Total TVA, Article sous garantie) · Code-barres (the warranty's number, `W-<id>`) · Pied (the message "Présentez ce ticket pour faire valoir la garantie", "Valide jusqu'au" the end date, contact, MF, footer text, ZS Retail) | store name, DUPLICATA, the warranty's number, the sale's ticket, the item, the start and end dates, the item line inside its section, MF |
+| En-tête (GARANTIE, DUPLICATA on the duplicate, « GARANTIE # » badge) · Texte d'en-tête · Informations (N° de garantie, Ticket d'achat, Article garanti, Début, Fin, Date) · Articles (the sold line: item, quantity covered, the covered share of its TTC; item code, unit price, line VAT rate: off) · Totaux (Total TVA, Article sous garantie) · Code-barres (the warranty's number, `W-<id>`) · Pied (the message "Présentez ce ticket pour faire valoir la garantie", "Valide jusqu'au" the end date, contact, MF, footer text, ZS Retail) | store name, DUPLICATA, the warranty's number, the sale's ticket, the item, the start and end dates, the item line inside its section, MF |
 
 No cashier and no customer code (the warranty has none), no line discount. The builder, `warranty-ticket.js`
 (`buildWarrantyTicket`), on `warranty-formats.js` (a COPY of the pages' `buildWarrantyReceiptData`). One old bug fixed
 in the new printing only: the old ticket printed "Total TVA : 0,000"; the new one prints the sold line's VAT (its VAT
 amount, else TTC - HT, else from its rate), and no VAT row when no amount shows (the item section and "Article sous
-garantie" off) or when it is not known (no sold line).
+garantie" off) or when it is not known (no sold line). And a second one: a warranty covering part of its line printed
+the whole line; it prints the share of the quantity covered (the line's TTC, its line discount in it, x covered / sold,
+to the millime; the VAT of that amount at the line's rate, else the line's VAT x the share; W-1, 1 of 2 at 34.700:
+34.700 and 5.540). The sale's ticket discount is not in it (not on the line); a warranty covering its whole line prints
+as before.
 
 ## The tombola slip (step 3 part 2)
 

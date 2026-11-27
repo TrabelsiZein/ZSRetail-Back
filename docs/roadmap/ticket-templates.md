@@ -424,9 +424,17 @@ Locked blocks (each refused off by the server):
   title, the barcode, the phone.
 
 Choices: the warranty prints no cashier and no customer code (the warranty has none: no switch that would do nothing),
-no line discount or promotion (it prints none); new and off: the item code, the unit price, the line's VAT rate. Its
-amount stays the sold line's TTC with the quantity covered (today's; a warranty covering 1 of 2 items shows the line's
-total). The tombola slip's sizes follow the sale ticket's size level; its dashed lines never wrap (58 mm).
+no line discount or promotion (it prints none); new and off: the item code, the unit price, the line's VAT rate. The
+tombola slip's sizes follow the sale ticket's size level; its dashed lines never wrap (58 mm).
 
-Left: step 4 (internal tickets), step 5 (head office); screen tests of step 3 (part 1's fixes and part 2); the
-accountant on the locks.
+After the screen test (2026-11-27, passed), two points, new printing only:
+- A warranty covering part of its line prints the share of the quantity covered: the line's TTC x covered / sold, to
+  the millime, and the VAT of that amount at the line's rate (else the line's VAT x the share). W-1 (1 of 2 AURA
+  BILLIONAIRE H EDP 100ML at 34.700): 34.700 and 5.540, where it printed 69.400 and 11.081; its duplicate the same. The
+  line discount is in the line's TTC, so shared with it. The sale's ticket discount is not: it is not on the line (the
+  sale ticket prints it below the lines), the warranty prints the line's value, and a warranty covering its whole line
+  prints as before. Fixtures: W-1, its duplicate, a line with a 10 % line discount; the sample covers 1 of 2.
+- The tombola slip's preview caption follows "Sur un ticket à part" (on its own ticket, after the sale ticket; or right
+  under it); the other helps say "après le ticket de vente", true either way.
+
+Left: step 4 (internal tickets), step 5 (head office); the accountant on the locks.
