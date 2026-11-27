@@ -72,8 +72,8 @@ import com.digithink.zsretail.erp.api.ErpAbility;
  * Warranties (3.3.0): {@code warranty.enabled}, the Warranties page of a store, as rfid.enabled: true or false (false
  * when absent or blank); any other value stops the startup, and true on a head office too ({@link #isWarrantySet}).
  * <p>
- * Store orders (3.3.0): {@code storeorders.enabled}, the store's "Commandes centrale": true or false (false when
- * absent); any other value, a blank included (not a module switch of 3.5.0's rule yet), stops the startup, and true anywhere but a store whose goods come from its head
+ * Store orders (3.3.0): {@code storeorders.enabled}, the store's "Commandes centrale", as rfid.enabled: true or false
+ * (false when absent or blank, {@link #moduleSwitch}); any other value stops the startup, and true anywhere but a store whose goods come from its head
  * office too ({@link #isStoreOrdersEnabledSet}).
  * <p>
  * Event log (3.4.0): {@code eventlog.enabled}, the store's "Journal des événements", as warranty.enabled: true or false
@@ -336,7 +336,7 @@ public final class NodeOwnership {
 	 * called by {@link #resolve} (isSupplyFromHeadOffice resolves): ApplicationModeService checks it at the start.
 	 */
 	public static boolean isStoreOrdersEnabledSet(PropertyResolver env) {
-		if (!strictBoolean(env, STORE_ORDERS_ENABLED_KEY,
+		if (!moduleSwitch(env, STORE_ORDERS_ENABLED_KEY,
 				"true (this store orders from its head office) or false (no Commandes centrale)")) {
 			return false;
 		}
@@ -370,7 +370,8 @@ public final class NodeOwnership {
 	}
 
 	/**
-	 * 3.5.0: a store module switch (rfid.enabled, warranty.enabled, eventlog.enabled), trimmed and case-insensitive:
+	 * 3.5.0: a store module switch (rfid.enabled, warranty.enabled, eventlog.enabled, storeorders.enabled), trimmed and
+	 * case-insensitive:
 	 * absent or blank (the line with nothing after the =) false; true; false. Any other value throws
 	 * {@link IllegalStateException} naming the key and the two meanings (the startup stops).
 	 */

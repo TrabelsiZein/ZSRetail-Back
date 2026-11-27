@@ -86,8 +86,10 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
 ### Config
 - `rfid.enabled`, `warranty.enabled`, `eventlog.enabled`: a blank value (the line with nothing after the `=`) is
   `false`, as a missing line; it stopped the startup. `true` and `false` (trimmed, any case) unchanged; any other value
-  still stops the startup with its message (`NodeOwnership.moduleSwitch`). `storeorders.enabled` keeps stopping on a
-  blank for now.
+  still stops the startup with its message (`NodeOwnership.moduleSwitch`).
+- `storeorders.enabled`: the same rule (`moduleSwitch`): blank = `false` (on a store, alone or linked, and on a head
+  office), as a missing line; it stopped the startup. `true` still only on a store whose goods come from its head office;
+  any other value still stops the startup.
 
 ### DB script
 - `db/3.5.0/update.sql`: the version check and `APP_VERSION` 3.5.0; `TICKET_RENDERER` named in a comment only (the row

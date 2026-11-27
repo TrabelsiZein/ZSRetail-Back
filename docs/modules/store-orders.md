@@ -22,14 +22,16 @@ where `GET /config` gives `supplyFromHeadOffice` **and** `navItems` **and** (3.3
 
 | Key | Values | Absent |
 |---|---|---|
-| `storeorders.enabled` | `true` \| `false`, trimmed, any case | `false` |
+| `storeorders.enabled` | `true` \| `false`, trimmed, any case; blank (3.5.0) = `false` | `false` |
 
 - A store's line; the store type file states `false`. `true` is accepted only on a store whose goods come from its head
   office (`NodeOwnership.isSupplyFromHeadOffice`); anywhere else, a head office included, `true` stops the startup:
   `Invalid value 'true' for property storeorders.enabled: only a store whose goods come from its head office
   (headoffice.url and ownership.supply=HEAD_OFFICE) orders from it. Remove the line or set false.` (on a head office:
   `... a head office orders nothing from a head office (it takes its stores' orders with headoffice.storeorders.post).
-  Remove the line.`). Any value other than true or false stops it too (as `rfid.enabled`). Checked by
+  Remove the line.`). Blank (the line with nothing after the `=`, 3.5.0) is `false`, as a
+  missing line, anywhere (`NodeOwnership.moduleSwitch`, the rule of the store module switches `rfid.enabled`,
+  `warranty.enabled`, `eventlog.enabled`). Any other value than true or false stops it too (as `rfid.enabled`). Checked by
   `ApplicationModeService` at the start (not in `NodeOwnership.resolve`: the supply question resolves).
 - The head office's key is unchanged: `headoffice.storeorders.post` (MANUAL or ERP) makes it take orders.
 - `GET /config` `storeOrdersEnabled`; the startup summary says `store orders on`.

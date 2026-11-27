@@ -83,9 +83,17 @@ class StoreOrderAPITest {
 	}
 
 	@Test
-	@DisplayName("Any value but true or false stops the start; true only on a store whose goods come from its head office")
+	@DisplayName("Blank (3.5.0) is false, as a missing line, anywhere; any other value but true or false stops the start;"
+			+ " true only on a store whose goods come from its head office")
 	void startRules() {
-		for (String value : new String[] { "", "yes", "1" }) {
+		for (String value : new String[] { "", "  " }) {
+			assertFalse(NodeOwnership.isStoreOrdersEnabledSet(supplied().withProperty("storeorders.enabled", value)), "'" + value + "'");
+			assertFalse(NodeOwnership.isStoreOrdersEnabledSet(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")
+					.withProperty("storeorders.enabled", value)), "head office '" + value + "'");
+			assertFalse(NodeOwnership.isStoreOrdersEnabledSet(new MockEnvironment().withProperty("storeorders.enabled", value)),
+					"a store alone '" + value + "'");
+		}
+		for (String value : new String[] { "yes", "1", "on" }) {
 			IllegalStateException e = assertThrows(IllegalStateException.class,
 					() -> NodeOwnership.isStoreOrdersEnabledSet(supplied().withProperty("storeorders.enabled", value)));
 			assertTrue(e.getMessage().startsWith("Invalid value '" + value + "' for property storeorders.enabled: true"),
