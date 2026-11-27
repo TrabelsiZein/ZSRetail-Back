@@ -202,8 +202,11 @@ amount, else TTC - HT, else from its rate), and no VAT row when no amount shows 
 garantie" off) or when it is not known (no sold line). And a second one: a warranty covering part of its line printed
 the whole line; it prints the share of the quantity covered (the line's TTC, its line discount in it, x covered / sold,
 to the millime; the VAT of that amount at the line's rate, else the line's VAT x the share; W-1, 1 of 2 at 34.700:
-34.700 and 5.540). The sale's ticket discount is not in it (not on the line); a warranty covering its whole line prints
-as before.
+34.700 and 5.540). Then the sale's ticket discount (the back end's `ticketDiscountFactor`, the returns screen's rule:
+the ticket's %, a ticket amount, a ticket paid partly with points its discount only, the points being a payment): the
+item line stays as on the sale ticket, a "Remise ticket" row (`TICKET_DISCOUNT`, only when the sale has one), then
+"Article sous garantie" the amount paid and the VAT of it at the line's rate (1 of 2 at 34.700, ticket -5 %: -1.735,
+32.965, VAT 5.263). A sale without a ticket discount prints as before.
 
 ## The tombola slip (step 3 part 2)
 

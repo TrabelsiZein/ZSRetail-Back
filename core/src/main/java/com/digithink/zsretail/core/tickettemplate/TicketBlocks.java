@@ -315,7 +315,8 @@ public final class TicketBlocks {
 	 * Step 3 part 2: the warranty ticket and its duplicate, in the order it prints today: the title GARANTIE, DUPLICATA on
 	 * the duplicate, the badge "GARANTIE #"; the warranty's number, the sale's ticket, the item, its start and end dates,
 	 * the date in the info (no cashier, no customer code: the warranty has none); the item's line (no discount, no
-	 * promotion: the warranty prints none); the VAT and the amount ("Article sous garantie"); the warranty's barcode; its
+	 * promotion: the warranty prints none); the sale's ticket discount ("Remise ticket", only when it has one), the VAT and
+	 * the amount paid ("Article sous garantie"); the warranty's barcode; its
 	 * message and its end date in the footer. Not a fiscal ticket: the item's line and the amounts may be switched off
 	 * (the VAT row then goes too). New: the line's unit price and VAT rate, the item code, off. Locked: the store's name,
 	 * DUPLICATA, the warranty's number, ticket, item, start and end dates (what the store checks when the customer comes
@@ -336,7 +337,7 @@ public final class TicketBlocks {
 					locked("LINES", Lock.FUNCTIONAL).with(choice("name", "WRAP", "WRAP", "CUT")), off("ITEM_CODE"),
 					off("UNIT_PRICE"), off("VAT")),
 			section("TOTALS", true, null, null, false,
-					on("TOTAL_VAT"), on("TOTAL").with(size())),
+					on("TICKET_DISCOUNT"), on("TOTAL_VAT"), on("TOTAL").with(size())),
 			section("BARCODE", true, null, null, false),
 			section("FOOTER", true, Lock.LEGAL, null, false,
 					on("MESSAGE").with(text("text", null, 2, 48)), on("VALIDITY"), on("WEBSITE"), on("EMAIL"), on("PHONE"),

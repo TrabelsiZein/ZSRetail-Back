@@ -6,6 +6,7 @@ import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
+import javax.persistence.Transient;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.digithink.zsretail.core.model.Item;
@@ -55,4 +56,11 @@ public class Warranty extends _BaseEntity {
 	/** When true, customer has used this warranty (e.g. for repair). Status becomes USED. */
 	@Column(nullable = false)
 	private Boolean used = false;
+
+	/**
+	 * 3.5.0, not stored: the share of the sold line's TTC paid after the sale's ticket discount
+	 * (WarrantyService.ticketDiscountFactor), sent for the warranty ticket; null when the ticket has none.
+	 */
+	@Transient
+	private Double ticketDiscountFactor;
 }

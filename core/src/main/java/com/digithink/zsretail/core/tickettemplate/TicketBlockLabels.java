@@ -87,6 +87,7 @@ public final class TicketBlockLabels {
 		l.put("WARRANTY:INFO.NUMBER", "N° de garantie");
 		l.put("WARRANTY:TOTALS.TOTAL", "Article sous garantie");
 		l.put("WARRANTY:FOOTER.VALIDITY", "Rappel de la fin de garantie");
+		l.put("WARRANTY:TOTALS.TICKET_DISCOUNT", "Remise ticket");
 		l.put("SMALL", "Petite");
 		l.put("NORMAL", "Normale");
 		l.put("LARGE", "Grande");

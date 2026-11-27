@@ -3,6 +3,7 @@ package com.digithink.zsretail.store.controller;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -119,6 +120,7 @@ public class WarrantyAPI {
 			}
 			String notes = body.get("notes") != null ? body.get("notes").toString().trim() : null;
 			Warranty w = warrantyService.createForSalesLine(salesLineId, startDate, endDate, quantityCovered, notes);
+			w.setTicketDiscountFactor(warrantyService.ticketDiscountFactor(w.getSalesHeader())); // 3.5.0: its ticket
 			return ResponseEntity.status(HttpStatus.CREATED).body(w);
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
@@ -143,6 +145,8 @@ public class WarrantyAPI {
 					? warrantyService.findByTicketNumber(ticketNumber.trim())
 					: warrantyService.findAll();
 			String statusFilter = (status != null && !status.trim().isEmpty()) ? status.trim().toUpperCase() : null;
+			// 3.5.0: each sale's ticket discount once (its lines read only for an amount or points)
+			Map<Long, Optional<Double>> factors = new HashMap<>();
 			List<Map<String, Object>> result = list.stream()
 					.map(w -> {
 						String st = WarrantyService.computeStatus(w);
@@ -159,6 +163,10 @@ public class WarrantyAPI {
 						m.put("quantityCovered", w.getQuantityCovered());
 						m.put("notes", w.getNotes());
 						m.put("status", st);
+						SalesHeader ticket = w.getSalesHeader();
+						m.put("ticketDiscountFactor", ticket == null ? null
+								: factors.computeIfAbsent(ticket.getId(),
+										k -> Optional.ofNullable(warrantyService.ticketDiscountFactor(ticket))).orElse(null));
 						return m;
 					})
 					.filter(m -> m != null)
@@ -177,6 +185,10 @@ public class WarrantyAPI {
 			return off;
 		}
 		return warrantyService.findById(id)
+				.map(w -> {
+					w.setTicketDiscountFactor(warrantyService.ticketDiscountFactor(w.getSalesHeader())); // 3.5.0
+					return w;
+				})
 				.map(ResponseEntity::ok)
 				.orElse(ResponseEntity.notFound().build());
 	}

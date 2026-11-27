@@ -2,6 +2,7 @@ package com.digithink.zsretail.store.service;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,41 @@ public class WarrantyService extends _BaseService<Warranty, Long> {
 	@Override
 	protected com.digithink.zsretail.core.repository._BaseRepository<Warranty, Long> getRepository() {
 		return warrantyRepository;
+	}
+
+	/**
+	 * 3.5.0 (ticket templates, the warranty ticket): the share of a sold line's TTC the customer really paid after the
+	 * sale's ticket discount, the returns screen's rule (ReturnProducts.returnDiscountFactor, ReturnHeaderService): a
+	 * ticket paid partly with loyalty points, the ticket discount without the points (loyaltyHeaderFactor: the points
+	 * are a payment, as the returns screen shows them apart); else the ticket's percentage; else a ticket discount amount,
+	 * the ticket's total over its lines' TTC. Null when the ticket has no discount (the warranty prints as before). The
+	 * sale's lines are read only for an amount or points.
+	 */
+	public static Double ticketDiscountFactor(SalesHeader ticket, Supplier<List<SalesLine>> ticketLines) {
+		if (ticket == null) {
+			return null;
+		}
+		Double factor = null;
+		Double deduction = ticket.getLoyaltyDeductionAmount();
+		Double pct = ticket.getDiscountPercentage();
+		Double amount = ticket.getDiscountAmount();
+		if (deduction != null && deduction > 0) {
+			factor = ReturnHeaderService.loyaltyHeaderFactor(ticket, ticketLines.get());
+		} else if (pct != null && pct > 0) {
+			factor = 1.0 - pct / 100.0;
+		} else if (amount != null && amount > 0 && ticket.getTotalAmount() != null && ticket.getTotalAmount() >= 0) {
+			double linesTtc = ticketLines.get().stream()
+					.mapToDouble(l -> l.getLineTotalIncludingVat() != null ? l.getLineTotalIncludingVat() : 0.0).sum();
+			if (linesTtc > 0) {
+				factor = ticket.getTotalAmount() / linesTtc;
+			}
+		}
+		return factor != null && factor >= 0 && factor < 1 ? factor : null;
+	}
+
+	/** The ticket discount factor of a warranty's sale (ticketDiscountFactor), its lines read from the database. */
+	public Double ticketDiscountFactor(SalesHeader ticket) {
+		return ticketDiscountFactor(ticket, () -> salesLineRepository.findBySalesHeader(ticket));
 	}
 
 	public Optional<SalesHeader> findSalesHeaderByTicketNumber(String ticketNumber) {

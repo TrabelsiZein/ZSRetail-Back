@@ -29,6 +29,16 @@ them (ACTIVE, EXPIRED, USED), marks one used and prints its slip. Pages `Warrant
 - The dev, rehearsal and happyness-from-scratch store files (and the local ones) say `true`, so no dev store lost the
   page; no customer file names the key.
 
+## The ticket discount (3.5.0)
+
+`GET /warranty`, `GET /warranty/{id}` and `POST /warranty` send `ticketDiscountFactor` (`@Transient`, not stored): the
+share of the sold line's TTC paid after the sale's ticket discount, by the returns screen's rule
+(`WarrantyService.ticketDiscountFactor`): a ticket paid partly with points, its ticket discount only
+(`ReturnHeaderService.loyaltyHeaderFactor`; the points are a payment); else the ticket's %; else a ticket discount of an
+amount, the ticket's total over its lines' TTC (the lines read only then); null without a ticket discount. The new
+warranty ticket (`modules/ticket-templates.md`, "The warranty ticket") prints it as "Remise ticket" and "Article sous
+garantie" as the amount paid. Test: `WarrantyTicketDiscountTest`.
+
 ## The slip
 
 `ReceiptTemplate.vue` with `isWarranty` prints the warranty slip: the title "GARANTIE", "GARANTIE #W-<id>", the warranty

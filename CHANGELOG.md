@@ -69,6 +69,12 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   names no list of documents.
 
 ### Fixes
+- Warranties: `GET /warranty`, `GET /warranty/{id}` and `POST /warranty` send `ticketDiscountFactor` (not stored): the
+  share of the sold line paid after the sale's ticket discount, the returns screen's rule
+  (`WarrantyService.ticketDiscountFactor`: the ticket's %, a ticket amount as the ticket's total over its lines' TTC, a
+  ticket paid partly with points its discount only, `loyaltyHeaderFactor`); null without a ticket discount. The
+  warranty ticket's "Remise ticket" (`TicketBlocks.WARRANTY` TOTALS gains `TICKET_DISCOUNT`, on, printed only when
+  there is one).
 - Returns: `GET /return-header` (the list) and `GET /return-header/{id}/details` send the return's cashier
   (`createdByUser`: id, username, full name; the user who made the return, else its session's cashier, else null), so
   the voucher's reprint prints it: the returns stored it, the endpoints did not send it (the old reprint printed
