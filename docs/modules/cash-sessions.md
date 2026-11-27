@@ -232,7 +232,11 @@ nothing is computed and the fields are absent from the JSON (`@JsonInclude(NON_N
 
 ## Printing (front)
 
-`src/views/admin/session/printSessionReport.js`, the one print code: `printSessionReport(vm, sessionId)` opens the print
+3.5.0 (ticket templates): the tickets below print through the ticket templates (`modules/ticket-templates.md`, documents
+`SESSION_REPORT`, `STORE_REPORT`, `CLOSING_DECLARED`, `CASH_MOVEMENT_SLIP`, `CLOSING_WITHDRAWAL_SLIP`), the same
+content and order; the entry points are in `src/views/admin/session/printInternalTickets.js` (`printSessionTicket`,
+`printStoreTicket`, `printClosingDeclared`, `printCashMovementSlip`, `printClosingWithdrawalSlip`), the old
+`printSessionReport.js` is gone. Its rules, kept: `printSessionTicket(vm, sessionId)` opens the print
 window first (a popup is allowed only then), calls the endpoint, writes the 80 mm ticket (`sessionReportHtml`, the
 style of the cashier's closing ticket, store name and logo from `appConfig/companyInfo`, amounts with 3 decimals) and
 prints. It never throws: a blocked popup or a failed request shows a toast and the window closes. It takes `$i18n`,
@@ -252,8 +256,8 @@ gone by then. Labels: `admin.sessionReport.*`, fr, en, ar (de and pt removed in 
 `CASHIER_CLOSING_TICKET` (`general-setup.md`): `Z` (the default, also when the row is absent) or `DECLARED`.
 
 - `ItemSelection.vue`, `closeSession`: once `POST /cashier-session/close` answers, with `Z` the till prints the ticket Z
-  of the closed session (`printSessionReport(this, data.session.id)`), with `DECLARED` the declared amounts as before
-  (`printSessionCloseTicket(sessionCloseTicket)`). The close endpoint still returns `sessionCloseTicket`; the till does
+  of the closed session (`printSessionTicket(this, data.session.id)`), with `DECLARED` the declared amounts as before
+  (`printClosingDeclared(sessionCloseTicket)`; 3.5.0: the setting read again when the closing popup opens). The close endpoint still returns `sessionCloseTicket`; the till does
   not read it for a Z. The back end's closing code did not change.
 - The session is closed before anything prints: the print is best effort and is not awaited. A blocked popup or a
   printer failure leaves the session closed and the logout goes on.

@@ -1,6 +1,7 @@
 -- ============================================================
--- Version 3.5.0 (in progress) — ticket templates ("Modèles de tickets"): the table ticket_template and the POS
--- machine's paper width (steps 2 and 2b; step 1's setting is created at start-up)
+-- Version 3.5.0 (released 2026-11-27) — ticket templates ("Modèles de tickets"): the table ticket_template and the
+-- POS machine's paper width (steps 2 and 2b); the head office's switch and the store's saved templates (step 5); a
+-- store's ticket settings of before carried into its templates (step 6); the release notes
 -- ============================================================
 -- Deployment order (a database at 3.4.0; CHANGELOG.md, 3.5.0, "Before deployment"):
 --   1) Bring the database to 3.4.0 first (db/3.4.0/update.sql). This script stops, without changing anything, while
@@ -26,9 +27,9 @@ BEGIN
 END
 GO
 
--- Ticket templates, step 1: the store setting TICKET_RENDERER (General Setup, tab "Caisse et clôture", OLD / NEW, OLD by
--- default: the print code of before) is created at start-up on a store, as every General Setup setting
--- (ZZDataInitializer); no statement here. A head office has none.
+-- Ticket templates, step 1: the store setting TICKET_RENDERER (OLD / NEW) chose the printing during 3.5.0's development;
+-- step 6 retired it (no longer created; a row a development database has stays hidden, GeneralSetupService.RETIRED_CODES,
+-- and is dropped with the next release). No statement here: a database at 3.4.0 never had it.
 
 GO
 
@@ -234,8 +235,8 @@ GO
 
 UPDATE APP_VERSION SET version = '3.5.0';
 
--- The notes of 3.5.0 are written again on each run (the script may run more than once), from CHANGELOG.md; the version
--- is still in progress (step 6 of the ticket templates written 2026-11-27).
+-- The notes of 3.5.0 are written again on each run (the script may run more than once). Written from CHANGELOG.md when
+-- the version was closed (2026-11-27).
 DELETE FROM APP_RELEASE_NOTES WHERE version = '3.5.0';
 
 INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
@@ -249,7 +250,9 @@ INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
 ('3.5.0', 'FIX', N'Bon de retour réimprimé : « DUPLICATA » sous le titre, le caissier du retour et la même TVA que le premier ticket ; sa ligne de paiement s''appelle « Bon de retour ».'),
 ('3.5.0', 'FIX', N'Ticket de tombola : il ne s''imprime que si la tombola est activée, et retrouve sa présentation sur un ticket à part.'),
 ('3.5.0', 'FIX', N'Tickets X et Z et bons de caisse : les dates s''impriment en jj/mm/aaaa hh:mm ; sur le ticket de clôture, un nom avec « < » ou « & » s''imprime tel qu''il est saisi.'),
-('3.5.0', 'FIX', N'Tous les tickets s''impriment en noir sur blanc (les bandeaux de numéro en couleur étaient illisibles sur une imprimante thermique).');
+('3.5.0', 'FIX', N'Tous les tickets s''impriment en noir sur blanc (les bandeaux de numéro en couleur étaient illisibles sur une imprimante thermique).'),
+('3.5.0', 'FIX', N'Configuration générale : un réglage de la caisse modifié (ticket imprimé à la clôture, tombola, quantités décimales, catalogue) compte dès l''ouverture de la caisse ou de la clôture, sans se reconnecter.'),
+('3.5.0', 'FIX', N'Fidélité : la recherche d''un membre trouve aussi son nom complet, prénom puis nom ou nom puis prénom.');
 
 GO
 

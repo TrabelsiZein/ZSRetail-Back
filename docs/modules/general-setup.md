@@ -79,23 +79,14 @@ when its screen opens and when its closing popup opens (a failed read keeps the 
 
 ## Ticket printing (3.5.0)
 
-A store setting (General Setup, tab "Caisse et clôture", after `CASHIER_CLOSING_TICKET`, SELECT, created at start-up on a
-store only, `OLD`; never on a head office): `TICKET_RENDERER` (`AppConfigAPI.TICKET_RENDERER`), label "Impression des
-tickets", options `OLD` "Ancienne impression (par défaut)" and `NEW` "Nouvelle impression (modèles de tickets)", a help
-text (`fields.ticketRendererHelp`). `OLD` (also no row, a blank or unknown value) prints with the code of before,
-untouched; `NEW` prints the documents the page "Modèles de tickets" offers (those not marked "Bientôt") through the
-ticket templates' renderer; the others stay on the old code. Step 3 part 2: the help says so, without a list of
-documents (it would go stale). Sent by
-`GET /config` as `ticketRenderer` (`NEW` in any case, else `OLD`; null on a head office), read through the getter
-`appConfig/newTicketRenderer`. `roadmap/ticket-templates.md`, "Step 1 — done". Test: `AppConfigAPITest#ticketRenderer`.
-Step 2: the templates themselves are not General setup settings (the table `ticket_template`, `modules/ticket-templates.md`);
-`TICKET_RENDERER` stays the only line. Step 2b: once a sale ticket template is saved, the tab "Programme de fidélité"
-says under `TICKET_SHOW_LOYALTY_BALANCE`, `TICKET_SHOW_LOYALTY_EARNED` and `TOMBOLA_ENABLED` "Décidé par Modèles de
-tickets (nouvelle impression)" (their values are kept and still read by the old printing; without a saved template the
-template's default reads them). Step 6: `TICKET_RENDERER`, `TICKET_SHOW_LOYALTY_BALANCE` and `_EARNED` are retired (the upgrade carried
-the two loyalty rows into the sale ticket's template, `ticket-templates.md`): no longer created, not on the page, not in
-`GET /general-setup` nor found by code (`GeneralSetupService.RETIRED_CODES`); an installation of before keeps the rows one
-release as source data, then they are dropped with the Company Information ticket columns. `TOMBOLA_ENABLED` stays a
+No ticket setting is in General setup any more: every printed ticket follows its template (`modules/ticket-templates.md`,
+page "Modèles de tickets"). During 3.5.0 a store setting `TICKET_RENDERER` ("Impression des tickets", `OLD` / `NEW`)
+chose between the old print code and the templates' renderer; step 6 made the templates the only printing and retired
+it with `TICKET_SHOW_LOYALTY_BALANCE` and `_EARNED` (the upgrade carried the two loyalty rows into the sale ticket's
+template). The three are no longer created, not on the page, not in `GET /general-setup` nor found by code
+(`GeneralSetupService.RETIRED_CODES`, `GeneralSetupRetiredCodesTest`); an installation of before keeps the rows one
+release as source data, then they are dropped with the Company Information ticket columns. `GET /config` no longer
+sends `ticketRenderer`. `TOMBOLA_ENABLED` stays a
 feature setting.
 
 ## The cash drawer belongs to (3.2.0)

@@ -48,7 +48,7 @@ garantie" as the amount paid. Test: `WarrantyTicketDiscountTest`.
 
 ## The slip
 
-`ReceiptTemplate.vue` with `isWarranty` prints the warranty slip: the title "GARANTIE", "GARANTIE #W-<id>", the warranty
+The warranty ticket (3.5.0: its template, document `WARRANTY` of "Modèles de tickets", `src/libs/ticket`; before, `ReceiptTemplate.vue` with `isWarranty`) prints: the title "GARANTIE", "GARANTIE #W-<id>", the warranty
 number, the ticket, the item, the dates, "Article sous garantie" and the footer "Présentez ce ticket pour faire valoir
 la garantie" / "Valide jusqu'au : <end date>". Only the two Warranties pages print it (on registering, and "print
 duplicate"): a sale ticket never carries a warranty text. The Sale ticket fields of Company information (address,

@@ -1,16 +1,19 @@
-# Ticket templates ("Modèles de tickets") — 3.5.0
+# Ticket templates ("Modèles de tickets") — 3.5.0 (released 2026-11-27)
 
-What the till's tickets print, in which order, on which width. Design and steps: `roadmap/ticket-templates.md`. Built so
-far: step 1 (the switch and the new renderer, the same ticket), step 2 (the table, the API, the page, the sale ticket's
+What the till's tickets print, in which order, on which width. Design and steps: `roadmap/ticket-templates.md`. Every
+step is done: step 1 (the new renderer, the same ticket), step 2 (the table, the API, the page, the sale ticket's
 template), step 2b (the layout, the options, the texts, the tombola, everything the sale ticket prints owned by the
-template) and step 3 (part 1: the return voucher, its reprint, the cash refund slip; part 2: the warranty ticket and
-its duplicate, the tombola slip's own document) and step 4 (the internal tickets: the session and store tickets X / Z, the
-closing ticket, the two slips). The head office sends its templates down at step 5.
+template), step 3 (part 1: the return voucher, its reprint, the cash refund slip; part 2: the warranty ticket and its
+duplicate, the tombola slip's own document), step 4 (the internal tickets: the session and store tickets X / Z, the
+closing ticket, the two slips), step 5 (a head office manages the templates of the stores whose switch is on) and
+step 6 (the new printing the only one, the old settings carried at the upgrade, the old code deleted). The upgrade of a
+customer at 3.4.0: `CHANGELOG.md`, 3.5.0, "Before deployment".
 
 ## The rule
 
-Everything about the printed sale ticket is configured in the template (table `ticket_template`, page "Modèles de
-tickets"). Nothing new in General setup or Company Information: `TICKET_RENDERER` stays the only General setup line.
+Everything about a printed ticket is configured in its template (table `ticket_template`, page "Modèles de tickets").
+No ticket setting is left in General setup or Company Information (step 6); `TOMBOLA_ENABLED` stays a feature setting
+(it decides whether the tombola runs, so whether its section and slip print).
 
 - **Step 6: the new printing is the only one.** Every document prints through `src/libs/ticket`, which reads its
   template. Part 2 deleted the old print code (`ReceiptTemplate.vue`, `receiptPrintStyles.js`, `printSessionReport.js`,

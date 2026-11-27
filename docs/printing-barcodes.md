@@ -1,12 +1,12 @@
 # Printing & Barcodes
 
-- Barcode shown on printed sales receipts, returns vouchers, and duplicate ticket prints by rendering `ReceiptTemplate` + `JsBarcode`.
-- 3.5.0: with the General Setup setting `TICKET_RENDERER` on `NEW`, the sale ticket (and its split bill), its duplicate
-  and the tombola slip print through the ticket templates' renderer (`src/libs/ticket`), the same ticket; `OLD`, the
-  default, keeps `ReceiptTemplate`. `roadmap/ticket-templates.md`, "Step 1 — done". Step 2: they follow the sale
-  ticket's template ("Modèles de tickets": blocks, width 58 / 80, size, compact, the POS machine's width first);
-  `modules/ticket-templates.md`. Step 3: the return voucher (its reprint), the cash refund slip and the warranty ticket
-  (its duplicate) too, each with its template; the tombola slip's look is its own document.
+- 3.5.0: every ticket (the sale ticket and its split bill, its duplicate, the return voucher and its reprint, the cash
+  refund slip, the warranty ticket and its duplicate, the tombola slip, the tickets X / Z, the closing ticket, the cash
+  slips) prints through the ticket templates' renderer (`src/libs/ticket`), each with its template ("Modèles de
+  tickets": blocks, width 58 / 80, size, spacing, the POS machine's width first); `modules/ticket-templates.md`. The
+  barcodes are drawn by `JsBarcode`, with the values and options of before. `ReceiptTemplate.vue`,
+  `receiptPrintStyles.js` and `receiptBranding.js`, named in the lines below, were deleted at step 6 (the lines below
+  say what the ticket prints; the new renderer prints the same).
 - Cash refund slip (3.1.0, test log I-56): a return refunded in cash (`SIMPLE_RETURN`) prints
   `ReturnProducts.printCashRefundReceipt`, `ReceiptTemplate` with the prop `isRefund`: the voucher's layout without its
   voucher parts and without a barcode ("REMBOURSEMENT", return number, original ticket, date, cashier, returned lines

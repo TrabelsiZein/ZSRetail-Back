@@ -49,7 +49,7 @@ POS machine 'X' has sessions: it cannot be deleted. Deactivate it instead."). On
 |---|---|---|
 | Sessions list | `GET /cashier-session/history`: `posMachineName` per row (`SessionDashboardDTO`), filter `posMachineId` | `SessionHistory.vue`: column "Poste de caisse" and a filter |
 | Session details | `GET /cashier-session/{id}/details`: `session.posMachineName` | a line "Poste de caisse" |
-| Ticket X and Z of a session | `GET /cashier-session/{id}/report-ticket`: `posMachineName` (`SessionReportTicketDTO`) | `printSessionReport.js`: a header line when there is one (the Z printed at the closing too) |
+| Ticket X and Z of a session | `GET /cashier-session/{id}/report-ticket`: `posMachineName` (`SessionReportTicketDTO`) | `printSessionTicket` (`printInternalTickets.js`, 3.5.0): a header line when there is one (the Z printed at the closing too) |
 | Sales history | `GET /sales-header/history`: `posMachineName` per ticket, filter `posMachineId` (also `/history/export`) | `TicketsHistory.vue`: column and filter |
 | Returns list | `GET /return-header/history`: `posMachineName` per return | `ReturnsManagement.vue`: column |
 | Journal, a day | the store ticket's `sessions[].posMachineName` (`StoreReportTicketDTO.SessionRow`) | `StoreDay.vue`, "Sessions du jour": column |
@@ -202,7 +202,7 @@ Z."). It answers whatever the drawer (the page offers it only with `POS_MACHINE`
 - Before the print buttons, a choice: "Tout le magasin" (the default, the ticket of before) or a POS machine that has a
   session in the ticket shown ("—" is not offered: under the rules every new session has a machine). A machine chosen,
   its X (today) and Z are loaded at once, so the print window opens on the click; the 80 mm ticket names the machine
-  under the date (`printSessionReport.js`). The Z of one machine waits only for that machine's open sessions (I-19, by
+  under the date (`printStoreTicket`, `printInternalTickets.js` since 3.5.0). The Z of one machine waits only for that machine's open sessions (I-19, by
   the machine's name on the X's session rows).
 - The journal's A4 print (`printDayJournal.js`, `machineGroupsHtml`) adds, after the totals per method, the block "Par
   poste de caisse" (ticket X or Z of the day): per machine its sessions, a line (tickets, TTC, retours, net, fond de
@@ -341,5 +341,5 @@ and its subtotal rows, the X today and the Z another day).
 `pos_machine.paper_width` (int, nullable, `db/3.5.0/update.sql`): the width of the machine's ticket printer, 58 or 80;
 empty (every machine of before) = the ticket template's width. The page's field "Largeur du papier" (Celle du modèle de
 ticket / 58 mm / 80 mm) is sent with every save; another value is refused (`POS_MACHINE_PAPER_WIDTH`).
-`GET /pos-machine/my-machine` sends it as `paperWidth`; the till's print (new printing, `TICKET_RENDERER` = `NEW`) takes
+`GET /pos-machine/my-machine` sends it as `paperWidth`; every ticket the till prints takes
 the width of the machine at the PC's address first. `modules/ticket-templates.md`.

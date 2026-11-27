@@ -4,19 +4,46 @@ One section per product version, newest first. Every commit that changes behavio
 its line here, under the version of its branch. The screens are in `ZSRetail-Front/CHANGELOG.md`. The French notes shown
 in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql` from this file when a version is closed.
 
-## 3.5.0 — in progress (branch `release/3.5.0`, opened from `release/3.4.0` on 2026-11-26)
+## 3.5.0 — released 2026-11-27 (branch `release/3.5.0`, tag `v3.5.0`, opened from `release/3.4.0` on 2026-11-26)
 
-Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.md`; steps 1 to 3 done
-(`docs/modules/ticket-templates.md`).
+Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.md`; every step done
+(`docs/modules/ticket-templates.md`). The screens: `../ZSRetail-Front/CHANGELOG.md`, 3.5.0.
 
-### Before deployment
-- Step 6: the script carries a store's ticket settings of before into its ticket templates on the pass that brings the
-  database from 3.4.0 (`APP_VERSION` is set to 3.5.0 at the end of the script now): run it on the database at 3.4.0,
-  as it is. A second run carries nothing again.
-- A database at 3.4.0: `db/3.5.0/update.sql`, then the 3.5.0 WAR (`AppVersionGuard`). The script stops, changing
-  nothing, while APP_VERSION is not 3.4.0 or 3.5.0; it may run again. Same script on a store and a head office.
-- Run the script **before** the first start of the 3.5.0 WAR: it creates `ticket_template` and
-  `pos_machine.paper_width` in their own form (Hibernate's `ddl-auto=update` would otherwise create them first).
+### Before deployment (a customer at 3.4.0)
+1. **The script before the WAR**, on each installation (every store and the head office): `core/src/main/resources/db/3.5.0/update.sql`
+   (sqlcmd `-f 65001`; in SSMS open it as UTF-8), then `SELECT version FROM APP_VERSION` gives `3.5.0`; then the
+   3.5.0 WAR of the installation's type and the 3.5.0 front, together (the 3.4.0 front does not print with the 3.5.0
+   WAR's templates), and reload the till's pages. Run it **before the first start** of the 3.5.0 WAR: `AppVersionGuard`
+   refuses to start before, the script creates `ticket_template` and `pos_machine.paper_width` in their own form, and
+   it carries the ticket settings only on the pass from 3.4.0. It stops, changing nothing, while `APP_VERSION` is not
+   3.4.0 or 3.5.0 (a database older than 3.4.0 runs the scripts of the versions in between first, in order,
+   `docs/deploy-note.md`); it may run again (a second run only writes the release notes again). A new installation
+   (an empty database) runs no script.
+2. **A customer who touches nothing prints the same tickets.** The script carried each store's ticket settings of
+   before into its templates (a row only for a document whose settings differ from the built-in ones). What changes on
+   paper is only the fixes: every ticket black on white (no coloured number bands), the dates of the tickets X / Z and
+   the cash slips as dd/mm/yyyy hh:mm, the warranty ticket's real VAT, the return voucher's reprint with "DUPLICATA" and
+   its cashier, the tombola slip only when the tombola is on. On screen: the page "Modèles de tickets" (user menu, after
+   "Informations société"), given to ADMIN at the first start (other roles: `read:admin-ticket-templates` and
+   `write:admin-ticket-templates` on the Roles page); the POS machines' "Largeur du papier" (empty = the template's).
+3. **What moved to "Modèles de tickets".** From Company Information, the section "Ticket de vente": the address on the
+   ticket, the thank-you line and its text, the "ZS Retail" label, the ticket footer text. From General setup, the
+   loyalty rows of the ticket (`TICKET_SHOW_LOYALTY_BALANCE`, `TICKET_SHOW_LOYALTY_EARNED`). Their values were carried;
+   the five columns and the two rows stay in the database one release, hidden and read by nothing, then are dropped.
+   The invoice footer note stays in Company Information, for the A4 invoices only: a store that printed it on its
+   tickets (no ticket footer text) got it as its ticket footer text, and changing it afterwards no longer changes the
+   tickets. `TOMBOLA_ENABLED` stays in General setup (it decides whether the tombola runs).
+4. **`warranty.enabled`** (off by default since 3.3.0): off, "Modèles de tickets" does not list the warranty ticket and
+   its API answers 404. A store that sells warranties already has `warranty.enabled=true` in its outside file (3.3.0's
+   script named it): check it is there. A warranty template carried or saved stays and comes back with the line. No new
+   key in 3.5.0; a blank `rfid.enabled`, `warranty.enabled`, `eventlog.enabled` or `storeorders.enabled` now reads as
+   `false` (it stopped the start).
+5. **"Le siège gère les modèles de tickets"**, the head office's switch per store (the Stores page): off for every store
+   after the upgrade, so each store keeps its own templates until someone turns it on. Turn it on for a store only once
+   the store runs 3.5.0 (a 3.4.0 store ignores it). On, the store receives the head office's templates at its next
+   heartbeat (3 minutes): its own are copied aside (`ticket_template_saved`) and replaced, and its page becomes read
+   only; while the head office does not answer, its own keep printing. Off, the templates received stay as the store's
+   own, editable. The head office edits them on its page "Modèles de tickets" (Settings menu, ADMIN).
 
 ### Features
 - Ticket templates, step 1: the store setting `TICKET_RENDERER` (General Setup, "Caisse et clôture", `OLD` / `NEW`,
@@ -159,6 +186,11 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   any other value still stops the startup.
 
 ### DB script
+- Version closed: the French notes of 3.5.0 in `APP_RELEASE_NOTES` (`db/3.5.0/update.sql`, 13 lines: the 11 of step 6
+  part 2, the closing ticket setting read again and the loyalty search by full name), written again on each run; the
+  script's header and its step 1 comment as released (`TICKET_RENDERER` retired). Run three times on `pos_store_b` at
+  the close: at 3.3.0 refused, nothing changed; at 3.4.0 the carry (the documents without a row) and 3.5.0; again, the
+  notes only.
 - Step 6 part 2, `db/3.5.0/update.sql`: the French `APP_RELEASE_NOTES` of 3.5.0 (written again on each run). Nothing
   dropped: the `company_information` ticket columns and the three `general_setup` rows go with the next release.
 - Step 6 part 1, `db/3.5.0/update.sql`: the carry of a store's ticket settings into `ticket_template` (Company

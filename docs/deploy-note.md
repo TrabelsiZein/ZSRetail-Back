@@ -168,6 +168,17 @@ between, in order. A **new installation** (an empty database) runs no script: it
 start, which also writes `APP_VERSION` (3.4.0). The Communication module (`communication.enabled`) and the event log
 (`eventlog.enabled`, a store only) stay off unless the outside file says `true`.
 
+## Upgrade from 3.4.0 to 3.5.0: the script before the WAR
+
+A database at 3.4.0 (a store or a head office) runs `core/src/main/resources/db/3.5.0/update.sql` (sqlcmd `-f 65001`;
+in SSMS open it as UTF-8), then `SELECT version FROM APP_VERSION` gives `3.5.0`; then the 3.5.0 WAR of the
+installation's type and the 3.5.0 front. Run it before the first start of the 3.5.0 WAR: on the pass from 3.4.0 it
+carries a store's ticket settings of before (Company Information's ticket fields, the two loyalty rows of General setup)
+into its ticket templates, so the store prints the same tickets. It stops, changing nothing, while `APP_VERSION` is not
+3.4.0 or 3.5.0, and may run again (the release notes only). A database at 3.2.0 runs db/3.3.0, db/3.4.0, then db/3.5.0,
+each followed by its version check. A new installation runs no script. What the customer sees and the head office's
+switch: `CHANGELOG.md`, 3.5.0, "Before deployment".
+
 ## Rollback from 2.3.0 to 2.2.2
 
 2.2.2 is the single WAR (`zsretailws.war`) and reads the outside file of 2.2.2. Stop Tomcat, then:
