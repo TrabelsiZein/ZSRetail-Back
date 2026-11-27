@@ -13,7 +13,10 @@ public enum TicketDocumentType {
 	RETURN_VOUCHER(true),
 	/** Step 3: the cash refund slip. */
 	CASH_REFUND(true),
-	WARRANTY(false),
+	/** Step 3 part 2: the warranty ticket and its duplicate. */
+	WARRANTY(true),
+	/** Step 3 part 2: the tombola slip, printed under the sale ticket (its look; whether it prints: the sale ticket's switch). */
+	TOMBOLA_SLIP(true),
 	SESSION_REPORT(false),
 	STORE_REPORT(false),
 	CLOSING_DECLARED(false),

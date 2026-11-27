@@ -6,7 +6,7 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 
 ## 3.5.0 — in progress (branch `release/3.5.0`, opened from `release/3.4.0` on 2026-11-26)
 
-Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.md`; steps 1 and 2 done
+Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.md`; steps 1 to 3 done
 (`docs/modules/ticket-templates.md`).
 
 ### Before deployment
@@ -55,6 +55,24 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   (the voucher's number, original ticket, date, validity date, barcode; the refund's number, original ticket, date;
   both the store name, the lines, their VAT, Total TVA, the amount, MF; DUPLICATA on the voucher). `TicketBlockLabels`:
   the documents and blocks named as the page names them ("Titre du document" for every document's title).
+- Ticket templates, step 3 part 2: the warranty ticket (`WARRANTY`) and the tombola slip (`TOMBOLA_SLIP`) have their
+  template. The warranty: the same layout and options as the other customer tickets, its own blocks (its number badge,
+  the warranty's number, the sale's ticket, the item, its start and end dates, the date; the sold line with the item
+  code, the unit price and the line's VAT rate off; Total TVA and "Article sous garantie"; its barcode; its message and
+  its end date reminder), locked: the store's name, DUPLICATA, the warranty's number, ticket, item, dates, the item line,
+  MF. The tombola slip: one section `SLIP` (locked; on its own ticket, title, the sale's number and the member's name
+  locked, barcode, phone), no layout (a layout key refused: `TICKET_TEMPLATE_UNKNOWN_OPTION`). The return voucher's
+  "Remise totale" off by default (today's voucher never printed it). `TicketBlockLabels`: the new blocks, and a block's
+  name on one document when it prints something else there (`fr(type, code)`: "Numéro de bon", "Montant du bon",
+  "Numéro de retour", "Remboursé en espèces", "N° de garantie", "Article sous garantie"); the event log uses it, and
+  describes a template without layout without its layout lines. The description of `TICKET_RENDERER` (a new database)
+  names no list of documents.
+
+### Fixes
+- Returns: `GET /return-header` (the list) and `GET /return-header/{id}/details` send the return's cashier
+  (`createdByUser`: id, username, full name; the user who made the return, else its session's cashier, else null), so
+  the voucher's reprint prints it: the returns stored it, the endpoints did not send it (the old reprint printed
+  "Caissier : System", the new one no row).
 
 ### DB script
 - `db/3.5.0/update.sql`: the version check and `APP_VERSION` 3.5.0; `TICKET_RENDERER` named in a comment only (the row

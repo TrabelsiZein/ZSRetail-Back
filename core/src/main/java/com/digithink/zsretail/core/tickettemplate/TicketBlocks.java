@@ -277,7 +277,7 @@ public final class TicketBlocks {
 					locked("LINES", Lock.LEGAL).with(choice("name", "WRAP", "WRAP", "CUT")), off("ITEM_CODE"),
 					off("ITEM_BARCODE"), off("UNIT_PRICE"), on("DISCOUNT"), on("PROMOTION_NAME"), locked("VAT", Lock.LEGAL)),
 			section("TOTALS", true, Lock.LEGAL, null, false,
-					on("TICKET_DISCOUNT"), locked("TOTAL_VAT", Lock.LEGAL), locked("TOTAL", Lock.LEGAL).with(size())),
+					off("TICKET_DISCOUNT"), locked("TOTAL_VAT", Lock.LEGAL), locked("TOTAL", Lock.LEGAL).with(size())),
 			section("PAYMENTS", true, null, null, false),
 			section("BARCODE", true, Lock.FUNCTIONAL, null, false),
 			section("FOOTER", true, Lock.LEGAL, null, false,
@@ -311,6 +311,49 @@ public final class TicketBlocks {
 					locked("MF", Lock.LEGAL), on("FOOTER_NOTE").with(text("text", null, 6, 48)),
 					linked("SOFTWARE_LABEL", LINK_SOFTWARE_LABEL))));
 
+	/**
+	 * Step 3 part 2: the warranty ticket and its duplicate, in the order it prints today: the title GARANTIE, DUPLICATA on
+	 * the duplicate, the badge "GARANTIE #"; the warranty's number, the sale's ticket, the item, its start and end dates,
+	 * the date in the info (no cashier, no customer code: the warranty has none); the item's line (no discount, no
+	 * promotion: the warranty prints none); the VAT and the amount ("Article sous garantie"); the warranty's barcode; its
+	 * message and its end date in the footer. Not a fiscal ticket: the item's line and the amounts may be switched off
+	 * (the VAT row then goes too). New: the line's unit price and VAT rate, the item code, off. Locked: the store's name,
+	 * DUPLICATA, the warranty's number, ticket, item, start and end dates (what the store checks when the customer comes
+	 * back), the item line inside its section, the MF.
+	 */
+	private static final List<Section> WARRANTY = Collections.unmodifiableList(Arrays.asList(
+			section("HEADER", true, Lock.LEGAL, Position.FIRST, false,
+					on("LOGO").with(number("width", null, 20, 100), number("maxHeight", null, 5, 60),
+							choice("align", "CENTER", "LEFT", "CENTER", "RIGHT")),
+					locked("STORE_NAME", Lock.LEGAL).with(size()), linked("ADDRESS", LINK_PRINT_ADDRESS), on("TITLE"),
+					locked("DUPLICATE", Lock.LEGAL), on("BADGE")),
+			section("TOP_TEXT", true, null, null, false,
+					on("TEXT").with(text("text", "", 3, 48))),
+			section("INFO", true, Lock.FUNCTIONAL, null, false,
+					locked("NUMBER", Lock.FUNCTIONAL), locked("TICKET", Lock.FUNCTIONAL), locked("ITEM", Lock.FUNCTIONAL),
+					locked("START", Lock.FUNCTIONAL), locked("END", Lock.FUNCTIONAL), on("DATE")),
+			section("ITEMS", true, null, null, false,
+					locked("LINES", Lock.FUNCTIONAL).with(choice("name", "WRAP", "WRAP", "CUT")), off("ITEM_CODE"),
+					off("UNIT_PRICE"), off("VAT")),
+			section("TOTALS", true, null, null, false,
+					on("TOTAL_VAT"), on("TOTAL").with(size())),
+			section("BARCODE", true, null, null, false),
+			section("FOOTER", true, Lock.LEGAL, null, false,
+					on("MESSAGE").with(text("text", null, 2, 48)), on("VALIDITY"), on("WEBSITE"), on("EMAIL"), on("PHONE"),
+					on("FAX"), locked("MF", Lock.LEGAL), on("FOOTER_NOTE").with(text("text", null, 6, 48)),
+					linked("SOFTWARE_LABEL", LINK_SOFTWARE_LABEL))));
+
+	/**
+	 * Step 3 part 2: the tombola slip (printed under the sale ticket when its switch is on, a loyalty member, never on a
+	 * duplicate): its own page (the page break it was written with), its title, the ticket's number, its barcode, the
+	 * member's name and phone. Its page, size and spacing are the sale ticket's (it prints in the same window): no layout
+	 * here. Locked: the ticket's number and the member's name (the draw needs them).
+	 */
+	private static final List<Section> TOMBOLA_SLIP = Collections.unmodifiableList(Arrays.asList(
+			section("SLIP", true, Lock.FUNCTIONAL, Position.FIRST, false,
+					on("NEW_PAGE"), on("TITLE"), locked("NUMBER", Lock.FUNCTIONAL), on("BARCODE"),
+					locked("NAME", Lock.FUNCTIONAL), on("PHONE"))));
+
 	private TicketBlocks() {
 	}
 
@@ -325,12 +368,21 @@ public final class TicketBlocks {
 		if (type == TicketDocumentType.CASH_REFUND) {
 			return CASH_REFUND;
 		}
+		if (type == TicketDocumentType.WARRANTY) {
+			return WARRANTY;
+		}
+		if (type == TicketDocumentType.TOMBOLA_SLIP) {
+			return TOMBOLA_SLIP;
+		}
 		return Collections.emptyList();
 	}
 
-	/** A document's layout options (every customer ticket the same); empty for a document without a template yet. */
+	/**
+	 * A document's layout options (every customer ticket the same); none for the tombola slip (the sale ticket's) and for
+	 * a document without a template yet.
+	 */
 	public static List<Option> layout(TicketDocumentType type) {
-		return of(type).isEmpty() ? Collections.emptyList() : CUSTOMER_LAYOUT;
+		return of(type).isEmpty() || type == TicketDocumentType.TOMBOLA_SLIP ? Collections.emptyList() : CUSTOMER_LAYOUT;
 	}
 
 	/** A section of a document by its code; null when unknown. */

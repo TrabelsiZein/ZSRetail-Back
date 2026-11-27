@@ -16,6 +16,8 @@ public final class TicketBlockLabels {
 		l.put("SALE", "Ticket de vente");
 		l.put("RETURN_VOUCHER", "Bon de retour");
 		l.put("CASH_REFUND", "Remboursement en espèces");
+		l.put("WARRANTY", "Garantie");
+		l.put("TOMBOLA_SLIP", "Ticket de tombola");
 		l.put("HEADER", "En-tête");
 		l.put("HEADER.LOGO", "Logo");
 		l.put("HEADER.STORE_NAME", "Nom du magasin");
@@ -30,6 +32,11 @@ public final class TicketBlockLabels {
 		l.put("INFO.CUSTOMER_CODE", "Code client");
 		l.put("INFO.ORIGINAL_TICKET", "Ticket original");
 		l.put("INFO.VALID_UNTIL", "Valide jusqu'au");
+		// step 3 part 2: the warranty's info
+		l.put("INFO.TICKET", "Ticket d'achat");
+		l.put("INFO.ITEM", "Article garanti");
+		l.put("INFO.START", "Début de garantie");
+		l.put("INFO.END", "Fin de garantie");
 		l.put("TOP_TEXT", "Texte d'en-tête");
 		l.put("TOP_TEXT.TEXT", "Lignes");
 		l.put("ITEMS", "Articles");
@@ -64,6 +71,22 @@ public final class TicketBlockLabels {
 		l.put("FOOTER.VALIDITY", "Rappel de la validité");
 		l.put("FOOTER.SOFTWARE_LABEL", "Mention ZS Retail");
 		l.put("TOMBOLA", "Ticket de tombola");
+		// step 3 part 2: the tombola slip's own document
+		l.put("SLIP", "Ticket de tombola");
+		l.put("SLIP.NEW_PAGE", "Sur un ticket à part");
+		l.put("SLIP.TITLE", "Titre « TOMBOLA »");
+		l.put("SLIP.NUMBER", "Numéro de vente");
+		l.put("SLIP.BARCODE", "Code-barres");
+		l.put("SLIP.NAME", "Nom du membre");
+		l.put("SLIP.PHONE", "Téléphone du membre");
+		// step 3 part 2: what an element prints on one document, when its name differs (the page's documentElements)
+		l.put("RETURN_VOUCHER:INFO.NUMBER", "Numéro de bon");
+		l.put("RETURN_VOUCHER:TOTALS.TOTAL", "Montant du bon");
+		l.put("CASH_REFUND:INFO.NUMBER", "Numéro de retour");
+		l.put("CASH_REFUND:TOTALS.TOTAL", "Remboursé en espèces");
+		l.put("WARRANTY:INFO.NUMBER", "N° de garantie");
+		l.put("WARRANTY:TOTALS.TOTAL", "Article sous garantie");
+		l.put("WARRANTY:FOOTER.VALIDITY", "Rappel de la fin de garantie");
 		l.put("SMALL", "Petite");
 		l.put("NORMAL", "Normale");
 		l.put("LARGE", "Grande");
@@ -100,6 +123,15 @@ public final class TicketBlockLabels {
 	public static String fr(String code) {
 		String label = LABELS.get(code);
 		return label != null ? label : code;
+	}
+
+	/**
+	 * Step 3 part 2: the French name of a block on one document: its own when it prints something else there ("Numéro
+	 * de bon" on the return voucher), else the common one.
+	 */
+	public static String fr(TicketDocumentType type, String code) {
+		String own = type == null ? null : LABELS.get(type.name() + ":" + code);
+		return own != null ? own : fr(code);
 	}
 
 	/** An option's value in words: "50 %", "20 mm", "à gauche", "grande", "coupé sur une ligne". */

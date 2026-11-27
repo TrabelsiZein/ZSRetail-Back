@@ -1233,7 +1233,7 @@ public class ZZDataInitializer {
 					false, ConfigType.SELECT, "Z,DECLARED");
 			// 3.5.0, ticket templates step 1: which code prints the tickets (docs/roadmap/ticket-templates.md); a store only
 			ensureConfigWithOptions(AppConfigAPI.TICKET_RENDERER, "OLD",
-					"Ticket printing: OLD = the print code of before 3.5.0 (default); NEW = the ticket templates' renderer (the sale ticket and its duplicate for now; the other tickets stay on the old code until their step).",
+					"Ticket printing: OLD = the print code of before 3.5.0 (default); NEW = the ticket templates' renderer for the documents the page Ticket templates offers (the others stay on the old code).",
 					false, ConfigType.SELECT, "OLD,NEW");
 			// Step D (3.1.0): how long a badge scan's grant stays good (TillGrantService, docs/modules/badge-permissions.md)
 			ensureConfig("TILL_GRANT_MAX_MINUTES", "240",

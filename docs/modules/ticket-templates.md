@@ -3,8 +3,9 @@
 What the till's tickets print, in which order, on which width. Design and steps: `roadmap/ticket-templates.md`. Built so
 far: step 1 (the switch and the new renderer, the same ticket), step 2 (the table, the API, the page, the sale ticket's
 template), step 2b (the layout, the options, the texts, the tombola, everything the sale ticket prints owned by the
-template) and step 3 part 1 (the return voucher, its reprint, the cash refund slip). The warranty and the tombola slip
-come at step 3 part 2, the internal tickets at step 4; the head office sends its templates down at step 5.
+template) and step 3 (part 1: the return voucher, its reprint, the cash refund slip; part 2: the warranty ticket and
+its duplicate, the tombola slip's own document). The internal tickets come at step 4; the head office sends its templates
+down at step 5.
 
 ## The rule
 
@@ -13,8 +14,9 @@ tickets"). Nothing new in General setup or Company Information: `TICKET_RENDERER
 
 - General setup `TICKET_RENDERER` (store, `OLD` by default): `OLD` prints with the old code (`ReceiptTemplate.vue`,
   `receiptPrintStyles.js`, untouched), which never reads a template and keeps reading the old settings, so `OLD` always
-  gives exactly the old ticket; `NEW` prints the sale ticket, its split bill, its duplicate and the tombola slip through
-  `src/libs/ticket`, which reads the template.
+  gives exactly the old ticket; `NEW` prints the documents the page offers (the sale ticket, its split bill, its
+  duplicate and the tombola slip; the return voucher and its reprint, the cash refund slip; the warranty ticket and its
+  duplicate) through `src/libs/ticket`, which reads their template.
 - **No row = the default = today's ticket**: every option's default is today's value, and the elements that replaced
   an old setting ("linked") take that setting's value as the old code reads it. Proved by `tools/ticket-render-check.mjs`.
 - **A saved template decides everything** for the new printing. The old settings are never cleared or changed.
@@ -122,7 +124,8 @@ amounts without "TND" (three columns at 58 mm).
 
 Route `admin-ticket-templates` (`/admin/ticket-templates`, resource `admin-ticket-templates`), in the user menu (top
 right) after "Informations société". The admin pages' banner (Réinitialiser, Enregistrer in it); the documents on the
-left (the sale ticket; the others "Bientôt"); the settings in four tabs: "Mise en page" (paper, size, spacing,
+left (the sale ticket, the return voucher, the cash refund slip, the warranty, the tombola slip; the internal tickets
+"Bientôt"); the settings in four tabs (a document shows those it has: the tombola slip "Blocs" only): "Mise en page" (paper, size, spacing,
 separators, blank lines; this PC's own width said under the paper), "Logo et tailles" (logo, store name, TOTAL, item
 name), "Textes" (top text, thank-you, footer text: their line counts, the 58 mm warning, what would be kept when too
 long), "Blocs" (the sections up / down, their switches, a lock and its reason in place of a switch, the passenger
@@ -163,7 +166,7 @@ ticket, and their own blocks (`TicketBlocks`, `sale-template.js` `DOCUMENT_SECTI
 
 | Document | Sections (default order) | Locked |
 |---|---|---|
-| Bon de retour | En-tête (+ « BON # » badge, DUPLICATA on a reprint) · Texte d'en-tête · Informations (Numéro de bon, Ticket original, Date, Valide jusqu'au, Caissier, Code client) · Articles · Totaux (MONTANT DU BON) · Paiements ("Return Voucher" and its reference, as today) · Code-barres (the voucher's number) · Pied (the message "Ce bon peut être utilisé pour de futurs achats", its "Valide jusqu'au" reminder, contact, MF, footer text, ZS Retail) | store name, DUPLICATA, the voucher's number, original ticket, date, validity date, the lines, their VAT, Total TVA, the amount, the barcode, MF |
+| Bon de retour | En-tête (+ « BON # » badge, DUPLICATA on a reprint) · Texte d'en-tête · Informations (Numéro de bon, Ticket original, Date, Valide jusqu'au, Caissier, Code client) · Articles · Totaux (Remise totale, off: today's voucher never printed it; on: the returned lines' TTC less the voucher · MONTANT DU BON) · Paiements ("Bon de retour" and its reference; the old printing prints "Return Voucher") · Code-barres (the voucher's number) · Pied (the message "Ce bon peut être utilisé pour de futurs achats", its "Valide jusqu'au" reminder, contact, MF, footer text, ZS Retail) | store name, DUPLICATA, the voucher's number, original ticket, date, validity date, the lines, their VAT, Total TVA, the amount, the barcode, MF |
 | Remboursement en espèces | En-tête (+ « RETOUR # ») · Texte d'en-tête · Informations (Numéro de retour, Ticket original, Date, Caissier, Code client) · Articles · Totaux (Remise totale = the lines minus the amount paid back, REMBOURSÉ EN ESPÈCES) · Pied (the message "Montant remboursé en espèces", contact, MF, footer text, ZS Retail) | store name, the return's number, original ticket, date, the lines, their VAT, Total TVA, the amount, MF |
 
 No VAT by rate (the line's VAT is locked), no loyalty, no tombola on a return document. The document's message is the
@@ -172,8 +175,44 @@ the data of `return-formats.js` (COPIES of the old code). The voucher's reprint,
 title, the return's cashier (`createdByUser`), the first print's VAT (`voucherTaxAmount`, one calculation: the
 voucher's share of the lines' VAT). `RETURN_VOUCHER_VALIDITY_DAYS` stays in General setup.
 
+The reprint's cashier comes from the return: `GET /return-header` (the list) and `GET /return-header/{id}/details` send
+`createdByUser` (id, username, full name: the user who made the return, else its session's cashier; null: no row).
+
 On the page, "Copier depuis un autre document" copies another document's layout, logo and sizes, top text and footer
-text into the form (not its blocks, not its own message); nothing is saved until "Enregistrer".
+text into the form (not its blocks, not its own message); nothing is saved until "Enregistrer". Only the documents with
+a layout are offered (not the tombola slip). A block is named as its document prints it ("Numéro de bon" on the
+voucher; front `admin.ticketTemplates.documentTexts.<document>`, back `TicketBlockLabels` "DOCUMENT:SECTION.ELEMENT",
+`fr(type, code)`, for the event log). The chosen document is in the address (`?document=WARRANTY`); each document has
+its preview caption (`previewHelps`).
+
+## The warranty ticket (step 3 part 2)
+
+`WARRANTY`: the warranty ticket (`WarrantyCreate.vue`, printed when the warranty is registered) and its duplicate
+(`WarrantyList.vue`, "Imprimer le duplicata": DUPLICATA under the title). The same layout, logo, sizes and texts as the
+other customer tickets; its blocks:
+
+| Sections (default order) | Locked |
+|---|---|
+| En-tête (GARANTIE, DUPLICATA on the duplicate, « GARANTIE # » badge) · Texte d'en-tête · Informations (N° de garantie, Ticket d'achat, Article garanti, Début, Fin, Date) · Articles (the sold line: item, quantity covered, its TTC; item code, unit price, line VAT rate: off) · Totaux (Total TVA, Article sous garantie) · Code-barres (the warranty's number, `W-<id>`) · Pied (the message "Présentez ce ticket pour faire valoir la garantie", "Valide jusqu'au" the end date, contact, MF, footer text, ZS Retail) | store name, DUPLICATA, the warranty's number, the sale's ticket, the item, the start and end dates, the item line inside its section, MF |
+
+No cashier and no customer code (the warranty has none), no line discount. The builder, `warranty-ticket.js`
+(`buildWarrantyTicket`), on `warranty-formats.js` (a COPY of the pages' `buildWarrantyReceiptData`). One old bug fixed
+in the new printing only: the old ticket printed "Total TVA : 0,000"; the new one prints the sold line's VAT (its VAT
+amount, else TTC - HT, else from its rate), and no VAT row when no amount shows (the item section and "Article sous
+garantie" off) or when it is not known (no sold line).
+
+## The tombola slip (step 3 part 2)
+
+`TOMBOLA_SLIP`: how the tombola slip looks under the sale ticket. One section `SLIP` (locked): Sur un ticket à part
+(the page break before it), Titre « TOMBOLA », Numéro de vente (locked), Code-barres, Nom du membre (locked), Téléphone
+du membre. No layout: it prints with the sale ticket's (its size level included). Whether it prints is the sale
+ticket's section "Ticket de tombola" (from `TOMBOLA_ENABLED` while no sale template is saved; a sale with a loyalty
+member; never on the duplicate); `TOMBOLA_ENABLED` stays a feature setting. Its default is the look it was written
+for: `layout-styles.js` `TOMBOLA_STYLES`, the old component's scoped styles (they never reached the print window, so
+today's slip prints unstyled right under the ticket): its own ticket, a 2 px dashed line at its top, centred, the title
+16 px with spaced letters, the number and the name in bold, small grey dashed lines that never wrap. The HTML is the old
+one; the print document adds the slip's CSS. The till's print passes its template (`tombolaTemplate`,
+`ticketTemplates/templateOf('TOMBOLA_SLIP')`).
 
 ## The POS machine
 
@@ -186,8 +225,12 @@ template's); the back end refuses another value (`POS_MACHINE_PAPER_WIDTH`).
   elements, options, the layout) = the front's default; the event log's names = the page's; the default given as a
   template = the old ticket in the old document; then each option: spacing, 58 mm and the machine's width, blank lines,
   separators, blocks off, sections moved, VAT by rate, unit price, item code / barcode / promotion name, the cut name,
-  sizes, the logo, the texts, the contact rows, the passenger code, the tombola switch.
+  sizes, the logo, the texts, the contact rows, the passenger code, the tombola switch; step 3: the 6 return fixtures
+  (the voucher's "Bon de retour" the one wanted difference), the reprint's fixes, the voucher's "Remise totale"; the 4
+  warranty fixtures (the old data read from the pages, the real VAT the one wanted difference), a warranty's template;
+  the tombola slip's look and switches; each document's catalogue and labels (5 documents).
 - `tools/store-menu-check.mjs`: the page in the user menu after Informations société, with its read right.
 - Back end: `TicketTemplateServiceTest` (defaults and linked values, page, refusals, options, texts, normalising,
-  lenient read and format 1, events, part 2), `TicketTemplateAPITest`, `TicketVatLinesTest`,
+  lenient read and format 1, events, part 2, the return documents, the warranty and the tombola slip, the labels by
+  document), `ReturnCashierTest` (the reprint's cashier), `TicketTemplateAPITest`, `TicketVatLinesTest`,
   `PosMachineServiceTest#paperWidth`, `PosMachineAPITest#myMachine`, `ZZDataInitializerRolesTest`.

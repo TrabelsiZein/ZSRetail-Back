@@ -182,7 +182,7 @@ still reads them, so switching back to `OLD` gives back exactly the old ticket.
 |---|---|---|
 | 1 | **Done 2026-11-26** (below). Builder + HTML renderer for the sale ticket and its duplicate, **tombola included**, behind the switch; same output as today (no table yet: the default only, reading today's settings) | back: the switch row and `GET /config`; front: the renderer |
 | 2 | **Done 2026-11-26** (below; `modules/ticket-templates.md`; **2b**, the template owning the whole ticket: below). Table, API and page "Modèles de tickets" with live preview, for the sale ticket: switches, order up / down, width, size, compact; new blocks off by default: unit price on the line, VAT by rate; `pos_machine.paper_width` | both |
-| 3 | **Part 1 done 2026-11-26** (below): return voucher, voucher reprint, refund slip, the three reprint bugs, the document selector and "Copier depuis un autre document". Part 2: warranty and its duplicate, and the tombola slip's own look | front mostly |
+| 3 | **Done 2026-11-27** (below): part 1 (2026-11-26) the return voucher, its reprint, the refund slip, the three reprint bugs, the document selector and "Copier depuis un autre document"; part 2 the warranty and its duplicate, the tombola slip's own document and look, the fixes of part 1's screen test | front mostly |
 | 4 | Internal tickets (families B and C): width, size, compact, hide the rows at zero | front mostly |
 | 5 | Copies down from the head office (`DataDomain` + `ownership.<x>`, a `DownDomainProvider` calling `CopiesDownFeed.recordChange`, a store `DownHandler`, a copy DTO in `core.link.dto`); the store's page read-only when HEAD_OFFICE | both |
 
@@ -251,6 +251,8 @@ The old files stay untouched, so the new renderer carries **copies** of what it 
 - step 3: `return-formats.js`: from `ReceiptTemplate.vue` the voucher / refund branches of `getLineTotalForDisplay` and
   `getVatPercent`; from `ReturnProducts.vue` the data of `printVoucherReceipt` and `printCashRefundReceipt` (the
   voucher's VAT in one function, used by its reprint too: the reprint's fixes).
+- step 3 part 2: `warranty-formats.js`: `buildWarrantyReceiptData` of `WarrantyCreate.vue` and `WarrantyList.vue` (the
+  same function in both; the check reads it from the pages), with the real VAT (the fix).
 
 They exist only because the old code and the switch exist; they are removed **together with the old code and the
 switch**, in the same change (when Zein says so): the old originals go, and these copies lose their "COPY" header and
@@ -377,5 +379,54 @@ reference, today's) is kept and can be switched off; its "Valide jusqu'au" print
 footer's reminder is a switch (`VALIDITY`), the info row is locked. The refund slip has no reason row today: none was
 added (it would change today's slip); it can be a new element of part 2 if wanted.
 
-Left for part 2: the warranty and its duplicate (and the old bug "Total TVA : 0,000"), the tombola slip's own document
-and look (its page break, its border), their samples and fixtures; screen tests of part 1.
+Part 2 (below) did the warranty and its duplicate, the tombola slip's own document and look, and the fixes of part 1's
+screen test.
+
+## Step 3, part 2 — done (2026-11-27)
+
+What it is now: `modules/ticket-templates.md`, "The warranty ticket" and "The tombola slip". Built:
+- **The warranty ticket and its duplicate** on the new renderer (`warranty-ticket.js`; `WarrantyCreate.vue` prints it
+  when the warranty is registered, `WarrantyList.vue` its duplicate), its own document "Garantie" in the selector, its
+  own blocks (`TicketBlocks.WARRANTY`, `WARRANTY_SECTIONS`) and sample (`SAMPLE_WARRANTY`). The default gives today's
+  ticket (4 fixtures; the old data read from the pages themselves), but for one old bug, fixed in the new printing only:
+  "Total TVA : 0,000" (the old pages passed `taxAmount: 0`). The VAT row prints the sold line's VAT (its
+  `vat_amount`, else TTC - HT, else from its rate), the VAT of the amount the ticket prints; it goes when no amount
+  shows (the item line and "Article sous garantie" both off) or when the VAT is not known (no sold line). DUPLICATA
+  under the title on the duplicate, as today.
+- **The tombola slip, its own document** "Ticket de tombola" (`TicketBlocks.TOMBOLA_SLIP`, one section `SLIP`, no
+  layout: it prints with the sale ticket's): on its own ticket (`NEW_PAGE`), the title, the sale's number (locked), its
+  barcode, the member's name (locked), the phone. Its default is the look it was written for, the old component's
+  scoped styles (`layout-styles.js` `TOMBOLA_STYLES`: the page break before it, a 2 px dashed line at its top, centred,
+  the title 16 px spaced, the number and the name in bold, the grey dashed lines), which never reached the print
+  window: today's slip prints unstyled right under the ticket. Whether it prints stays the sale ticket's switch
+  (section `TOMBOLA`, from `TOMBOLA_ENABLED` while no template is saved); `TOMBOLA_ENABLED` stays a feature setting.
+  The HTML is the old one (the check compares it); only the print document gains the slip's CSS.
+- **Fixes of part 1's screen test**: the voucher's reprint prints the return's cashier (the returns list and the
+  details now send `createdByUser`, else the session's cashier, else no row; the returns of pos_franchise_customer had
+  a cashier stored, the endpoints did not send it); one caption per document under the preview; a return document's
+  blocks named as they print ("Numéro de bon", "Montant du bon", "Numéro de retour", "Remboursé en espèces"; the
+  page's `documentTexts`, the event log's `DOCUMENT:SECTION.ELEMENT` labels); the blank lines' help without the
+  tombola; the General setup help of TICKET_RENDERER without a list of documents ("the documents the page offers"); the
+  voucher's payment row "Bon de retour" (it printed "Return Voucher"); the return screen's amounts to the millime as
+  stored (23.854 shown for 23.855 stored: a float sum, outside the ticket code; the old printing prints the stored
+  23.855); the voucher's "Remise totale" off by default (today's voucher never printed it) and, switched on, the gap
+  between the returned lines and the voucher; the chosen document kept in the address (`?document=WARRANTY`).
+- The page: the tabs a document has (the tombola slip: "Blocs" only); "Copier depuis…" offers the documents with a
+  layout (the warranty is one; the tombola slip has nothing to copy from or into); the barcode warning from the
+  catalogue (`warnOff`, the sale ticket's only).
+
+Locked blocks (each refused off by the server):
+- Warranty: the header (the store's name, DUPLICATA), the info (the warranty's number, the sale's ticket, the item, the
+  start and end dates: what the store checks when the customer comes back; the date is free), the item line inside its
+  section, the MF. Free: the item section, the VAT, "Article sous garantie" (not a fiscal ticket), the barcode, the
+  badge, the message, the end date reminder, the contact.
+- Tombola slip: its section, the sale's number and the member's name (the draw needs them). Free: its own ticket, the
+  title, the barcode, the phone.
+
+Choices: the warranty prints no cashier and no customer code (the warranty has none: no switch that would do nothing),
+no line discount or promotion (it prints none); new and off: the item code, the unit price, the line's VAT rate. Its
+amount stays the sold line's TTC with the quantity covered (today's; a warranty covering 1 of 2 items shows the line's
+total). The tombola slip's sizes follow the sale ticket's size level; its dashed lines never wrap (58 mm).
+
+Left: step 4 (internal tickets), step 5 (head office); screen tests of step 3 (part 1's fixes and part 2); the
+accountant on the locks.

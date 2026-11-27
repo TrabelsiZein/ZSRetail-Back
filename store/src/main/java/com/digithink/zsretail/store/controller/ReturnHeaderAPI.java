@@ -128,6 +128,7 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 		map.put("synchronizationStatus", h.getSynchronizationStatus());
 		map.put("erpNo", h.getErpNo());
 		map.put("discountPercentage", h.getDiscountPercentage());
+		map.put("createdByUser", cashierOf(h)); // 3.5.0, ticket templates step 3: the voucher reprint's cashier
 		if (h.getOriginalSalesHeader() != null) {
 			SalesHeader sh = h.getOriginalSalesHeader();
 			Map<String, Object> sales = new HashMap<>();
@@ -512,6 +513,7 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 			returnHeaderInfo.put("synchronizationStatus", returnHeader.getSynchronizationStatus());
 			returnHeaderInfo.put("erpNo", returnHeader.getErpNo());
 			returnHeaderInfo.put("discountPercentage", returnHeader.getDiscountPercentage());
+			returnHeaderInfo.put("createdByUser", cashierOf(returnHeader)); // 3.5.0, ticket templates step 3
 
 			if (returnHeader.getOriginalSalesHeader() != null) {
 				Map<String, Object> originalSalesHeaderInfo = new HashMap<>();
@@ -560,6 +562,26 @@ public class ReturnHeaderAPI extends _BaseController<ReturnHeader, Long, ReturnH
 	 * of the sold line (the item's default rate when the sold line has none), so the voucher prints 19%, never a rate
 	 * worked back from rounded amounts (0.2 of an item: 19.02%).
 	 */
+	/**
+	 * 3.5.0, ticket templates step 3: the return's cashier as the voucher's reprint prints it, {id, username, fullName}:
+	 * the user who made the return (created_by_user), else the cashier of its session; null when neither is stored (the
+	 * reprint then prints no cashier row, never "System"). Not the whole user: no password, no badge, no role.
+	 */
+	static Map<String, Object> cashierOf(ReturnHeader h) {
+		UserAccount user = h.getCreatedByUser();
+		if (user == null && h.getCashierSession() != null) {
+			user = h.getCashierSession().getCashier();
+		}
+		if (user == null) {
+			return null;
+		}
+		Map<String, Object> cashier = new HashMap<>();
+		cashier.put("id", user.getId());
+		cashier.put("username", user.getUsername());
+		cashier.put("fullName", user.getFullName());
+		return cashier;
+	}
+
 	static Map<String, Object> returnLineData(ReturnLine line) {
 		Map<String, Object> lineData = new HashMap<>();
 		lineData.put("id", line.getId());

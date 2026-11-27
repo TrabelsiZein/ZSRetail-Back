@@ -179,9 +179,12 @@ class TicketTemplateServiceTest {
 		assertEquals(Arrays.asList("paperWidth", "fontSize", "spacing", "feedLines", "separator"),
 				((List<TicketBlocks.Option>) sale.get("layout")).stream().map(TicketBlocks.Option::getKey)
 						.collect(Collectors.toList()));
-		assertEquals(Arrays.asList(true, true, true), documents.subList(0, 3).stream().map(d -> d.get("available"))
+		assertEquals(Arrays.asList("SALE", "RETURN_VOUCHER", "CASH_REFUND", "WARRANTY", "TOMBOLA_SLIP"),
+				documents.subList(0, 5).stream().map(d -> d.get("type")).collect(Collectors.toList()));
+		assertEquals(Arrays.asList(true, true, true, true, true), documents.subList(0, 5).stream().map(d -> d.get("available"))
 				.collect(Collectors.toList()));
-		for (Map<String, Object> other : documents.subList(3, documents.size())) {
+		assertTrue(((List<?>) documents.get(4).get("layout")).isEmpty(), "the tombola slip has no layout (the sale ticket's)");
+		for (Map<String, Object> other : documents.subList(5, documents.size())) {
 			assertEquals(false, other.get("available"), String.valueOf(other.get("type")));
 			assertFalse(other.containsKey("template"));
 		}
@@ -226,7 +229,7 @@ class TicketTemplateServiceTest {
 				refusal(t -> t.getSections().add(new SectionDTO("BARCODE", true, new ArrayList<>()))));
 
 		TicketTemplateException other = assertThrows(TicketTemplateException.class,
-				() -> service.save("WARRANTY", sent(t -> { }), "admin"));
+				() -> service.save("SESSION_REPORT", sent(t -> { }), "admin"));
 		assertEquals("TICKET_TEMPLATE_NOT_AVAILABLE", other.getCode());
 		TicketTemplateException unknown = assertThrows(TicketTemplateException.class,
 				() -> service.save("MENU", sent(t -> { }), "admin"));
@@ -467,6 +470,68 @@ class TicketTemplateServiceTest {
 		assertTrue(log.rows.get(log.rows.size() - 1).getDetails().startsWith("Modèle de ticket « Bon de retour » créé"));
 		assertTrue(service.reset("RETURN_VOUCHER"));
 		assertFalse(rows.containsKey("RETURN_VOUCHER"));
+	}
+
+	@Test
+	@DisplayName("Step 3 part 2: the warranty ticket (its blocks, the customer layout; locked: the store's name, DUPLICATA,"
+			+ " the warranty's number, ticket, item, dates, the item line, the MF; the amounts free) and the tombola slip"
+			+ " (one section, no layout: a layout key refused; locked: the section, the sale's number, the member's name);"
+			+ " the event log names a block as its document prints it")
+	void warrantyAndTombola() {
+		TicketTemplateDTO warranty = service.defaults(TicketDocumentType.WARRANTY);
+		assertEquals(Arrays.asList("HEADER", "TOP_TEXT", "INFO", "ITEMS", "TOTALS", "BARCODE", "FOOTER"), order(warranty));
+		assertEquals(service.defaults(TicketDocumentType.SALE).getLayout(), warranty.getLayout());
+		assertEquals(Arrays.asList("NUMBER", "TICKET", "ITEM", "START", "END", "DATE"),
+				section(warranty, "INFO").getElements().stream().map(ElementDTO::getCode).collect(Collectors.toList()));
+		assertFalse(on(warranty, "ITEMS", "VAT"), "the line's VAT rate: new, off");
+		for (String[] locked : new String[][] { { "HEADER", "STORE_NAME" }, { "HEADER", "DUPLICATE" }, { "INFO", "NUMBER" },
+				{ "INFO", "TICKET" }, { "INFO", "ITEM" }, { "INFO", "START" }, { "INFO", "END" }, { "ITEMS", "LINES" },
+				{ "FOOTER", "MF" } }) {
+			assertEquals("TICKET_TEMPLATE_LOCKED", refusalOf(TicketDocumentType.WARRANTY,
+					t -> set(t, locked[0], locked[1], false)), "warranty " + locked[1]);
+		}
+		assertEquals("TICKET_TEMPLATE_LOCKED", refusalOf(TicketDocumentType.WARRANTY, t -> section(t, "INFO").setOn(false)));
+		TicketTemplateDTO amountsOff = service.save("WARRANTY", with(warranty, t -> {
+			section(t, "ITEMS").setOn(false);
+			set(t, "TOTALS", "TOTAL", false);
+			set(t, "INFO", "DATE", false);
+		}), "admin");
+		assertFalse(section(amountsOff, "ITEMS").getOn());
+		assertFalse(on(amountsOff, "TOTALS", "TOTAL"));
+		assertTrue(log.rows.get(log.rows.size() - 1).getDetails().contains("Article sous garantie"),
+				"the warranty's TOTAL named as it prints: " + log.rows.get(log.rows.size() - 1).getDetails());
+		rows.clear();
+
+		TicketTemplateDTO slip = service.defaults(TicketDocumentType.TOMBOLA_SLIP);
+		assertEquals(Collections.singletonList("SLIP"), order(slip));
+		assertTrue(slip.getLayout().isEmpty());
+		assertEquals(Arrays.asList("NEW_PAGE", "TITLE", "NUMBER", "BARCODE", "NAME", "PHONE"),
+				section(slip, "SLIP").getElements().stream().map(ElementDTO::getCode).collect(Collectors.toList()));
+		assertEquals("TICKET_TEMPLATE_LOCKED", refusalOf(TicketDocumentType.TOMBOLA_SLIP, t -> section(t, "SLIP").setOn(false)));
+		assertEquals("TICKET_TEMPLATE_LOCKED", refusalOf(TicketDocumentType.TOMBOLA_SLIP, t -> set(t, "SLIP", "NUMBER", false)));
+		assertEquals("TICKET_TEMPLATE_LOCKED", refusalOf(TicketDocumentType.TOMBOLA_SLIP, t -> set(t, "SLIP", "NAME", false)));
+		assertEquals("TICKET_TEMPLATE_UNKNOWN_OPTION",
+				refusalOf(TicketDocumentType.TOMBOLA_SLIP, t -> t.getLayout().put("paperWidth", 80)));
+		TicketTemplateDTO saved = service.save("TOMBOLA_SLIP", with(slip, t -> {
+			set(t, "SLIP", "NEW_PAGE", false);
+			set(t, "SLIP", "PHONE", false);
+		}), "admin");
+		assertFalse(on(saved, "SLIP", "NEW_PAGE"));
+		String details = log.rows.get(log.rows.size() - 1).getDetails();
+		assertTrue(details.startsWith("Modèle de ticket « Ticket de tombola » créé : Ordre Ticket de tombola ;"), details);
+		assertFalse(details.contains("Papier"), "no layout lines: " + details);
+		assertTrue(details.contains("Sur un ticket à part, Téléphone du membre"), details);
+	}
+
+	@Test
+	@DisplayName("Step 3 part 2: a block named as its document prints it, else the common name")
+	void labelsByDocument() {
+		assertEquals("Numéro de bon", TicketBlockLabels.fr(TicketDocumentType.RETURN_VOUCHER, "INFO.NUMBER"));
+		assertEquals("Remboursé en espèces", TicketBlockLabels.fr(TicketDocumentType.CASH_REFUND, "TOTALS.TOTAL"));
+		assertEquals("N° de garantie", TicketBlockLabels.fr(TicketDocumentType.WARRANTY, "INFO.NUMBER"));
+		assertEquals("Numéro de vente", TicketBlockLabels.fr(TicketDocumentType.SALE, "INFO.NUMBER"));
+		assertEquals("Caissier", TicketBlockLabels.fr(TicketDocumentType.RETURN_VOUCHER, "INFO.CASHIER"));
+		assertEquals("TOTAL", TicketBlockLabels.fr(null, "TOTALS.TOTAL"));
 	}
 
 	private static TicketTemplateDTO with(TicketTemplateDTO t, Consumer<TicketTemplateDTO> change) {

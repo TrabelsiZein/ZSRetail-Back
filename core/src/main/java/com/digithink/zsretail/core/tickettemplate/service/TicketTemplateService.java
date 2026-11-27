@@ -504,22 +504,25 @@ public class TicketTemplateService {
 	static Map<String, String> describe(TicketTemplateDTO t) {
 		Map<String, String> m = new LinkedHashMap<>();
 		Map<String, Object> layout = t.getLayout();
-		m.put("Papier", layout.get("paperWidth") + " mm");
-		m.put("Taille", TicketBlockLabels.fr(String.valueOf(layout.get("fontSize"))));
-		m.put("Espacement", TicketBlockLabels.fr("spacing." + layout.get("spacing")));
-		m.put("Lignes avant la coupe", String.valueOf(layout.get("feedLines")));
-		m.put("Séparateurs", TicketBlockLabels.fr("separator." + layout.get("separator")));
-		m.put("Ordre", t.getSections().stream().map(s -> TicketBlockLabels.fr(s.getCode())).collect(Collectors.joining(", ")));
+		TicketDocumentType type = TicketDocumentType.of(t.getDocumentType());
+		// step 3 part 2: a document without layout (the tombola slip: the sale ticket's) has no layout lines
+		if (layout != null && !layout.isEmpty()) {
+			m.put("Papier", layout.get("paperWidth") + " mm");
+			m.put("Taille", TicketBlockLabels.fr(String.valueOf(layout.get("fontSize"))));
+			m.put("Espacement", TicketBlockLabels.fr("spacing." + layout.get("spacing")));
+			m.put("Lignes avant la coupe", String.valueOf(layout.get("feedLines")));
+			m.put("Séparateurs", TicketBlockLabels.fr("separator." + layout.get("separator")));
+		}
+		m.put("Ordre", t.getSections().stream().map(s -> TicketBlockLabels.fr(type, s.getCode())).collect(Collectors.joining(", ")));
 		List<String> off = new ArrayList<>();
 		List<String> options = new ArrayList<>();
-		TicketDocumentType type = TicketDocumentType.of(t.getDocumentType());
 		for (SectionDTO section : t.getSections()) {
 			if (!Boolean.TRUE.equals(section.getOn())) {
-				off.add(TicketBlockLabels.fr(section.getCode()));
+				off.add(TicketBlockLabels.fr(type, section.getCode()));
 			}
 			Section catalogue = type == null ? null : TicketBlocks.section(type, section.getCode());
 			for (ElementDTO element : section.getElements()) {
-				String name = TicketBlockLabels.fr(section.getCode() + "." + element.getCode());
+				String name = TicketBlockLabels.fr(type, section.getCode() + "." + element.getCode());
 				if (Boolean.TRUE.equals(section.getOn()) && !Boolean.TRUE.equals(element.getOn())) {
 					off.add(name);
 				}

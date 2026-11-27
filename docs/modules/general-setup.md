@@ -82,8 +82,9 @@ A store setting (General Setup, tab "Caisse et clôture", after `CASHIER_CLOSING
 store only, `OLD`; never on a head office): `TICKET_RENDERER` (`AppConfigAPI.TICKET_RENDERER`), label "Impression des
 tickets", options `OLD` "Ancienne impression (par défaut)" and `NEW` "Nouvelle impression (modèles de tickets)", a help
 text (`fields.ticketRendererHelp`). `OLD` (also no row, a blank or unknown value) prints with the code of before,
-untouched; `NEW` prints the tickets that already have their builder through the ticket templates' renderer (since step
-1: the sale ticket, its split bill and its duplicate, the tombola slip; the others stay on the old code). Sent by
+untouched; `NEW` prints the documents the page "Modèles de tickets" offers (those not marked "Bientôt") through the
+ticket templates' renderer; the others stay on the old code. Step 3 part 2: the help says so, without a list of
+documents (it would go stale). Sent by
 `GET /config` as `ticketRenderer` (`NEW` in any case, else `OLD`; null on a head office), read through the getter
 `appConfig/newTicketRenderer`. `roadmap/ticket-templates.md`, "Step 1 — done". Test: `AppConfigAPITest#ticketRenderer`.
 Step 2: the templates themselves are not General setup settings (the table `ticket_template`, `modules/ticket-templates.md`);
