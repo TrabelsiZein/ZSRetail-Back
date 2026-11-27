@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -57,6 +58,8 @@ public class TicketTemplatesManaged implements TicketTemplateLink {
 	/** The saved value, read once from the table (null: not read yet). */
 	private volatile Boolean cache;
 
+	/** The one Spring uses (two constructors: without the mark Spring looks for a default one and the start fails). */
+	@Autowired
 	public TicketTemplatesManaged(LinkRightRepository rights, TicketTemplateRepository templates,
 			TicketTemplateSavedRepository saved, DownCursorRepository cursors, AdminEvents adminEvents,
 			PlatformTransactionManager transactionManager) {

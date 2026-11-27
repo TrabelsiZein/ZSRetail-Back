@@ -96,7 +96,7 @@ only core and the store, a head office test only core and the head office. `netw
 applications or a connector with core: the store / head office round trips, the configuration and installation proofs
 (`ConfigurationKeysProofTest`, `InstallationBeansProofTest`, their records in `network-tests/src/test/resources/config/`),
 the guards over every project (`ProjectSortingGuardTest`, `ConnectorNamesGuardTest`, `ConnectorDependenciesGuardTest`,
-`AspectPointcutsGuardTest`, `ClassNamesInStringsGuardTest`, `OldKeysGuardTest`), the connector tests (they read the deploy files through
+`AspectPointcutsGuardTest`, `ClassNamesInStringsGuardTest`, `OldKeysGuardTest`, `BeanConstructorsGuardTest`), the connector tests (they read the deploy files through
 `Installations`, which needs both type files). Test helpers: `core.support` (`Repo`, `InMemoryLoyalty`, `InMemoryItems`, `InMemoryStock`, `TestModes`...),
 `store.support`, `headoffice.support` (each project publishes its helpers as a test-jar), `support` in network-tests
 (`Installations`, `Starts`, `ClassRenames`).

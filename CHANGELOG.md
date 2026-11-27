@@ -95,6 +95,10 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   and replaced.
 
 ### Fixes
+- Ticket templates step 5: a store linked to a head office did not start ("No default constructor found" for
+  `TicketTemplatesManaged`: two constructors, none `@Autowired`, Spring looked for a default one). The constructor
+  Spring uses is now marked. `BeanConstructorsGuardTest` (network-tests): every component of every project has a
+  constructor Spring can choose (its own `AutowiredAnnotationBeanPostProcessor` rule), so such a class fails the suite.
 - Warranties off (`warranty.enabled` not true): the warranty ticket's template too. `GET /ticket-templates` leaves the
   document `WARRANTY` out; `PUT` and `DELETE /ticket-templates/WARRANTY` answer 404 `{"error"}` as `/warranty`
   (`WarrantyAPI.OFF_MESSAGE`). A saved warranty template stays in `ticket_template` and comes back with the line.

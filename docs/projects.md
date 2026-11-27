@@ -45,6 +45,8 @@ connector in effect can do (`modules/erp-sync.md`, "How to add a connector").
     the connectors' descriptors only) in main code, resources, `configs/`, `eclipse/` or `devenv/`, and no type line
     (`spring.profiles.active`, `node.type`) in `configs/`, `eclipse/` or `devenv/` (`configs/local` and the released SQL
     scripts apart).
+  - `BeanConstructorsGuardTest` (3.5.0): Spring can choose a constructor for every component of every project (one
+    constructor, one marked `@Autowired`, or one without parameters); two unmarked constructors stop the start.
 - **The proofs**: `ConfigurationKeysProofTest` (every key of every file of `configs/` resolves as recorded) and
   `InstallationBeansProofTest` (the beans each installation question decides, in every configuration, as recorded).
 
