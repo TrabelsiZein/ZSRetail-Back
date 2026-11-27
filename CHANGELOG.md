@@ -24,6 +24,10 @@ step 1's parts).
 - Conventions, step 1, part B1: the switch `convention.enabled` (`NodeOwnership.isConventionSet`,
   `Installation.CONVENTION`, `ApplicationModeService.isConventionEnabled`), a store and a head office alike; the startup
   summary says "conventions on"; `GET /config` `conventionEnabled` (last field). Nothing else reads it yet.
+- Conventions, step 1, part B2: the entities `Convention` (code, name, organisation, dates, status, recognition `CARDS`
+  / `NO_CARD`, the three limits, card prefix and digits, the generation counter, origin) and `ConventionCard` (number,
+  convention, status, the optional holder name / phone / employee number, `exported_at`), their enums and repositories
+  (`core.convention`). No service, no API yet.
 
 ### Config
 - `convention.enabled`: `false` in core's `application.properties`; absent or blank is `false`; another value than
@@ -31,7 +35,13 @@ step 1's parts).
   `configs/machine-model.properties`; the configuration keys record "keys 124".
 
 ### DB script
-- `db/3.6.0/update.sql`: the version check (3.5.0 / 3.6.0) and `APP_VERSION` 3.6.0, nothing else yet.
+- `db/3.6.0/update.sql`: the version check (3.5.0 / 3.6.0) and `APP_VERSION` 3.6.0.
+- Conventions, step 1, part B2: the tables `convention` and `convention_card` (core: a store and a head office), in
+  Hibernate's form (`ConventionTableTest`), every text column nvarchar; `uk_convention_code`, `uk_convention_card_number`
+  (the number unique over all conventions), `fk_convention_card_convention`, `ix_convention_card_convention`
+  (`convention_id`, `status`); defaults `df_*` for a row inserted by hand. Each statement guarded: a second run, and a
+  database already at 3.6.0, are fine. Run it **before** the first start of this code (otherwise `ddl-auto=update`
+  creates the tables in its own form). No data written.
 
 ## 3.5.0 — released 2026-11-27 (branch `release/3.5.0`, tag `v3.5.0`, opened from `release/3.4.0` on 2026-11-26)
 

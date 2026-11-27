@@ -86,12 +86,21 @@ Back end first, then the front. Each part is testable alone and has its commit.
 - Tests: `ConventionKeyTest`, `AppConfigAPITest`, the configuration keys record ("keys 124"). No bean depends on the
   switch yet: the installation beans record is unchanged.
 
-### B2 — the tables (core, both applications)
+### B2 — the tables (core, both applications; done 2026-11-27)
 
-Delivered by `db/3.6.0/update.sql`, run by hand before the first start of the code (the tables in Hibernate's form, the
-constraint names of the entities, guarded `IF OBJECT_ID`, the same script on a store and a head office). `ddl-auto=update`
-stays: run the script first, or Hibernate creates the tables in its own form. Every text column is nvarchar (JDBC sends
-nvarchar: a varchar index would be scanned; the till's card lookup must seek).
+`core.convention`: the entities `Convention`, `ConventionCard`, the enums `ConventionStatus`, `ConventionRecognition`,
+`ConventionCardStatus` (the origin is `RecordOrigin`), the repositories `ConventionRepository` (`findByCode`) and
+`ConventionCardRepository` (`findByCardNumber`); the later parts add their queries.
+
+Delivered by `db/3.6.0/update.sql`, run by hand before the first start of the code: the statements Hibernate itself
+writes for SQL Server, word for word (`ConventionTableTest` generates them and finds each one in the script), each guarded
+by name (`IF OBJECT_ID`, `sys.indexes`), the same script on a store and a head office; it passes on a database already
+at 3.6.0. `ddl-auto=update` stays: run the script first. Every text column is nvarchar (JDBC sends nvarchar: a varchar
+index would be scanned; the till's card lookup must seek), but for `_BaseEntity`'s audit columns `created_by` /
+`updated_by` (varchar(255), as in every table). The defaults (`df_*`) only serve a row inserted by hand: the application
+writes every column. Run 2026-11-27 on `pos_headoffice`, `pos_store_b`, `pos_franchise_customer` (twice each); a start of
+store B afterwards changed nothing on the two tables (columns, types, lengths, nullability, defaults, constraints,
+indexes and their dates the same before and after).
 
 `convention` (`Convention`, `_BaseEntity`; `active` written true and never read, `status` is the truth):
 
@@ -103,8 +112,9 @@ nvarchar: a varchar index would be scanned; the till's card lookup must seek).
 | `start_date` date not null, `end_date` date null | End on or after the start; empty = no end |
 | `status` nvarchar(20) not null, default `ACTIVE` | `ACTIVE` / `SUSPENDED`. "Expired" and "not started" are worked out from the dates, never stored |
 | `recognition` nvarchar(20) not null, default `CARDS` | `CARDS` / `NO_CARD` |
-| `max_uses_per_day`, `max_uses_per_month` int null; `max_amount_per_month` float null | Empty = no limit, otherwise above 0 (float as the sales amounts) |
+| `max_uses_per_day`, `max_uses_per_month` int null; `max_amount_per_month` float null | Empty = no limit, otherwise above 0 (float as the sales amounts; Hibernate writes `double precision`, SQL Server's `float(53)`) |
 | `card_prefix` nvarchar(30) null | Empty = the code; fixed once a card exists |
+| `card_digits` int not null, default 5 | The digits after the prefix and `-` of a generated number; fixed once a card exists |
 | `last_card_seq` bigint not null, default 0 | The generation counter, taken under a row lock in the generation's transaction; a number already used anywhere is skipped. Never read from the highest card number (imported numbers and two admins at once would break it) |
 | `origin` nvarchar(20) not null, default `LOCAL` | `RecordOrigin` (HEAD_OFFICE: a copy received, step 6); never read from a request |
 
@@ -126,7 +136,9 @@ records, the record code their number, at most 100 characters as `ho_down_change
 cards is never one record), `origin` on the convention only (a card follows its convention), `updated_at`, no delete
 of anything used.
 
-Tests: `ConventionTableTest` (H2: the two unique keys, one number refused in two conventions, the defaults).
+Tests: `ConventionTableTest`: the script holds Hibernate's six statements (the two tables, the two unique keys, the
+index, the foreign key), every text column nvarchar and the names as decided; on H2 the defaults of a new row, the code
+twice refused, a card number refused in a second convention, a card without its convention refused, Arabic kept.
 
 ### B3 — the conventions: API, service, rights, events
 
