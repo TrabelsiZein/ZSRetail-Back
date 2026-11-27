@@ -1,5 +1,6 @@
 package com.digithink.zsretail.store.holink.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.stereotype.Component;
@@ -20,7 +21,9 @@ import lombok.extern.log4j.Log4j2;
 
 /**
  * 3.5.0, ticket templates step 5: the store side of the copies down TICKET_TEMPLATES. Pulled only while the head office
- * manages this store's templates ({@link #active}, {@link TicketTemplatesManaged}). Each record is a head office
+ * manages this store's templates ({@link #active}, {@link TicketTemplatesManaged}), at each heartbeat (HeartbeatJob) and
+ * each cycle of the copies down. The first page after the switch turned on replaces the store's own templates first
+ * ({@link TicketTemplatesManaged#replaceIfWaiting}). Each record is a head office
  * template (its code the document type): saved as the document's row, origin HEAD_OFFICE, read leniently (a later
  * version's blocks or options dropped); a code removed (the head office reset it) deletes the row received, and the
  * built-in default prints. A document type this version does not know is waiting (a later head office).
@@ -53,6 +56,9 @@ public class TicketTemplateDownHandler implements DownHandler {
 
 	@Override
 	public DownApplyResult apply(List<JsonNode> records, List<String> removed) {
+		// The switch just turned on: the head office's page is in hand, the store's own templates replaced now (never
+		// before: an unreachable head office leaves them printing)
+		managed.replaceIfWaiting(LocalDateTime.now());
 		DownApplyResult result = DownApplyResult.none();
 		for (JsonNode record : records) {
 			String code = record.path("documentType").asText(null);

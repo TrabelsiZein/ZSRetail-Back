@@ -58,8 +58,9 @@ import com.digithink.zsretail.store.holink.repository.TicketTemplateSavedReposit
  * 3.5.0, ticket templates step 5: a head office and a store whose switch "Le siège gère les modèles de tickets" is on,
  * over the real copies down (the head office's service, TicketTemplateDownProvider and CopiesDownFeed; the store's
  * service, TicketTemplatesManaged and TicketTemplateDownHandler; the tables in memory). The heartbeat's value is the
- * store row's switch (HeadOfficeHeartbeatAPI), the pull runs as CopiesDownPuller does (skipped while the handler is not
- * active, from the saved cursor). The store's GET /ticket-templates (page()) is what its till's builder prints from
+ * store row's switch (HeadOfficeHeartbeatAPI), and while managed the heartbeat pulls the domain as HeartbeatJob does
+ * (fix after the step 5 screen test: not the copies down's 30 minutes); the pull runs as CopiesDownPuller does (skipped
+ * while the handler is not active, from the saved cursor; the head office unreachable: nothing applied, no cursor). The store's GET /ticket-templates (page()) is what its till's builder prints from
  * (src/libs/ticket, checked by tools/ticket-render-check.mjs in ZSRetail-Front).
  */
 class TicketTemplatesRoundTripTest {
@@ -80,6 +81,7 @@ class TicketTemplatesRoundTripTest {
 	private CopiesDownFeed feed;
 	private Store franchise;
 	private int minutes;
+	private boolean pullFails;
 
 	/** Runs the callback at once (no transaction manager here). */
 	static final class Direct extends TransactionTemplate {
@@ -162,15 +164,24 @@ class TicketTemplatesRoundTripTest {
 
 	// ─── the network ─────────────────────────────────────────────────
 
-	/** The store's heartbeat: the head office answers the store row's switch (HeadOfficeHeartbeatAPI). */
+	/**
+	 * The store's heartbeat: the head office answers the store row's switch (HeadOfficeHeartbeatAPI); while managed the
+	 * ticket templates pulled at once (HeartbeatJob).
+	 */
 	private void heartbeat() {
-		minutes += 1;
+		minutes += 3;
 		managed.received(Boolean.TRUE.equals(franchise.getManagesTicketTemplates()), AT.plusMinutes(minutes));
+		if (managed.managedByHeadOffice()) {
+			pull();
+		}
 	}
 
-	/** One cycle of CopiesDownPuller for TICKET_TEMPLATES: none while the handler is not active; from the saved cursor. */
+	/**
+	 * One pull of CopiesDownPuller for TICKET_TEMPLATES: none while the handler is not active; from the saved cursor; not
+	 * delivered (pullFails): nothing applied, no cursor saved.
+	 */
 	private void pull() {
-		if (!handler.active()) {
+		if (!handler.active() || pullFails) {
 			return;
 		}
 		DownCursor cursor = cursors.get(DataDomain.TICKET_TEMPLATES);
@@ -183,11 +194,10 @@ class TicketTemplatesRoundTripTest {
 		cursors.put(DataDomain.TICKET_TEMPLATES, next);
 	}
 
-	/** The switch of the store's row at the head office, then a heartbeat and a pull. */
+	/** The switch of the store's row at the head office, then the heartbeat that brings it (and pulls while managed). */
 	private void switchManaged(boolean on) {
 		franchise.setManagesTicketTemplates(on);
 		heartbeat();
-		pull();
 	}
 
 	// ─── the two installations' templates ───────────────────────────
@@ -228,7 +238,7 @@ class TicketTemplatesRoundTripTest {
 		assertEquals("SALE", savedAside.get(0).getDocumentType());
 
 		headOffice.save("SALE", withSpacing(headOffice, "COMPACT"), "admin-siege");
-		pull();
+		heartbeat(); // within the heartbeat's rhythm, no copies down cycle
 
 		assertEquals("COMPACT", storeSpacing());
 		assertEquals(TicketTemplateService.HEAD_OFFICE, storeRows.get("SALE").getOrigin());
@@ -254,7 +264,7 @@ class TicketTemplatesRoundTripTest {
 		assertEquals("COMPACT", storeSpacing());
 
 		headOffice.reset("SALE");
-		pull();
+		heartbeat();
 
 		assertFalse(storeRows.containsKey("SALE"), "the row received deleted");
 		assertNull(storePageSale(), "no template: the till prints the default");
@@ -263,7 +273,8 @@ class TicketTemplatesRoundTripTest {
 	}
 
 	@Test
-	@DisplayName("Switch off: the store keeps the rows received (its own again) and can save; nothing more is pulled")
+	@DisplayName("Switch off: the store keeps the rows received (its own again) and can save; nothing more is pulled, by"
+			+ " the heartbeat or the copies down")
 	void switchOffKeepsTheRows() {
 		switchManaged(true);
 		headOffice.save("SALE", withSpacing(headOffice, "COMPACT"), "admin-siege");
@@ -276,6 +287,7 @@ class TicketTemplatesRoundTripTest {
 		assertFalse(handler.active());
 
 		headOffice.save("SALE", withSpacing(headOffice, "NORMAL"), "admin-siege");
+		heartbeat();
 		pull();
 		assertEquals("COMPACT", storeSpacing(), "a head office change no longer reaches the store");
 
@@ -306,5 +318,48 @@ class TicketTemplatesRoundTripTest {
 		assertEquals("COMPACT", storeSpacing(), "the head office's again, its cursor reset: pulled from the start");
 		assertEquals(TicketTemplateService.HEAD_OFFICE, storeRows.get("SALE").getOrigin());
 		assertEquals(2, storeLog.rows.stream().filter(r -> EventCode.TICKET_TEMPLATES_MANAGED_ON.name().equals(r.getCode())).count());
+	}
+
+	@Test
+	@DisplayName("Fix after the screen test: the switch turned on, the heartbeat's pull at once brings the head office's"
+			+ " template in the same heartbeat, no copies down cycle")
+	void switchOnPullsInTheSameHeartbeat() {
+		storeOwnSale();
+		headOffice.save("SALE", withSpacing(headOffice, "COMPACT"), "admin-siege");
+
+		switchManaged(true);
+
+		assertEquals("COMPACT", storeSpacing(), "the head office's, never the built-in default in between");
+		assertEquals("COMPACT", storePageSale().getLayout().get("spacing"));
+		assertEquals(1, savedAside.size());
+		assertTrue(savedAside.get(0).getLayout().contains("AIRY"));
+	}
+
+	@Test
+	@DisplayName("Fix after the screen test: the switch turned on but the pull not delivered (head office unreachable): the"
+			+ " store keeps printing its own templates, nothing put aside, no Alert; the first pull delivered replaces them")
+	void storeKeepsItsOwnUntilThePullIsDelivered() {
+		storeOwnSale();
+		headOffice.save("SALE", withSpacing(headOffice, "COMPACT"), "admin-siege");
+		pullFails = true;
+
+		switchManaged(true);
+		heartbeat();
+
+		assertEquals("AIRY", storeSpacing(), "the store's own still print, never the default");
+		assertEquals("AIRY", storePageSale().getLayout().get("spacing"));
+		assertEquals(TicketTemplateService.LOCAL, storeRows.get("SALE").getOrigin());
+		assertTrue(savedAside.isEmpty());
+		assertTrue(storeLog.rows.stream().noneMatch(r -> EventCode.TICKET_TEMPLATES_MANAGED_ON.name().equals(r.getCode())));
+		assertEquals(Boolean.TRUE, store.page().get("managedByHeadOffice"), "read-only already: the head office decides");
+
+		pullFails = false;
+		heartbeat();
+
+		assertEquals("COMPACT", storeSpacing());
+		assertEquals(TicketTemplateService.HEAD_OFFICE, storeRows.get("SALE").getOrigin());
+		assertEquals(1, savedAside.size());
+		assertTrue(savedAside.get(0).getLayout().contains("AIRY"));
+		assertEquals(1, storeLog.rows.stream().filter(r -> EventCode.TICKET_TEMPLATES_MANAGED_ON.name().equals(r.getCode())).count());
 	}
 }

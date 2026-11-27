@@ -114,6 +114,20 @@ public class CopiesDownPuller {
 		return cycle;
 	}
 
+	/**
+	 * 3.5.0, ticket templates step 5: one domain now, outside the cycle (HeartbeatJob for TICKET_TEMPLATES, on the same
+	 * ho-link thread); null when the domain has no handler or its handler is not active. The other domains keep their
+	 * rhythm.
+	 */
+	public DomainRun runDomain(DataDomain domain) {
+		for (DownHandler handler : handlers) {
+			if (handler.getDomain() == domain) {
+				return handler.active() ? runDomain(handler, System.nanoTime()) : null;
+			}
+		}
+		return null;
+	}
+
 	private DomainRun runDomain(DownHandler handler, long cycleStarted) {
 		DataDomain domain = handler.getDomain();
 		DomainRun run = new DomainRun(domain);

@@ -39,9 +39,10 @@ import com.digithink.zsretail.store.holink.repository.TicketTemplateSavedReposit
 
 /**
  * 3.5.0, ticket templates step 5: "Le siège gère les modèles de tickets" at the store (the tables in memory): saved
- * when it changes; off → on the store's own templates copied aside, deleted, the cursor deleted, an Alert; on → off the
- * templates received kept and the store's own again (LOCAL), an event; a value not sent keeps the saved one; never
- * received: off.
+ * when it changes; off → on the cursor deleted and the replacement waiting: the store's own templates copied aside and
+ * deleted, with an Alert, only when a page of the head office is in hand (replaceIfWaiting); on → off the templates
+ * received kept and the store's own again (LOCAL), an event, a waiting replacement dropped; a value not sent keeps the
+ * saved one; never received: off.
  */
 class TicketTemplatesManagedTest {
 
@@ -121,8 +122,8 @@ class TicketTemplatesManagedTest {
 	}
 
 	@Test
-	@DisplayName("Off → on: the store's own templates copied aside (dated) and deleted, the cursor deleted, one Alert; on"
-			+ " again: nothing; on → off: the templates received kept, LOCAL again, one event")
+	@DisplayName("Off → on: the cursor deleted, the store's own kept until a page is in hand; then copied aside (dated) and"
+			+ " deleted, one Alert; on again: nothing; on → off: the templates received kept, LOCAL again, one event")
 	void transitions() {
 		LocalDateTime at = LocalDateTime.of(2026, 11, 27, 18, 0);
 		row("SALE", TicketTemplateService.LOCAL);
@@ -137,9 +138,18 @@ class TicketTemplatesManagedTest {
 
 		managed.received(true, at);
 		assertTrue(managed.managedByHeadOffice());
+		assertTrue(managed.replacementWaiting());
+		assertEquals(2, templates.size(), "nothing replaced before the head office's templates are in hand");
+		assertTrue(saved.isEmpty());
+		assertTrue(log.rows.isEmpty(), "the event comes with the replacement");
+		assertFalse(cursors.containsKey(DataDomain.TICKET_TEMPLATES), "everything pulled again from the start");
+
+		LocalDateTime pulledAt = at.plusSeconds(1);
+		assertTrue(managed.replaceIfWaiting(pulledAt), "a page in hand: the replacement");
+		assertFalse(managed.replacementWaiting());
 		assertTrue(templates.isEmpty(), "the store's own deleted: the head office's or the built-in default print");
 		assertEquals(2, saved.size());
-		assertEquals(at, saved.get(0).getSavedAt());
+		assertEquals(pulledAt, saved.get(0).getSavedAt());
 		assertTrue(saved.stream().anyMatch(s -> "SALE".equals(s.getDocumentType()) && "{\"spacing\":\"COMPACT\"}".equals(s.getLayout())
 				&& "admin".equals(s.getTemplateUpdatedBy())));
 		assertFalse(cursors.containsKey(DataDomain.TICKET_TEMPLATES), "everything pulled again from the start");
@@ -148,7 +158,9 @@ class TicketTemplatesManagedTest {
 		assertEquals(EventCode.TICKET_TEMPLATES_MANAGED_ON.name(), log.rows.get(0).getCode());
 		assertTrue(log.rows.get(0).getDetails().contains("Ticket de vente"), log.rows.get(0).getDetails());
 
+		assertFalse(managed.replaceIfWaiting(at.plusSeconds(2)), "a later page: nothing waits");
 		managed.received(true, at.plusMinutes(3));
+		assertFalse(managed.replaceIfWaiting(at.plusMinutes(3)), "on again: nothing");
 		assertEquals(2, saved.size(), "on again: nothing");
 		assertEquals(1, log.rows.size());
 
@@ -159,5 +171,22 @@ class TicketTemplatesManagedTest {
 		assertEquals("{\"spacing\":\"COMPACT\"}", templates.get("SALE").getLayout(), "no ticket changes");
 		assertEquals(2, log.rows.size());
 		assertEquals(EventCode.TICKET_TEMPLATES_MANAGED_OFF.name(), log.rows.get(1).getCode());
+	}
+
+	@Test
+	@DisplayName("On, then off before any page of the head office (unreachable): the store's own never touched, the"
+			+ " replacement dropped, no Alert")
+	void offBeforeAnyPull() {
+		LocalDateTime at = LocalDateTime.of(2026, 11, 27, 18, 0);
+		row("SALE", TicketTemplateService.LOCAL);
+		managed.received(true, at);
+		assertTrue(managed.replacementWaiting());
+
+		managed.received(false, at.plusMinutes(3));
+		assertFalse(managed.replacementWaiting());
+		assertFalse(managed.replaceIfWaiting(at.plusMinutes(4)), "off: nothing replaced");
+		assertEquals(TicketTemplateService.LOCAL, templates.get("SALE").getOrigin());
+		assertTrue(saved.isEmpty());
+		assertTrue(log.rows.stream().noneMatch(r -> EventCode.TICKET_TEMPLATES_MANAGED_ON.name().equals(r.getCode())));
 	}
 }

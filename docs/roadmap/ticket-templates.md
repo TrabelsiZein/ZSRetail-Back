@@ -532,4 +532,9 @@ Part 9: `TicketTemplatesRoundTripTest` (network-tests). The local pair for the s
 (`pos_headoffice` on 888, `pos_store_b` on 555; no ERP, `erp.sync.enabled=false`), brought from 2.1.0 to 3.5.0 by
 the release scripts on 2026-11-27.
 
-Left: the screen test on the dev pair; the accountant on the locks.
+After the screen test's first half (2026-11-27): the switch reached the store with the heartbeat (3 min) but the
+templates only with the copies down (30 min), and turning it on deleted the store's own at once (the built-in default
+printed meanwhile). Now the heartbeat pulls `TICKET_TEMPLATES` while managed, and the store's own are replaced only
+once a page of the head office is in hand (`modules/head-office.md`, "Ticket templates"). Store side only.
+
+Left: the rest of the screen test on the dev pair; the accountant on the locks.

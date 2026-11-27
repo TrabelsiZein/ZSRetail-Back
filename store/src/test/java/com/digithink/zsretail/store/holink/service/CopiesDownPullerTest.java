@@ -83,6 +83,8 @@ class CopiesDownPullerTest {
 
 	private MockRestServiceServer server;
 	private CopiesDownJob job;
+	private CopiesDownPuller puller;
+	private boolean handlerActive;
 
 	@BeforeEach
 	void setUp() {
@@ -94,6 +96,7 @@ class CopiesDownPullerTest {
 		applyFailure = null;
 		cursorSaveFails = false;
 		localToDeactivate = 0;
+		handlerActive = true;
 		retryResult = DownApplyResult.none();
 		job = job(Collections.singletonList(handler()));
 	}
@@ -109,7 +112,7 @@ class CopiesDownPullerTest {
 		};
 		HeadOfficeClient client = new HeadOfficeClient(restTemplate, generalSetup, "http://localhost:888/zsretail/api",
 				"AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde", "2.1.0");
-		CopiesDownPuller puller = new CopiesDownPuller(client, handlers, cursorRepository(), exchangeLog(),
+		puller = new CopiesDownPuller(client, handlers, cursorRepository(), exchangeLog(),
 				TransactionOperations.withoutTransaction());
 		return new CopiesDownJob(puller, 60);
 	}
@@ -149,6 +152,24 @@ class CopiesDownPullerTest {
 	}
 
 	// ─── Tests ────────────────────────────────────────────────────
+
+	@Test
+	@DisplayName("3.5.0: one domain now (the heartbeat's ticket templates): pulled from its cursor, cursor saved; a domain"
+			+ " without a handler or a handler not active: no request, null")
+	void oneDomainNow() {
+		expect("", page("4", false, Arrays.asList(record("P1", "Summer"))));
+		CopiesDownPuller.DomainRun run = puller.runDomain(DataDomain.PROMOTIONS);
+		server.verify();
+		assertEquals(DataDomain.PROMOTIONS, run.getDomain());
+		assertEquals(1, run.getRecords());
+		assertEquals("4", savedCursor());
+		assertTrue(store.containsKey("P1"));
+
+		assertNull(puller.runDomain(DataDomain.CATALOGUE), "no handler: nothing");
+		handlerActive = false;
+		assertNull(puller.runDomain(DataDomain.PROMOTIONS), "not active: nothing");
+		server.verify(); // no unexpected request
+	}
 
 	@Test
 	@DisplayName("The cursor is saved exactly as the head office sent it and sent back unchanged at the next pull")
@@ -407,6 +428,11 @@ class CopiesDownPullerTest {
 			@Override
 			public DataDomain getDomain() {
 				return DataDomain.PROMOTIONS;
+			}
+
+			@Override
+			public boolean active() {
+				return handlerActive;
 			}
 
 			@Override

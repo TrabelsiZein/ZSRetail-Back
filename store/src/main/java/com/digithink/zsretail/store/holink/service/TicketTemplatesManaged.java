@@ -32,12 +32,16 @@ import lombok.extern.log4j.Log4j2;
  * office's Stores page, received with each heartbeat answer and saved (hol_link_right, {@link #CODE}): it holds after a
  * restart and while the head office is unreachable; never received: off (the store keeps its own templates).
  * <p>
- * The two transitions, each in one transaction with its event:
+ * The transitions:
  * <ul>
- * <li>off → on: every template of the store's own copied, dated, to ticket_template_saved (a recovery by hand only),
- * then deleted; the cursor of the copies down TICKET_TEMPLATES deleted, so the next cycle pulls every head office
- * template from the start. A document the head office has no template for prints the built-in default.</li>
- * <li>on → off: the templates received are kept (no ticket changes), the store's own again (origin LOCAL), editable.</li>
+ * <li>off → on: the replacement waits ({@link #REPLACE_CODE}) and the cursor of the copies down TICKET_TEMPLATES is
+ * deleted; the heartbeat that brought the switch pulls the domain at once (HeartbeatJob). Only when a page of the head
+ * office is in hand ({@link #replaceIfWaiting}, TicketTemplateDownHandler before it applies the page): every template of
+ * the store's own copied, dated, to ticket_template_saved (a recovery by hand only), then deleted, with the event. The
+ * head office unreachable: the store keeps printing its own templates until the first pull delivered. A document the
+ * head office has no template for prints the built-in default.</li>
+ * <li>on → off: the templates received are kept (no ticket changes), the store's own again (origin LOCAL), editable; a
+ * replacement still waiting is dropped (the store's own stay as they are).</li>
  * </ul>
  * A store linked to a head office only; none elsewhere (never managed).
  */
@@ -47,6 +51,9 @@ import lombok.extern.log4j.Log4j2;
 public class TicketTemplatesManaged implements TicketTemplateLink {
 
 	public static final String CODE = "TICKET_TEMPLATES_MANAGED";
+
+	/** Granted: the switch turned on, the store's own templates not yet replaced by the head office's (hol_link_right). */
+	public static final String REPLACE_CODE = "TICKET_TEMPLATES_REPLACE";
 
 	private final LinkRightRepository rights;
 	private final TicketTemplateRepository templates;
@@ -111,15 +118,48 @@ public class TicketTemplatesManaged implements TicketTemplateLink {
 			if (managed && !before) {
 				turnOn(at);
 			} else if (!managed && before) {
-				turnOff();
+				turnOff(at);
 			}
 		});
 		cache = managed;
-		log.info("Head office link: the ticket templates are now {}", managed ? "managed by the head office" : "the store's");
+		log.info("Head office link: the ticket templates are now {}", managed ? "managed by the head office (the store's own"
+				+ " print until the head office's are pulled)" : "the store's");
 	}
 
-	/** Off → on: the store's own templates kept aside and deleted, the cursor deleted (everything pulled again). */
+	/** Off → on: the replacement waits for the head office's templates; the cursor deleted (everything pulled again). */
 	private void turnOn(LocalDateTime at) {
+		mark(true, at);
+		cursors.findByDomain(DataDomain.TICKET_TEMPLATES).ifPresent(cursors::delete);
+	}
+
+	private void mark(boolean waiting, LocalDateTime at) {
+		LinkRight marker = rights.findByCode(REPLACE_CODE).orElseGet(LinkRight::new);
+		marker.setCode(REPLACE_CODE);
+		marker.setGranted(waiting);
+		marker.setReceivedAt(at);
+		rights.save(marker);
+	}
+
+	/** The switch on and the store's own templates not replaced yet. */
+	public boolean replacementWaiting() {
+		return rights.findByCode(REPLACE_CODE).map(r -> Boolean.TRUE.equals(r.getGranted())).orElse(false);
+	}
+
+	/**
+	 * A page of the head office in hand (TicketTemplateDownHandler, before it applies it): when the replacement waits, the
+	 * store's own templates copied aside, dated, and deleted, the marker cleared, the event; in one transaction. False when
+	 * nothing waited.
+	 */
+	public boolean replaceIfWaiting(LocalDateTime at) {
+		if (!managedByHeadOffice() || !replacementWaiting()) {
+			return false;
+		}
+		transactions.executeWithoutResult(status -> replace(at));
+		log.info("Head office link: the store's own ticket templates kept aside and replaced by the head office's");
+		return true;
+	}
+
+	private void replace(LocalDateTime at) {
 		List<String> names = new ArrayList<>();
 		for (TicketTemplate row : templates.findAll()) {
 			TicketTemplateSaved copy = new TicketTemplateSaved();
@@ -136,12 +176,15 @@ public class TicketTemplatesManaged implements TicketTemplateLink {
 			names.add(TicketBlockLabels.fr(row.getDocumentType()));
 			templates.delete(row);
 		}
-		cursors.findByDomain(DataDomain.TICKET_TEMPLATES).ifPresent(cursors::delete);
+		mark(false, at);
 		adminEvents.ticketTemplatesManagedOn(names);
 	}
 
-	/** On → off: the templates received kept, the store's own again. */
-	private void turnOff() {
+	/** On → off: the templates received kept, the store's own again; a replacement still waiting dropped. */
+	private void turnOff(LocalDateTime at) {
+		if (replacementWaiting()) {
+			mark(false, at);
+		}
 		List<String> names = new ArrayList<>();
 		for (TicketTemplate row : templates.findAll()) {
 			if (TicketTemplateService.HEAD_OFFICE.equals(row.getOrigin())) {

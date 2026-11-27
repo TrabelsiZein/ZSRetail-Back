@@ -99,6 +99,16 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   `TicketTemplatesManaged`: two constructors, none `@Autowired`, Spring looked for a default one). The constructor
   Spring uses is now marked. `BeanConstructorsGuardTest` (network-tests): every component of every project has a
   constructor Spring can choose (its own `AutowiredAnnotationBeanPostProcessor` rule), so such a class fails the suite.
+- Ticket templates step 5, found at the screen test: the switch "Le siège gère les modèles de tickets" reached the
+  store with the heartbeat (3 min) but the templates only with the copies down (30 min by default), and turning it on
+  deleted the store's own templates at once, so the store printed the built-in default meanwhile; a later save or reset
+  at the head office waited up to 30 minutes too. Now, while managed, each ONLINE heartbeat pulls `TICKET_TEMPLATES`
+  (`HeartbeatJob`, `CopiesDownPuller.runDomain`; the other domains keep their rhythm), and off → on only marks the
+  replacement waiting (`hol_link_right` code `TICKET_TEMPLATES_REPLACE`): the store's own are copied aside and deleted,
+  with the event, when a page of the head office is in hand (`TicketTemplatesManaged.replaceIfWaiting`); the head
+  office unreachable, they keep printing. Store side only. Tests: `TicketTemplatesManagedTest`,
+  `TicketTemplateDownHandlerTest`, `HeartbeatJobTest`, `CopiesDownPullerTest`, `TicketTemplatesRoundTripTest` (the
+  switch on pulls in the same heartbeat; the pull not delivered keeps the store's own).
 - Warranties off (`warranty.enabled` not true): the warranty ticket's template too. `GET /ticket-templates` leaves the
   document `WARRANTY` out; `PUT` and `DELETE /ticket-templates/WARRANTY` answer 404 `{"error"}` as `/warranty`
   (`WarrantyAPI.OFF_MESSAGE`). A saved warranty template stays in `ticket_template` and comes back with the line.

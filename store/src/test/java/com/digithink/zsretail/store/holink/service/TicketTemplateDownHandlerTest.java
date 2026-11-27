@@ -7,6 +7,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -108,5 +110,19 @@ class TicketTemplateDownHandlerTest {
 		assertEquals(1, mixed.getRemoved(), "the SALE row received deleted; no RETURN_VOUCHER row: nothing");
 		assertFalse(rows.containsKey("SALE"));
 		assertTrue(rows.containsKey("SESSION_REPORT"));
+	}
+
+	@Test
+	@DisplayName("Every page in hand, an empty one too, first asks the switch to replace the store's own templates when"
+			+ " that waits; before the records are saved")
+	void replacementFirst() {
+		when(managed.replaceIfWaiting(any())).thenAnswer(call -> {
+			assertTrue(rows.isEmpty(), "asked before the page's records are saved");
+			return true;
+		});
+		handler.apply(Collections.emptyList(), Collections.emptyList());
+		handler.apply(Arrays.asList(copyOf(TicketDocumentType.SALE, "COMPACT")), Collections.emptyList());
+		verify(managed, times(2)).replaceIfWaiting(any());
+		assertTrue(rows.containsKey("SALE"));
 	}
 }

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.store.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.store.holink.dto.HeadOfficeCallResult;
 import com.digithink.zsretail.store.holink.dto.LinkJobRun;
@@ -19,6 +20,7 @@ import com.digithink.zsretail.store.holink.enumeration.ExchangeDirection;
 import com.digithink.zsretail.store.holink.enumeration.HeadOfficeLinkState;
 import com.digithink.zsretail.store.holink.enumeration.LinkJobResult;
 import com.digithink.zsretail.store.holink.service.CatalogueRights;
+import com.digithink.zsretail.store.holink.service.CopiesDownPuller;
 import com.digithink.zsretail.store.holink.service.HeadOfficeLinkStatus;
 import com.digithink.zsretail.store.holink.service.LinkExchangeLog;
 import com.digithink.zsretail.store.holink.service.TicketTemplatesManaged;
@@ -29,7 +31,10 @@ import lombok.extern.log4j.Log4j2;
  * The heartbeat to the head office (task 1.4), a job of the head office link since task 2.6: first run
  * {@link #FIRST_DELAY} after the start, then every headoffice.heartbeat-interval-seconds unless a frequency is saved
  * from the page. Each heartbeat updates the in-memory link status; one INFO line and one exchange log row when the
- * state changes, DEBUG and no row otherwise.
+ * state changes, DEBUG and no row otherwise. 3.5.0, ticket templates step 5: an ONLINE answer while the head office
+ * manages the ticket templates also pulls that domain (CopiesDownPuller#runDomain), so the switch turned on and every
+ * save or reset at the head office reach the store within this rhythm, not the copies down's (30 min by default); a
+ * pull with nothing new writes no exchange row. The other domains keep the copies down's rhythm.
  */
 @Component
 @ConditionalOnInstallation(Installation.LINKED_TO_HEAD_OFFICE)
@@ -56,6 +61,10 @@ public class HeartbeatJob implements LinkJob {
 	/** 3.5.0, ticket templates step 5: "the head office manages the ticket templates" saved, on every linked store. */
 	@Autowired(required = false)
 	private ObjectProvider<TicketTemplatesManaged> ticketTemplates;
+
+	/** 3.5.0, ticket templates step 5: the copies down, for the ticket templates' pull at each heartbeat. */
+	@Autowired(required = false)
+	private ObjectProvider<CopiesDownPuller> copiesDown;
 
 	public HeartbeatJob(HeadOfficeClient client, HeadOfficeLinkStatus status, LinkExchangeLog exchangeLog,
 			@Value("${headoffice.heartbeat-interval-seconds:" + HeartbeatJob.DEFAULT_INTERVAL_SECONDS + "}") long intervalSeconds) {
@@ -104,6 +113,7 @@ public class HeartbeatJob implements LinkJob {
 			} catch (RuntimeException e) {
 				log.warn("Head office link: the ticket templates switch not saved ({})", e.getMessage());
 			}
+			pullTicketTemplates(templates);
 		}
 		String detail = online ? "head office time " + result.getServerTime() : result.getMessage();
 		if (previous != result.getState()) {
@@ -115,5 +125,18 @@ public class HeartbeatJob implements LinkJob {
 		}
 		return online ? LinkJobRun.success(HeadOfficeLinkState.ONLINE.name())
 				: LinkJobRun.error(result.getState() + ": " + result.getMessage());
+	}
+
+	/** While managed: the ticket templates pulled now (a failure is the puller's exchange row; the heartbeat stays ONLINE). */
+	private void pullTicketTemplates(TicketTemplatesManaged templates) {
+		CopiesDownPuller puller = copiesDown == null ? null : copiesDown.getIfAvailable();
+		if (puller == null || !templates.managedByHeadOffice()) {
+			return;
+		}
+		try {
+			puller.runDomain(DataDomain.TICKET_TEMPLATES);
+		} catch (RuntimeException e) {
+			log.warn("Head office link: the ticket templates not pulled ({})", e.getMessage());
+		}
 	}
 }

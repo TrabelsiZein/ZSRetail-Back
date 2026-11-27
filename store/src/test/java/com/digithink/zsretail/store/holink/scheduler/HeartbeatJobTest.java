@@ -5,6 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -33,6 +39,7 @@ import org.springframework.test.web.client.ResponseCreator;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.web.client.RestTemplate;
 
+import com.digithink.zsretail.core.model.enumeration.DataDomain;
 import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.store.holink.client.HeadOfficeClient;
 import com.digithink.zsretail.store.holink.dto.LinkJobRun;
@@ -44,8 +51,10 @@ import com.digithink.zsretail.store.holink.model.LinkRight;
 import com.digithink.zsretail.store.holink.repository.LinkExchangeRepository;
 import com.digithink.zsretail.store.holink.repository.LinkRightRepository;
 import com.digithink.zsretail.store.holink.service.CatalogueRights;
+import com.digithink.zsretail.store.holink.service.CopiesDownPuller;
 import com.digithink.zsretail.store.holink.service.HeadOfficeLinkStatus;
 import com.digithink.zsretail.store.holink.service.LinkExchangeLog;
+import com.digithink.zsretail.store.holink.service.TicketTemplatesManaged;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -260,5 +269,37 @@ class HeartbeatJobTest {
 		beat(withSuccess("{\"storeCode\":\"RS01\",\"serverTime\":\"2026-10-04T10:02:00.000+01:00\","
 				+ "\"mayChangePrices\":false,\"canPurchase\":true}", MediaType.APPLICATION_JSON));
 		assertFalse(new CatalogueRights(repository).mayChangePrices());
+	}
+
+	private void provide(String name, Class<?> type, Object bean) throws Exception {
+		Field field = HeartbeatJob.class.getDeclaredField(name);
+		field.setAccessible(true);
+		field.set(job, new StaticListableBeanFactory(Collections.singletonMap(name, bean)).getBeanProvider(type));
+	}
+
+	@Test
+	@DisplayName("3.5.0, ticket templates step 5: an ONLINE heartbeat while managed pulls the ticket templates at once;"
+			+ " not managed or not ONLINE, no pull; a failed pull leaves the heartbeat ONLINE")
+	void ticketTemplatesPulledWithTheHeartbeat() throws Exception {
+		TicketTemplatesManaged templates = mock(TicketTemplatesManaged.class);
+		CopiesDownPuller puller = mock(CopiesDownPuller.class);
+		provide("ticketTemplates", TicketTemplatesManaged.class, templates);
+		provide("copiesDown", CopiesDownPuller.class, puller);
+
+		when(templates.managedByHeadOffice()).thenReturn(false);
+		beat(online("2026-11-27T18:00:00.000+01:00"));
+		verify(puller, never()).runDomain(any());
+
+		when(templates.managedByHeadOffice()).thenReturn(true);
+		beat(online("2026-11-27T18:03:00.000+01:00"));
+		verify(puller, times(1)).runDomain(DataDomain.TICKET_TEMPLATES);
+
+		beat(refused());
+		verify(puller, times(1)).runDomain(DataDomain.TICKET_TEMPLATES);
+
+		when(puller.runDomain(any())).thenThrow(new IllegalStateException("database down"));
+		LinkJobRun run = beat(online("2026-11-27T18:09:00.000+01:00"));
+		verify(puller, times(2)).runDomain(DataDomain.TICKET_TEMPLATES);
+		assertEquals(LinkJobResult.SUCCESS, run.getResult());
 	}
 }

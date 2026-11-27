@@ -272,9 +272,13 @@ Stores page, `ho_store.manages_ticket_templates`; `modules/head-office.md`, "Cop
   Information's).
 - A managed store: its templates are the head office's (`ticket_template.origin = HEAD_OFFICE`, received by
   `TicketTemplateDownHandler`); `PUT` and `DELETE /ticket-templates/{type}` answer 403 `TICKET_TEMPLATE_MANAGED`;
-  `GET` says `managedByHeadOffice: true`. When the switch turns on, the store's own templates are copied to
-  `ticket_template_saved` (a recovery by hand only) and deleted; when it turns off, the templates received are kept, the
-  store's own again (`LOCAL`). A save always makes a row the store's own (`LOCAL`).
+  `GET` says `managedByHeadOffice: true`. When the switch turns on, the store pulls the head office's templates in the
+  same heartbeat; only once that page is in hand are the store's own templates copied to `ticket_template_saved` (a
+  recovery by hand only) and deleted, so the head office unreachable leaves them printing (never the built-in default by
+  accident). While managed, every heartbeat (3 min by default) pulls the domain: a save or a reset at the head office
+  reaches the store within that rhythm, not the copies down's 30 minutes. When it turns off, the templates received are
+  kept, the store's own again (`LOCAL`). A save always makes a row the store's own (`LOCAL`). The till reads the
+  templates when its screen opens (`ticketTemplates/load`).
 - Never sent: the POS machine's paper width, the identity of Company Information.
 
 The front (step 5, parts 7-8):
