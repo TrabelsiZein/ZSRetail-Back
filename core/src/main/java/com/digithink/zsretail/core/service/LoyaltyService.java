@@ -110,8 +110,9 @@ public class LoyaltyService {
 	// Member Management
 	// ───────────────────────────────────────────────────────────────
 
+	/** Active members only; 3.5.0: the spaces typed between two words count as one ("Test  Tombola"). */
 	public List<LoyaltyMemberDTO> searchMembers(String query) {
-		List<LoyaltyMember> members = loyaltyMemberRepository.searchMembers(query);
+		List<LoyaltyMember> members = loyaltyMemberRepository.searchMembers(query == null ? "" : query.trim().replaceAll("\\s+", " "));
 		return members.stream()
 				.filter(m -> Boolean.TRUE.equals(m.getActive()))
 				.map(this::toMemberDTO)

@@ -39,10 +39,16 @@ public interface LoyaltyMemberRepository extends _BaseRepository<LoyaltyMember, 
 	/** A list, not an Optional: members saved before the phone became unique may share a number. */
 	List<LoyaltyMember> findByPhone(String phone);
 
+	/**
+	 * The POS and admin search (LoyaltyAPI GET /member/search): the card number, the first name, the last name, the phone,
+	 * and (3.5.0) the full name in both orders ("Test Tombola", "Tombola Test"), each holding the text, in any case.
+	 */
 	@Query("SELECT m FROM LoyaltyMember m WHERE " +
 		   "LOWER(m.cardNumber) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
 		   "LOWER(m.firstName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
 		   "LOWER(m.lastName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+		   "LOWER(CONCAT(m.firstName, ' ', m.lastName)) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+		   "LOWER(CONCAT(m.lastName, ' ', m.firstName)) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
 		   "m.phone LIKE CONCAT('%', :query, '%')")
 	List<LoyaltyMember> searchMembers(@Param("query") String query);
 

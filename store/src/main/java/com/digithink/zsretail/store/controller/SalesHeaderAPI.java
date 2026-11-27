@@ -18,7 +18,6 @@ import com.digithink.zsretail.core.model.Payment;
 import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.SalesLine;
 import com.digithink.zsretail.core.model.UserAccount;
-import com.digithink.zsretail.core.repository.GeneralSetupRepository;
 import com.digithink.zsretail.core.repository.PaymentRepository;
 import com.digithink.zsretail.core.repository.SalesLineRepository;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
@@ -54,9 +53,6 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 
 	@Autowired
 	private PaymentRepository paymentRepository;
-
-	@Autowired
-	private GeneralSetupRepository generalSetupRepository;
 
 	@Autowired
 	private TicketsHistoryExport ticketsHistoryExport;

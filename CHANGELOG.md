@@ -118,6 +118,10 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   removed (its fields gone).
 
 ### Fixes
+- Loyalty member search (`GET /loyalty/member/search`, the POS popup): the full name finds the member, first name then last
+  name or the reverse ("Test Tombola", "Tombola Test"), the spaces typed between the words as one; the rules of before
+  kept (2 characters at least, active members only, the card number, a name, the phone). `LoyaltyMemberSearchQueryTest`
+  (the JPQL over H2). `SalesHeaderAPI`: its unused `generalSetupRepository` removed (with the two tests' injections).
 - Ticket templates step 5: a store linked to a head office did not start ("No default constructor found" for
   `TicketTemplatesManaged`: two constructors, none `@Autowired`, Spring looked for a default one). The constructor
   Spring uses is now marked. `BeanConstructorsGuardTest` (network-tests): every component of every project has a

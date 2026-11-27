@@ -41,6 +41,9 @@
 - **Repositories**: `LoyaltyMemberRepository` (with `findMaxCardSequence` native SQL Server query using `SUBSTRING(col, 5, LEN(col)-4)`), `LoyaltyProgramRepository`, `LoyaltyTransactionRepository` (with `findAllFiltered` JPQL cross-member query)
 - **DTOs**: `LoyaltyConfigDTO`, `LoyaltyMemberDTO` (includes `pointsValueDinars`), `CreateLoyaltyMemberRequestDTO`, `LoyaltyTransactionDTO` (includes `memberCardNumber`, `memberFullName` for cross-member queries), `LoyaltyAdjustmentRequestDTO`
 - **Service**: `LoyaltyService` — methods: `getLoyaltyConfig`, `searchMembers`, `createMember`, `updateMember`, `toggleActive`, `earnPoints`, `redeemPoints`, `applyReturn`, `adjustPoints`, `activateNewProgram`, `getAllPrograms`, `getTransactionHistory`, `getAllTransactionsFiltered`, `getPointsValueInDinars`
+- **Search** (`GET /loyalty/member/search?q=`, the POS popup): 2 characters at least (fewer: `[]`), active members only, the
+  card number, the first name, the last name, the phone and (3.5.0) the full name in both orders ("Test Tombola",
+  "Tombola Test"), each holding the text, any case; spaces between words count as one. `LoyaltyMemberSearchQueryTest`.
 - **Controller**: `LoyaltyAPI` (`/loyalty/*`) — endpoints for config, member CRUD/search/toggle, balance, per-member transactions, cross-member transactions (paginated + filtered), adjustment, programs CRUD
 
 ### Backend — Modified Files

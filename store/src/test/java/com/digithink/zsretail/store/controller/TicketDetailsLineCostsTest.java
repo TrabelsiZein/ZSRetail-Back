@@ -26,7 +26,6 @@ import com.digithink.zsretail.core.model.SalesHeader;
 import com.digithink.zsretail.core.model.SalesLine;
 import com.digithink.zsretail.core.model.UserAccount;
 import com.digithink.zsretail.core.model.enumeration.TransactionStatus;
-import com.digithink.zsretail.core.repository.GeneralSetupRepository;
 import com.digithink.zsretail.core.repository.PaymentRepository;
 import com.digithink.zsretail.core.repository.SalesLineRepository;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
@@ -69,8 +68,6 @@ class TicketDetailsLineCostsTest {
 				(m, a) -> "findBySalesHeader".equals(m) ? lines : UNHANDLED));
 		inject(api, SalesHeaderAPI.class, "paymentRepository", proxy(PaymentRepository.class,
 				(m, a) -> "findBySalesHeader".equals(m) ? new ArrayList<>() : UNHANDLED));
-		inject(api, SalesHeaderAPI.class, "generalSetupRepository", proxy(GeneralSetupRepository.class,
-				(m, a) -> "findByCode".equals(m) ? Optional.empty() : UNHANDLED));
 		inject(api, SalesHeaderAPI.class, "currentUserProvider", new CurrentUserProvider() {
 			@Override
 			public UserAccount getCurrentUser() {

@@ -72,8 +72,9 @@ A store setting (General Setup, payment methods section, SELECT, created at star
 `CASHIER_CLOSING_TICKET`, label "Ticket de fermeture caissier" (3.2.0 vocabulary; before "Ticket de clôture caissier"), options `Z` "Ticket Z complet" and `DECLARED` "Montants
 déclarés seulement" (`SetupField` prop `optionLabels`: a SELECT shows a label per value; the other SELECT shows its
 values as before). Sent by `GET /config` as `cashierClosingTicket` (`DECLARED` in any case, else `Z`, also when the row
-is absent; null on a head office), read in the front through the getter `appConfig/closingPrintsTicketZ`; saving the
-setting refreshes `/config`, and a till reads it again at its next login. What the till prints with each value:
+is absent; null on a head office), read in the front through the getter `appConfig/closingPrintsTicketZ`. 3.5.0: every save of the page refreshes
+`/config` (before, only four codes did, so a change of this one counted at the next login), and a till reads it again
+when its screen opens and when its closing popup opens (a failed read keeps the values read before). What the till prints with each value:
 `cash-sessions.md`, "The cashier's closing ticket". Test: `AppConfigAPITest#cashierClosingTicket`.
 
 ## Ticket printing (3.5.0)

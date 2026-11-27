@@ -181,7 +181,6 @@ class TillRightsEndToEndTest {
 				proxy(SalesLineRepository.class, (m, a) -> "findBySalesHeader".equals(m) ? new ArrayList<>() : UNHANDLED));
 		set(salesAPI, SalesHeaderAPI.class, "paymentRepository",
 				proxy(PaymentRepository.class, (m, a) -> "findBySalesHeader".equals(m) ? new ArrayList<>() : UNHANDLED));
-		set(salesAPI, SalesHeaderAPI.class, "generalSetupRepository", setup);
 
 		// The return: the guard on the request, then a return (the rest of processReturn has its own tests)
 		ReturnHeaderService returns = new ReturnHeaderService() {
