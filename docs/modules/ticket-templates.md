@@ -12,14 +12,21 @@ closing ticket, the two slips). The head office sends its templates down at step
 Everything about the printed sale ticket is configured in the template (table `ticket_template`, page "Modèles de
 tickets"). Nothing new in General setup or Company Information: `TICKET_RENDERER` stays the only General setup line.
 
-- General setup `TICKET_RENDERER` (store, `OLD` by default): `OLD` prints with the old code (`ReceiptTemplate.vue`,
-  `receiptPrintStyles.js`, untouched), which never reads a template and keeps reading the old settings, so `OLD` always
-  gives exactly the old ticket; `NEW` prints the documents the page offers (the sale ticket, its split bill, its
-  duplicate and the tombola slip; the return voucher and its reprint, the cash refund slip; the warranty ticket and its
-  duplicate) through `src/libs/ticket`, which reads their template.
-- **No row = the default = today's ticket**: every option's default is today's value, and the elements that replaced
-  an old setting ("linked") take that setting's value as the old code reads it. Proved by `tools/ticket-render-check.mjs`.
-- **A saved template decides everything** for the new printing. The old settings are never cleared or changed.
+- **Step 6 part 1: the new printing is the only one.** `GET /config` sends `ticketRenderer` `NEW` on every store,
+  whatever the General setup row `TICKET_RENDERER` says, and the getter `appConfig/newTicketRenderer` is always true:
+  every document prints through `src/libs/ticket`, which reads its template. The old print code (`ReceiptTemplate.vue`,
+  `receiptPrintStyles.js`, `printSessionReport.js`, the closing ticket of `ItemSelection.vue`) stays in the tree, never
+  called, until part 2 deletes it.
+- **No row = the built-in default**: every option's default is today's value; no element is linked to an old setting
+  any more (the address off; the thank-you line, the ZS Retail label and the loyalty rows on; the tombola section on, so
+  `TOMBOLA_ENABLED` alone decides). A text left null is the built-in one ("Merci pour votre achat !", no footer text).
+- **The upgrade carried the old settings** (`db/3.5.0/update.sql`, "The carry at the upgrade" below): a store whose
+  Company Information ticket fields or `TICKET_SHOW_LOYALTY_*` rows differed from the built-in values got its template
+  rows, so it prints the same ticket the day after. Proved by `tools/ticket-render-check.mjs` (the old outputs recorded,
+  the carried template given) and `TicketTemplateServiceTest#carriedRows` (the script's own JSON read back).
+- **A saved template decides everything.** The old settings are never cleared or changed, and read by nothing since step
+  6 part 1; the Company Information columns and the three General setup rows (`TICKET_RENDERER`,
+  `TICKET_SHOW_LOYALTY_BALANCE`, `_EARNED`) stay one release as source data, then are dropped together.
 - The identity (name, MF, address, phone, fax, e-mail, website, logo image) stays in Company Information (the A4
   invoices use it, and a head office never sends one store's identity): the template owns whether and how each prints.
   `invoiceFooterNote` stays the invoices' setting.
@@ -49,33 +56,52 @@ front's default (`src/libs/ticket/sale-template.js`) is the same, proved by `too
 
 | Section (default order) | Section | Elements (options) |
 |---|---|---|
-| En-tête (HEADER) | first, locked | Logo (`width` 20-100 % of the printable width, null = today's 100 px; `maxHeight` 5-60 mm, null = today's 40 px; `align` LEFT / CENTER / RIGHT) · Nom du magasin 🔒 (`size` SMALL / MEDIUM / LARGE) · Adresse (linked) · Titre « REÇU DE VENTE » · DUPLICATA 🔒 (reprints) |
+| En-tête (HEADER) | first, locked | Logo (`width` 20-100 % of the printable width, null = today's 100 px; `maxHeight` 5-60 mm, null = today's 40 px; `align` LEFT / CENTER / RIGHT) · Nom du magasin 🔒 (`size` SMALL / MEDIUM / LARGE) · Adresse (off) · Titre « REÇU DE VENTE » · DUPLICATA 🔒 (reprints) |
 | Texte d'en-tête (TOP_TEXT) | new, empty | Lignes (`text`: 3 lines of 48 characters, "" by default) |
 | Informations du ticket (INFO) | locked | Numéro de vente 🔒 · Date et heure 🔒 · Caissier · Code client (`passenger` SHOW / HIDE) |
 | Articles (ITEMS) | locked | Lignes 🔒 (`name` WRAP / CUT) · Code article (off) · Code-barres de l'article (off: its number, the item card's) · Prix unitaire (off: « 2 x 45.000 TND ») · Remise de la ligne · Nom de la promotion (in the discount row) · TVA de la ligne (off only with « TVA par taux » on) |
 | Totaux (TOTALS) | locked | Remise totale · Total TVA 🔒 · TOTAL 🔒 (`size`) |
 | TVA par taux (VAT_BY_RATE) | off | — |
 | Paiements (PAYMENTS) | locked (functional) | — |
-| Fidélité (LOYALTY) | | Carte et titulaire · Points gagnés (linked) · Points utilisés (and the deduction) · Solde de points (linked) |
+| Fidélité (LOYALTY) | | Carte et titulaire · Points gagnés · Points utilisés (and the deduction) · Solde de points |
 | Code-barres (BARCODE) | the page warns when off (the returns scan it) | — |
-| Pied du ticket (FOOTER) | locked (the MF) | Remerciement (linked; `text` 2 lines, null = Company Information's) · Site web · E-mail · Téléphone · Fax · Matricule fiscal 🔒 · Texte de pied (`text` 6 lines, null = Company Information's) · Mention ZS Retail (linked) |
-| Ticket de tombola (TOMBOLA) | last; its switch linked to `TOMBOLA_ENABLED` | — (printed only when `TOMBOLA_ENABLED` is on too, with a loyalty member, never on a duplicate) |
+| Pied du ticket (FOOTER) | locked (the MF) | Remerciement (`text` 2 lines, null = "Merci pour votre achat !") · Site web · E-mail · Téléphone · Fax · Matricule fiscal 🔒 · Texte de pied (`text` 6 lines, null = none) · Mention ZS Retail |
+| Ticket de tombola (TOMBOLA) | last; on by default (step 6) | — (printed only when `TOMBOLA_ENABLED` is on too, with a loyalty member, never on a duplicate) |
 
 Locks: `LEGAL` (store name, number, date, the lines, total VAT, TOTAL, MF, DUPLICATA), `FUNCTIONAL` (payments). The
 line's VAT: off only while "TVA par taux" is on (the page puts it back on, the back end refuses both off). Not locked, to
 check with the accountant: the address, the unit price.
 
-**Linked** switches, while no row exists: the address (Company Information `receiptPrintAddress`, null = no), the
-thank-you line (`receiptShowThankYou`, null = yes), the ZS Retail label (`receiptShowSoftwareLabel`, null = yes), the
-loyalty earned and balance rows (`TICKET_SHOW_LOYALTY_EARNED`, `_BALANCE`, absent = yes), the tombola slip
-(`TOMBOLA_ENABLED`, "true" only).
+**The carry at the upgrade** (step 6 part 1, `db/3.5.0/update.sql`): until part 1 some switches were linked to an old
+setting while no row existed (the address: Company Information `receiptPrintAddress`, null = no; the thank-you line
+`receiptShowThankYou` and the ZS Retail label `receiptShowSoftwareLabel`, null = yes; the loyalty earned and balance
+rows `TICKET_SHOW_LOYALTY_EARNED` / `_BALANCE`, absent = yes, anything but true = no), and a null text printed
+Company Information's (`receiptThankYouText`, trimmed, else the built-in one; `receiptFooterText`, its trailing
+whitespace cut, else `invoiceFooterNote` on one line). The script writes those values, as the old ticket read them, into
+the templates:
+- A row only for a document whose carried values differ from the built-in ones (a store that never changed them gets
+  none): SALE (all of them), RETURN_VOUCHER, CASH_REFUND and WARRANTY (the address, the footer text, the label).
+- The row is partial JSON: `blocks` names every element that was linked (and the tombola section, on); `layout` NULL.
+  The reader completes it from the catalogue (missing sections at their place, missing elements their default, the
+  default layout). Origin `LOCAL`, `created_by` / `updated_by` `upgrade 3.5.0`, format 2.
+- Texts: the thank-you on one line (CR, LF, tab as spaces), trimmed, null when empty or the built-in one (compared
+  binary); the footer text with its line breaks (CR dropped, the whitespace at its end cut), else the invoice note on one
+  line (its line breaks and runs of spaces as one space: `pre-line` printed it so); control characters dropped;
+  backslash, quote, LF and tab escaped for JSON.
+- Guards: a store database (`quick_quantity`, every store started at 3.1.2 or later, or no `ho_store`, a store
+  brought up by the scripts alone; a head office has `ho_store` and never `quick_quantity`; "no `ho_store`" alone is
+  not enough, a store database created before the projects were split has every table); only while `APP_VERSION` is
+  still 3.4.0 (the script sets 3.5.0 at its end since step 6, so a second run carries nothing, even after a
+  "Réinitialiser"); never over a row of that document. No event is written (SQL).
+- One difference with the old printing, printed the same: the invoice note as a template text has the class
+  `receipt-footer-lines` (`white-space: pre-line`); on one line it prints as before.
 
 **Texts** (step 2b): at most N lines of 48 characters (a line at 80 mm); the page warns above 32 (a line at 58 mm), the
 ticket wraps, never cuts. One text per template, printed as typed (no language variants; the ticket's fixed labels stay
-French). A null text (the default, a template saved before step 2b) prints Company Information's as today
-(`receiptThankYouText` or "Merci pour votre achat !"; `receiptFooterText`, else `invoiceFooterNote`). The page starts an
-empty text from Company Information's; one longer than the template keeps is never cut silently: the page shows what
-would be kept and the save waits until the admin shortens it; the old printing keeps the full old text.
+French). A null text prints the built-in one (step 6 part 1: the thank-you "Merci pour votre achat !", no footer text;
+until then Company Information's). The page starts an empty text from the built-in one. Only a save checks the limits:
+a text read longer (one carried at the upgrade) is kept and prints in full; the page shows what would be kept and the
+save waits until the admin shortens it.
 
 **Passenger code**: `HIDE` leaves out "Code client" when the sale's customer is the passenger (General setup
 `PASSENGER_CUSTOMER`, sent with the templates as `passengerCode`); unknown passenger code: printed as today.
@@ -145,8 +171,8 @@ setup (the loyalty earned and balance rows, the tombola). None on `invoiceFooter
   setup): the saved template (`saleTemplate`, null = the default), this PC's POS machine's width (`GET
   /pos-machine/my-machine` `paperWidth`) and the passenger code. A failed read prints the default.
 - `buildSaleTicket(sale, { companyInfo, duplicate, tombola, template, paperWidth, passengerCode })` → `{ document,
-  layout: { paperWidth, fontSize, spacing, feedLines, separator }, blocks }`. Without a template:
-  `defaultSaleTemplate(linkedForPrint(companyInfo, sale, { tombola }))`, which gives the old ticket.
+  layout: { paperWidth, fontSize, spacing, feedLines, separator }, blocks }`. Without a template: the built-in default
+  (`defaultSaleTemplate(linkedForPrint())`; step 6 part 1: `linkedForPrint` returns the built-in values, removed in part 2).
 - Dividers: each section keeps its own; the payments close with one unless the next section opens with one (the old
   rule); when sections were moved, a divider between two sections that have none at their joint, except before the
   footer and the tombola (as the old ticket).
@@ -305,6 +331,11 @@ template's); the back end refuses another value (`POS_MACHINE_PAPER_WIDTH`).
 
 ## Checks and tests
 
+- Step 6: the old side of both tools is the old code's outputs as recorded from the code of before (`tools/fixtures/
+  ticket-render-old.json`, `internal-ticket-old.json`, `tools/old-ticket-snapshots.mjs`; `--write-snapshots` records
+  again, only while the old code is there): the comparisons outlive the old code. For a fixture with old settings the new
+  side is given the template the upgrade writes (`carriedTemplate`, the carry block's mirror); the one expected
+  difference (the invoice note's class) is stated, and a check that the built-in values give no row.
 - `node tools/ticket-render-check.mjs` (front): the 13 fixtures old = new; the back end's catalogue (sections,
   elements, options, the layout) = the front's default; the event log's names = the page's; the default given as a
   template = the old ticket in the old document; then each option: spacing, 58 mm and the machine's width, blank lines,
@@ -323,7 +354,7 @@ template's); the back end refuses another value (`POS_MACHINE_PAPER_WIDTH`).
 - `TicketTemplatesRoundTripTest` (network-tests, step 5): the head office saves, the store receives it (HEAD_OFFICE)
   and its page gives it to the till, a save there refused 403; a reset, the built-in default; switch off, the rows kept,
   LOCAL, editable, nothing more pulled; on again, the store's own put aside and replaced, pulled from the start.
-- Back end: `TicketTemplateServiceTest` (defaults and linked values, page, refusals, options, texts, normalising,
+- Back end: `TicketTemplateServiceTest` (the built-in defaults, the carried rows of the upgrade script, page, refusals, options, texts, normalising,
   lenient read and format 1, events, part 2, the return documents, the warranty and the tombola slip, the labels by
   document), `ReturnCashierTest` (the reprint's cashier), `TicketTemplateAPITest`, `TicketVatLinesTest`,
   `PosMachineServiceTest#paperWidth`, `PosMachineAPITest#myMachine`, `ZZDataInitializerRolesTest`.

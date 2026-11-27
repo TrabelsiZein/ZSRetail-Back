@@ -10,7 +10,8 @@
 --   3) Deploy the WAR of the installation's type as zsretailws.war (docs/deploy-note.md).
 -- The application refuses to start while APP_VERSION differs from its own version, so step 2 must be done before 3.
 --
--- Re-runnable: each statement is guarded and changes nothing the second time.
+-- Re-runnable: each statement is guarded and changes nothing the second time. APP_VERSION is set to 3.5.0 at the end
+-- (step 6: the carry of the ticket settings runs only on the pass from 3.4.0).
 
 SET QUOTED_IDENTIFIER ON;
 SET ANSI_NULLS ON;
@@ -24,8 +25,6 @@ BEGIN
 	SET NOEXEC ON;
 END
 GO
-
-UPDATE APP_VERSION SET version = '3.5.0';
 
 -- Ticket templates, step 1: the store setting TICKET_RENDERER (General Setup, tab "Caisse et clôture", OLD / NEW, OLD by
 -- default: the print code of before) is created at start-up on a store, as every General Setup setting
@@ -124,6 +123,116 @@ BEGIN
 	);
 END
 GO
+
+-- Ticket templates, step 6 part 1 (docs/roadmap/ticket-templates.md): the new printing is the only one. A store's ticket
+-- settings of before (Company Information: the address, the thank-you line and its text, the "ZS Retail" label, the
+-- ticket footer text, else the invoice footer note the old ticket printed in its place; General setup:
+-- TICKET_SHOW_LOYALTY_EARNED / _BALANCE) are carried into its templates, so it prints the same ticket the day after
+-- with nobody configuring anything. A row only for a document whose carried values differ from the built-in default
+-- (a store that never changed them gets none): SALE (every one of them), RETURN_VOUCHER, CASH_REFUND and WARRANTY (the
+-- address, the footer text, the label). The row is partial: the elements carried, every one that was linked to an old
+-- setting named, the tombola section on (TOMBOLA_ENABLED alone decides); the application completes the rest from its
+-- catalogue (TicketTemplateService.normalise) and keeps a text longer than the page's limits (it prints as before; the
+-- page asks to shorten it before the next save). Origin LOCAL, updated_by 'upgrade 3.5.0', no layout (the default).
+-- The old columns and rows stay (not read any more; dropped with the next release).
+-- Guards: a store database only: it has quick_quantity (every store started at 3.1.2 or later) or no ho_store (a store
+-- brought up by the scripts alone); a head office has ho_store and never quick_quantity. "No ho_store" alone is not
+-- enough: a store database created before the projects were split has every table, ho_store too. Only on the pass that
+-- brings the database
+-- from 3.4.0 (APP_VERSION is set to 3.5.0 at the end of this script, so a second run carries nothing again, even after
+-- an admin's "Réinitialiser"); never over a row of that document. A run stopped before the end leaves 3.4.0: the next
+-- run carries what is missing only.
+IF EXISTS (SELECT 1 FROM APP_VERSION WHERE version = '3.4.0')
+	AND (OBJECT_ID(N'quick_quantity', N'U') IS NOT NULL OR OBJECT_ID(N'ho_store', N'U') IS NULL)
+	AND OBJECT_ID(N'ticket_template', N'U') IS NOT NULL
+	AND COL_LENGTH(N'company_information', N'receipt_footer_text') IS NOT NULL
+BEGIN
+	DECLARE @printAddress bit, @showThanks bit, @showLabel bit,
+		@thanksText nvarchar(max), @footerText nvarchar(max), @invoiceNote nvarchar(max);
+	SELECT TOP 1 @printAddress = receipt_print_address, @showThanks = receipt_show_thank_you,
+		@showLabel = receipt_show_software_label, @thanksText = receipt_thank_you_text,
+		@footerText = receipt_footer_text, @invoiceNote = invoice_footer_note
+	FROM company_information ORDER BY id;
+
+	-- The switches as the old ticket read them: the address only when on (null = no), the thank-you line and the label
+	-- unless off (null = yes), a loyalty row printed unless its General setup row says anything but true (absent = yes)
+	DECLARE @addressOn bit = CASE WHEN @printAddress = 1 THEN 1 ELSE 0 END;
+	DECLARE @thanksOn bit = CASE WHEN @showThanks = 0 THEN 0 ELSE 1 END;
+	DECLARE @labelOn bit = CASE WHEN @showLabel = 0 THEN 0 ELSE 1 END;
+	DECLARE @earnedRow bit = 0, @earnedValue nvarchar(255), @balanceRow bit = 0, @balanceValue nvarchar(255);
+	SELECT TOP 1 @earnedRow = 1, @earnedValue = valeur FROM general_setup WHERE code = 'TICKET_SHOW_LOYALTY_EARNED';
+	SELECT TOP 1 @balanceRow = 1, @balanceValue = valeur FROM general_setup WHERE code = 'TICKET_SHOW_LOYALTY_BALANCE';
+	DECLARE @earnedOn bit = CASE WHEN @earnedRow = 0 OR LOWER(LTRIM(RTRIM(@earnedValue))) = N'true' THEN 1 ELSE 0 END;
+	DECLARE @balanceOn bit = CASE WHEN @balanceRow = 0 OR LOWER(LTRIM(RTRIM(@balanceValue))) = N'true' THEN 1 ELSE 0 END;
+
+	-- The texts as the old ticket printed them. The thank-you: one line, trimmed; empty or the built-in one = null (the
+	-- built-in prints). The footer: the ticket footer text, its line breaks kept, the whitespace at its end cut; empty, the
+	-- invoice footer note (printed on one line: its line breaks and runs of spaces as one space); neither = null (no
+	-- footer text). Other control characters dropped (they printed nothing; JSON would refuse them).
+	SET @thanksText = LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(ISNULL(@thanksText, N''), NCHAR(13), N' '), NCHAR(10), N' '), NCHAR(9), N' ')));
+	SET @footerText = REPLACE(ISNULL(@footerText, N''), NCHAR(13), N'');
+	WHILE LEN(@footerText + N'x') > 1 AND RIGHT(@footerText, 1) IN (N' ', NCHAR(10), NCHAR(9))
+		SET @footerText = LEFT(@footerText, LEN(@footerText + N'x') - 2);
+	IF LEN(@footerText + N'x') = 1
+	BEGIN
+		SET @footerText = LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(ISNULL(@invoiceNote, N''), NCHAR(13), N' '), NCHAR(10), N' '), NCHAR(9), N' ')));
+		-- its spaces as they printed (one): the template's text keeps its line breaks (pre-line), a single line is the same
+		WHILE CHARINDEX(N'  ', @footerText) > 0
+			SET @footerText = REPLACE(@footerText, N'  ', N' ');
+	END
+	DECLARE @control int = 1;
+	WHILE @control < 32
+	BEGIN
+		IF @control NOT IN (9, 10, 13)
+		BEGIN
+			SET @thanksText = REPLACE(@thanksText COLLATE Latin1_General_BIN, NCHAR(@control), N'');
+			SET @footerText = REPLACE(@footerText COLLATE Latin1_General_BIN, NCHAR(@control), N'');
+		END
+		SET @control = @control + 1;
+	END
+	IF LEN(@thanksText + N'x') = 1 OR @thanksText COLLATE Latin1_General_BIN = N'Merci pour votre achat !'
+		SET @thanksText = NULL;
+	IF LEN(@footerText + N'x') = 1
+		SET @footerText = NULL;
+
+	-- JSON: a text as a string (backslash, quote, line break, tab escaped) or null; a switch as true / false
+	DECLARE @thanksJson nvarchar(max) = CASE WHEN @thanksText IS NULL THEN N'null' ELSE N'"' + REPLACE(REPLACE(REPLACE(REPLACE(
+		@thanksText, N'\', N'\\'), N'"', N'\"'), NCHAR(10), N'\n'), NCHAR(9), N'\t') + N'"' END;
+	DECLARE @footerJson nvarchar(max) = CASE WHEN @footerText IS NULL THEN N'null' ELSE N'"' + REPLACE(REPLACE(REPLACE(REPLACE(
+		@footerText, N'\', N'\\'), N'"', N'\"'), NCHAR(10), N'\n'), NCHAR(9), N'\t') + N'"' END;
+	DECLARE @address nvarchar(5) = CASE WHEN @addressOn = 1 THEN N'true' ELSE N'false' END;
+	DECLARE @thanks nvarchar(5) = CASE WHEN @thanksOn = 1 THEN N'true' ELSE N'false' END;
+	DECLARE @label nvarchar(5) = CASE WHEN @labelOn = 1 THEN N'true' ELSE N'false' END;
+	DECLARE @earned nvarchar(5) = CASE WHEN @earnedOn = 1 THEN N'true' ELSE N'false' END;
+	DECLARE @balance nvarchar(5) = CASE WHEN @balanceOn = 1 THEN N'true' ELSE N'false' END;
+
+	IF (@addressOn = 1 OR @thanksOn = 0 OR @labelOn = 0 OR @thanksText IS NOT NULL OR @footerText IS NOT NULL
+		OR @earnedOn = 0 OR @balanceOn = 0)
+		AND NOT EXISTS (SELECT 1 FROM ticket_template WHERE document_type = 'SALE')
+		INSERT INTO ticket_template (active, created_at, created_by, updated_at, updated_by, document_type, layout, blocks,
+			format_version, origin)
+		VALUES (1, SYSDATETIME(), 'upgrade 3.5.0', SYSDATETIME(), 'upgrade 3.5.0', 'SALE', NULL,
+			N'[{"code":"HEADER","on":true,"elements":[{"code":"ADDRESS","on":' + @address + N'}]},'
+			+ N'{"code":"LOYALTY","on":true,"elements":[{"code":"EARNED","on":' + @earned + N'},{"code":"BALANCE","on":' + @balance + N'}]},'
+			+ N'{"code":"FOOTER","on":true,"elements":[{"code":"THANK_YOU","on":' + @thanks + N',"options":{"text":' + @thanksJson + N'}},'
+			+ N'{"code":"FOOTER_NOTE","on":true,"options":{"text":' + @footerJson + N'}},{"code":"SOFTWARE_LABEL","on":' + @label + N'}]},'
+			+ N'{"code":"TOMBOLA","on":true,"elements":[]}]',
+			2, 'LOCAL');
+
+	IF @addressOn = 1 OR @labelOn = 0 OR @footerText IS NOT NULL
+		INSERT INTO ticket_template (active, created_at, created_by, updated_at, updated_by, document_type, layout, blocks,
+			format_version, origin)
+		SELECT 1, SYSDATETIME(), 'upgrade 3.5.0', SYSDATETIME(), 'upgrade 3.5.0', d.document_type, NULL,
+			N'[{"code":"HEADER","on":true,"elements":[{"code":"ADDRESS","on":' + @address + N'}]},'
+			+ N'{"code":"FOOTER","on":true,"elements":[{"code":"FOOTER_NOTE","on":true,"options":{"text":' + @footerJson + N'}},'
+			+ N'{"code":"SOFTWARE_LABEL","on":' + @label + N'}]}]',
+			2, 'LOCAL'
+		FROM (VALUES ('RETURN_VOUCHER'), ('CASH_REFUND'), ('WARRANTY')) AS d (document_type)
+		WHERE NOT EXISTS (SELECT 1 FROM ticket_template t WHERE t.document_type = d.document_type);
+END
+GO
+
+UPDATE APP_VERSION SET version = '3.5.0';
 
 -- The release notes of 3.5.0 are written from CHANGELOG.md when the version is closed (nothing to tell the users yet).
 

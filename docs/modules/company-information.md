@@ -69,8 +69,8 @@ page writes a switch only when it is moved, so opening and saving the page keeps
 
 ## Ticket templates (3.5.0)
 
-With the new printing (`TICKET_RENDERER` = `NEW`) and a saved sale ticket template, the template decides what the five
-ticket fields above did (the address, the thank-you switch and text, the ZS Retail label, the footer text): each says
-"Décidé par Modèles de tickets (nouvelle impression)". Their values are never changed and the old printing keeps reading
-them; without a saved template the template's default reads them. The identity (name, MF, address, contact, logo) and
-`invoiceFooterNote` (the A4 invoices) stay here. `ticket-templates.md`.
+Step 6 part 1: the new printing is the only one, and the five ticket fields above (the address, the thank-you switch
+and text, the ZS Retail label, the footer text) and the invoice note's place on the ticket are read by nothing any more:
+the upgrade carried them into the store's templates (`db/3.5.0/update.sql`, `ticket-templates.md`, "The carry at the
+upgrade"). They are still on the page until part 2 removes them; their columns stay one release as source data, then
+are dropped. The identity (name, MF, address, contact, logo) and `invoiceFooterNote` (the A4 invoices) stay here.

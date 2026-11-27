@@ -76,12 +76,12 @@ public class AppConfigAPI {
 	 */
 	public static final String TICKET_RENDERER = "TICKET_RENDERER";
 
-	/** TICKET_RENDERER read: "NEW" in any case, else "OLD"; null on a head office (no till). */
+	/**
+	 * Step 6 part 1: "NEW" on every store, whatever the TICKET_RENDERER row says (the new printing is the only one; the row
+	 * stays in the database, read by nothing, until the next release); null on a head office (no till). Removed in part 2.
+	 */
 	String ticketRenderer() {
-		if (applicationModeService.isHeadOffice()) {
-			return null;
-		}
-		return "NEW".equalsIgnoreCase(generalSetupService.findValueByCode(TICKET_RENDERER)) ? "NEW" : "OLD";
+		return applicationModeService.isHeadOffice() ? null : "NEW";
 	}
 
 	/** CASHIER_CLOSING_TICKET read: "DECLARED" in any case, else "Z"; null on a head office (no till). */

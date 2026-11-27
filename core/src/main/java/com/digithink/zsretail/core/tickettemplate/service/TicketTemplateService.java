@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.digithink.zsretail.core.config.ApplicationModeService;
-import com.digithink.zsretail.core.dto.CompanyInformationDTO;
 import com.digithink.zsretail.core.eventlog.service.AdminEvents;
 import com.digithink.zsretail.core.service.CompanyInformationService;
 import com.digithink.zsretail.core.service.GeneralSetupService;
@@ -44,9 +43,9 @@ import lombok.extern.log4j.Log4j2;
  * 3.5.0, ticket templates (docs/modules/ticket-templates.md): the templates of the documents, read by the page
  * "Modèles de tickets" and by the till, saved and reset by the page.
  * <ul>
- * <li>No row = the default: the catalogue's layout, order, switches and options (TicketBlocks), every one today's ticket,
- * the linked elements taken from the old settings as they are now (Company Information, General setup). Those settings
- * are never changed here: the old print code keeps reading them.</li>
+ * <li>No row = the default: the catalogue's layout, order, switches and options (TicketBlocks), the built-in ones (step 6
+ * part 1: no old setting read any more; a store whose old Company Information / General setup values differed got
+ * their template rows at the upgrade, db/3.5.0/update.sql). A text left null is the built-in one.</li>
  * <li>A save is checked ({@link #normalise} strict): a known document that has a template, each layout option and each
  * element option among its allowed values, known codes once each, no locked block off, the line's VAT off only with
  * "TVA par taux" on. What it lacks takes its default (an element of a later version); the header is put first and the
@@ -74,8 +73,8 @@ public class TicketTemplateService {
 	public static final String LOCAL = "LOCAL";
 	public static final String HEAD_OFFICE = "HEAD_OFFICE";
 	/**
-	 * Step 5: the built-in text of the sale ticket's thank-you line (Company Information's default), the text a head
-	 * office's copy carries when its template leaves it null (null at a store means its own Company Information's text).
+	 * Step 5: the built-in text of the sale ticket's thank-you line, the text a head office's copy carries when its
+	 * template leaves it null (step 6 part 1: null means this text everywhere).
 	 */
 	public static final String BUILT_IN_THANK_YOU = "Merci pour votre achat !";
 
@@ -203,25 +202,12 @@ public class TicketTemplateService {
 	}
 
 	/**
-	 * The old settings that the linked elements replace, as the old code reads them: the address printed only when
-	 * switched on (null = no), the thank-you line and the ZS Retail label unless switched off (null = yes), the loyalty
-	 * rows unless their General setup row says false (absent = yes, as SalesHeaderAPI sends them).
+	 * Step 6 part 1: the built-in values on every installation. The old settings (Company Information's ticket switches,
+	 * General setup's loyalty rows) are read by nothing new any more: their values were carried into the templates at
+	 * the upgrade (db/3.5.0/update.sql), and no element is linked to them (TicketBlocks). Removed in part 2.
 	 */
 	Map<String, Boolean> linkedValues() {
-		if (headOffice) {
-			return builtInLinkedValues();
-		}
-		CompanyInformationDTO company = companyInformationService.get();
-		Map<String, Boolean> linked = new LinkedHashMap<>();
-		linked.put(TicketBlocks.LINK_PRINT_ADDRESS, company != null && Boolean.TRUE.equals(company.getReceiptPrintAddress()));
-		linked.put(TicketBlocks.LINK_THANK_YOU, company == null || !Boolean.FALSE.equals(company.getReceiptShowThankYou()));
-		linked.put(TicketBlocks.LINK_SOFTWARE_LABEL,
-				company == null || !Boolean.FALSE.equals(company.getReceiptShowSoftwareLabel()));
-		linked.put(TicketBlocks.LINK_LOYALTY_EARNED, settingOn("TICKET_SHOW_LOYALTY_EARNED"));
-		linked.put(TicketBlocks.LINK_LOYALTY_BALANCE, settingOn("TICKET_SHOW_LOYALTY_BALANCE"));
-		// step 2b: the tombola slip, "true" only (absent or anything else = no, as GET /config reads it)
-		linked.put(TicketBlocks.LINK_TOMBOLA, "true".equalsIgnoreCase(generalSetupService.findValueByCode("TOMBOLA_ENABLED")));
-		return linked;
+		return builtInLinkedValues();
 	}
 
 	/**
@@ -238,11 +224,6 @@ public class TicketTemplateService {
 		linked.put(TicketBlocks.LINK_LOYALTY_BALANCE, true);
 		linked.put(TicketBlocks.LINK_TOMBOLA, false);
 		return linked;
-	}
-
-	private boolean settingOn(String code) {
-		String value = generalSetupService.findValueByCode(code);
-		return value == null || Boolean.parseBoolean(value);
 	}
 
 	// ─── Writes ──────────────────────────────────────────────────────
@@ -307,7 +288,7 @@ public class TicketTemplateService {
 
 	/**
 	 * Step 5, a head office: the copy of a document's saved template for its stores; empty when it has none (the stores
-	 * print the built-in default). A text left null (at a store: its own Company Information's) is sent as the built-in
+	 * print the built-in default). A text left null (step 6: the built-in one everywhere) is sent as the built-in
 	 * one: the thank-you line, and no footer text; what the head office saves prints the same in every managed store.
 	 */
 	@Transactional(readOnly = true)
@@ -544,7 +525,10 @@ public class TicketTemplateService {
 			if (value instanceof String && option.getMaxLines() != null) {
 				value = ((String) value).replace("\r", ""); // a text's lines: \n only
 			}
-			if (!option.accepts(value)) {
+			// step 6 part 1: a reader keeps a text longer than the limits (one carried from Company Information at the
+			// upgrade prints as it did); only a save checks them, and the page asks to shorten it first
+			boolean longText = !strict && option.getMaxLines() != null && value instanceof String;
+			if (!longText && !option.accepts(value)) {
 				if (strict && option.getMaxLines() != null) {
 					throw TicketTemplateException.refused("TICKET_TEMPLATE_TEXT",
 							"Text " + option.getKey() + ": at most " + option.getMaxLines() + " lines of "

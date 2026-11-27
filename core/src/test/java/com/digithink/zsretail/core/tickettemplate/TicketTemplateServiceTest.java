@@ -117,7 +117,8 @@ class TicketTemplateServiceTest {
 	@Test
 	@DisplayName("Default: the order of today's ticket; the layout 80 mm, normal size, airy, no blank line, full lines;"
 			+ " every option today's (the logo's width and height null, centred; sizes medium; names wrapped); item code,"
-			+ " barcode, unit price and VAT by rate off, the promotion's name on; the linked switches from the old settings")
+			+ " barcode, unit price and VAT by rate off, the promotion's name on; step 6 part 1: the built-in switches (address"
+			+ " off; thank-you, label, loyalty rows, tombola on), the old settings read no more")
 	void defaults() {
 		TicketTemplateDTO d = service.defaults(TicketDocumentType.SALE);
 		assertEquals(SALE_ORDER, order(d));
@@ -145,24 +146,28 @@ class TicketTemplateServiceTest {
 		assertFalse(on(d, "ITEMS", "UNIT_PRICE"));
 		assertTrue(on(d, "ITEMS", "PROMOTION_NAME"));
 		assertFalse(section(d, "VAT_BY_RATE").getOn());
-		// nothing set: the address no (null = no), the thank-you, the label, the loyalty rows yes (null / absent = yes)
+		// the built-in: the address off, the thank-you, the label, the loyalty rows and the tombola slip on
 		assertFalse(on(d, "HEADER", "ADDRESS"));
 		assertTrue(on(d, "FOOTER", "THANK_YOU"));
 		assertTrue(on(d, "FOOTER", "SOFTWARE_LABEL"));
 		assertTrue(on(d, "LOYALTY", "EARNED"));
 		assertTrue(on(d, "LOYALTY", "BALANCE"));
+		assertTrue(section(d, "TOMBOLA").getOn());
 
+		// the old settings changed: the default stays the built-in one (they were carried at the upgrade)
 		company.setReceiptPrintAddress(true);
 		company.setReceiptShowThankYou(false);
 		company.setReceiptShowSoftwareLabel(false);
 		settings.put("TICKET_SHOW_LOYALTY_EARNED", "false");
 		settings.put("TICKET_SHOW_LOYALTY_BALANCE", "false");
-		d = service.defaults(TicketDocumentType.SALE);
-		assertTrue(on(d, "HEADER", "ADDRESS"));
-		assertFalse(on(d, "FOOTER", "THANK_YOU"));
-		assertFalse(on(d, "FOOTER", "SOFTWARE_LABEL"));
-		assertFalse(on(d, "LOYALTY", "EARNED"));
-		assertFalse(on(d, "LOYALTY", "BALANCE"));
+		settings.put("TOMBOLA_ENABLED", "false");
+		TicketTemplateDTO again = service.defaults(TicketDocumentType.SALE);
+		assertFalse(on(again, "HEADER", "ADDRESS"));
+		assertTrue(on(again, "FOOTER", "THANK_YOU"));
+		assertTrue(on(again, "FOOTER", "SOFTWARE_LABEL"));
+		assertTrue(on(again, "LOYALTY", "EARNED"));
+		assertTrue(on(again, "LOYALTY", "BALANCE"));
+		assertTrue(section(again, "TOMBOLA").getOn(), "the section on: TOMBOLA_ENABLED alone decides at the till");
 	}
 
 	@Test
@@ -364,8 +369,8 @@ class TicketTemplateServiceTest {
 		}), "admin");
 		assertEquals(2, log.rows.size());
 		assertEquals("Modèle de ticket « Ticket de vente » modifié : Espacement : Aérée → Compacte ; Masqués : Adresse,"
-				+ " Code article, Code-barres de l'article, Prix unitaire, TVA par taux, Ticket de tombola → Adresse, Caissier,"
-				+ " Code article, Code-barres de l'article, Prix unitaire, TVA par taux, Ticket de tombola ; Options : par défaut"
+				+ " Code article, Code-barres de l'article, Prix unitaire, TVA par taux → Adresse, Caissier,"
+				+ " Code article, Code-barres de l'article, Prix unitaire, TVA par taux ; Options : par défaut"
 				+ " → Logo (largeur 50 %,"
 				+ " position à droite).", log.rows.get(1).getDetails());
 
@@ -383,8 +388,8 @@ class TicketTemplateServiceTest {
 
 	@Test
 	@DisplayName("Part 2: the top text (3 lines, empty), the thank-you (2 lines) and the footer text (6 lines) of 48"
-			+ " characters, null = Company Information's; a longer one refused (TICKET_TEMPLATE_TEXT), \\r dropped; the"
-			+ " tombola's switch from TOMBOLA_ENABLED and free; the contact in four rows; the passenger code hidden or not")
+			+ " characters, null = the built-in text; a longer one refused (TICKET_TEMPLATE_TEXT), \\r dropped; the"
+			+ " tombola's switch on and free; the contact in four rows; the passenger code hidden or not")
 	void part2() {
 		TicketTemplateDTO d = service.defaults(TicketDocumentType.SALE);
 		assertEquals(Collections.singletonMap("text", ""), element(d, "TOP_TEXT", "TEXT").getOptions());
@@ -393,7 +398,8 @@ class TicketTemplateServiceTest {
 		assertEquals(Collections.singletonMap("passenger", "SHOW"), element(d, "INFO", "CUSTOMER_CODE").getOptions());
 		assertEquals(Arrays.asList("THANK_YOU", "WEBSITE", "EMAIL", "PHONE", "FAX", "MF", "FOOTER_NOTE", "SOFTWARE_LABEL"),
 				section(d, "FOOTER").getElements().stream().map(ElementDTO::getCode).collect(Collectors.toList()));
-		assertFalse(section(d, "TOMBOLA").getOn(), "TOMBOLA_ENABLED absent: off");
+		// step 6 part 1: the section on by default, TOMBOLA_ENABLED or not (it decides alone at the till)
+		assertTrue(section(d, "TOMBOLA").getOn(), "TOMBOLA_ENABLED absent: on all the same");
 		settings.put("TOMBOLA_ENABLED", "true");
 		assertTrue(section(service.defaults(TicketDocumentType.SALE), "TOMBOLA").getOn(), "TOMBOLA_ENABLED true: on");
 		settings.put("PASSENGER_CUSTOMER", "PASSAGER");
@@ -421,6 +427,94 @@ class TicketTemplateServiceTest {
 				.put("text", new String(new char[49]).replace('\0', 'x'))));
 		assertEquals("TICKET_TEMPLATE_TEXT", refusal(t -> element(t, "FOOTER", "THANK_YOU").getOptions().put("text", 12)));
 		assertEquals("TICKET_TEMPLATE_OPTION", refusal(t -> element(t, "INFO", "CUSTOMER_CODE").getOptions().put("passenger", "NO")));
+	}
+
+	/** Step 6 part 1: the sale ticket's row the carry of db/3.5.0/update.sql wrote on pos_store_b (run A), as written. */
+	static final String CARRIED_SALE = "[{\"code\":\"HEADER\",\"on\":true,\"elements\":[{\"code\":\"ADDRESS\",\"on\":true}]},{\"code\":\"LOYALTY\",\"on\":true,\""
+			+ "elements\":[{\"code\":\"EARNED\",\"on\":true},{\"code\":\"BALANCE\",\"on\":false}]},{\"code\":\"FOOTER\",\"on\":true,\"e"
+			+ "lements\":[{\"code\":\"THANK_YOU\",\"on\":true,\"options\":{\"text\":\"Merci \\\"et\\\" à bientôt \\\\ chez nous, tout"
+			+ "e l'équipe de la Boutique Test vous remercie !\"}},{\"code\":\"FOOTER_NOTE\",\"on\":true,\"options\":{\"text\":"
+			+ "\"Échange sous 7 jours\\n  avec ce ticket\\n\\nArticles soldés, cartes cadeaux et produits d'hygiène ni "
+			+ "repris ni échangés\\nLigne 5\\nLigne 6\\nLigne 7\\tfin\"}},{\"code\":\"SOFTWARE_LABEL\",\"on\":false}]},{\"code\""
+			+ ":\"TOMBOLA\",\"on\":true,\"elements\":[]}]";
+
+	/** The return voucher's row of run B (no ticket footer text: the invoice footer note, on one line). */
+	static final String CARRIED_RETURN_VOUCHER = "[{\"code\":\"HEADER\",\"on\":true,\"elements\":[{\"code\":\"ADDRESS\",\"on\":true}]},{\"code\":\"FOOTER\",\"on\":true,\"e"
+			+ "lements\":[{\"code\":\"FOOTER_NOTE\",\"on\":true,\"options\":{\"text\":\"Banque BIAT  RIB 08 000 0000000000 00\"}"
+			+ "},{\"code\":\"SOFTWARE_LABEL\",\"on\":false}]}]";
+
+	static TicketTemplate carriedRow(String type, String blocks) {
+		TicketTemplate row = new TicketTemplate();
+		row.setDocumentType(type);
+		row.setLayout(null);
+		row.setBlocks(blocks);
+		row.setFormatVersion(2);
+		row.setOrigin("LOCAL");
+		row.setCreatedBy("upgrade 3.5.0");
+		row.setUpdatedBy("upgrade 3.5.0");
+		return row;
+	}
+
+	@Test
+	@DisplayName("Step 6 part 1: the carried rows, the exact JSON the upgrade script writes, read back complete: the sections"
+			+ " in the catalogue's order, the default layout, every element not carried its default, the carried switches and"
+			+ " texts (escapes undone, a text over the limits kept); a save of it checks the limits; the page gives it to the till")
+	@SuppressWarnings("unchecked")
+	void carriedRows() {
+		rows.put("SALE", carriedRow("SALE", CARRIED_SALE));
+		TicketTemplateDTO sale = service.saved(TicketDocumentType.SALE).get();
+		assertEquals(SALE_ORDER, order(sale));
+		assertEquals(service.defaults(TicketDocumentType.SALE).getLayout(), sale.getLayout(), "no layout: the default");
+		assertEquals("LOCAL", sale.getOrigin());
+		assertEquals("upgrade 3.5.0", sale.getUpdatedBy());
+		assertTrue(on(sale, "HEADER", "ADDRESS"));
+		assertTrue(on(sale, "LOYALTY", "EARNED"));
+		assertFalse(on(sale, "LOYALTY", "BALANCE"));
+		assertTrue(on(sale, "FOOTER", "THANK_YOU"));
+		assertFalse(on(sale, "FOOTER", "SOFTWARE_LABEL"));
+		assertTrue(section(sale, "TOMBOLA").getOn());
+		String thanks = (String) element(sale, "FOOTER", "THANK_YOU").getOptions().get("text");
+		assertEquals("Merci \"et\" à bientôt \\ chez nous, toute l'équipe de la Boutique Test vous remercie !", thanks);
+		assertTrue(thanks.length() > 48, "longer than a line of the page: kept");
+		String note = (String) element(sale, "FOOTER", "FOOTER_NOTE").getOptions().get("text");
+		assertEquals("Échange sous 7 jours\n  avec ce ticket\n\nArticles soldés, cartes cadeaux et produits d'hygiène ni repris"
+				+ " ni échangés\nLigne 5\nLigne 6\nLigne 7\tfin", note);
+		assertEquals(7, note.split("\n").length, "7 lines, more than the page's 6: kept");
+		// every element the script does not name: its catalogue default
+		TicketTemplateDTO d = service.defaults(TicketDocumentType.SALE);
+		for (SectionDTO s : d.getSections()) {
+			if (!Arrays.asList("HEADER", "LOYALTY", "FOOTER", "TOMBOLA").contains(s.getCode())) {
+				assertEquals(s.getOn(), section(sale, s.getCode()).getOn(), s.getCode());
+				for (ElementDTO e : s.getElements()) {
+					assertEquals(e.getOn(), on(sale, s.getCode(), e.getCode()), s.getCode() + "." + e.getCode());
+					assertEquals(e.getOptions(), element(sale, s.getCode(), e.getCode()).getOptions(), s.getCode() + "." + e.getCode());
+				}
+			}
+		}
+		assertEquals(element(d, "HEADER", "LOGO").getOptions(), element(sale, "HEADER", "LOGO").getOptions());
+		assertTrue(on(sale, "HEADER", "TITLE"));
+		assertTrue(on(sale, "FOOTER", "WEBSITE"));
+		assertTrue(on(sale, "FOOTER", "MF"));
+		// a save of the carried template: the limits checked (the page asks to shorten first)
+		TicketTemplateException refused = assertThrows(TicketTemplateException.class, () -> service.save("SALE", sale, "admin"));
+		assertEquals("TICKET_TEMPLATE_TEXT", refused.getCode());
+		assertEquals(CARRIED_SALE, rows.get("SALE").getBlocks(), "the row untouched");
+		// the page (what the till reads): the carried template as the document's template
+		List<Map<String, Object>> documents = (List<Map<String, Object>>) service.page().get("documents");
+		TicketTemplateDTO printed = (TicketTemplateDTO) documents.stream().filter(x -> "SALE".equals(x.get("type"))).findFirst().get()
+				.get("template");
+		assertEquals(note, element(printed, "FOOTER", "FOOTER_NOTE").getOptions().get("text"));
+
+		rows.put("RETURN_VOUCHER", carriedRow("RETURN_VOUCHER", CARRIED_RETURN_VOUCHER));
+		TicketTemplateDTO voucher = service.saved(TicketDocumentType.RETURN_VOUCHER).get();
+		TicketTemplateDTO voucherDefault = service.defaults(TicketDocumentType.RETURN_VOUCHER);
+		assertEquals(order(voucherDefault), order(voucher));
+		assertTrue(on(voucher, "HEADER", "ADDRESS"));
+		assertFalse(on(voucher, "FOOTER", "SOFTWARE_LABEL"));
+		assertEquals("Banque BIAT  RIB 08 000 0000000000 00", element(voucher, "FOOTER", "FOOTER_NOTE").getOptions().get("text"));
+		assertEquals(element(voucherDefault, "FOOTER", "MESSAGE").getOptions(), element(voucher, "FOOTER", "MESSAGE").getOptions());
+		assertTrue(on(voucher, "FOOTER", "VALIDITY"));
+		assertTrue(on(voucher, "HEADER", "BADGE"));
 	}
 
 	/** A document's default with a change, saved; the refusal's code when refused (nothing saved). */
@@ -561,7 +655,7 @@ class TicketTemplateServiceTest {
 		assertFalse(on(d, "HEADER", "ADDRESS"), "no address line (built-in), whatever its Company Information says");
 		assertTrue(on(d, "FOOTER", "THANK_YOU"), "the thank-you line (built-in)");
 		assertTrue(on(d, "LOYALTY", "BALANCE"), "the balance row (built-in)");
-		assertFalse(section(d, "TOMBOLA").getOn(), "no tombola slip (built-in)");
+		assertTrue(section(d, "TOMBOLA").getOn(), "the tombola slip's section on (built-in, step 6): each store's TOMBOLA_ENABLED decides");
 
 		service.save("SALE", d, "admin");
 		service.save("CASH_MOVEMENT_SLIP", service.defaults(TicketDocumentType.CASH_MOVEMENT_SLIP), "admin");
@@ -571,7 +665,7 @@ class TicketTemplateServiceTest {
 		assertEquals("SALE", copy.getDocumentType());
 		assertEquals(TicketTemplateService.HEAD_OFFICE, copy.getOrigin());
 		assertEquals(TicketTemplateService.BUILT_IN_THANK_YOU, element(copy, "FOOTER", "THANK_YOU").getOptions().get("text"),
-				"a null thank-you text sent as the built-in one (at a store null is its own Company Information's)");
+				"a null thank-you text sent as the built-in one (what null means everywhere since step 6)");
 		assertEquals("", element(copy, "FOOTER", "FOOTER_NOTE").getOptions().get("text"), "no footer text");
 		assertFalse(service.copyForStores(TicketDocumentType.RETURN_VOUCHER).isPresent(), "none saved: none sent");
 		assertTrue(service.reset("SALE"));

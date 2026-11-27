@@ -538,3 +538,41 @@ printed meanwhile). Now the heartbeat pulls `TICKET_TEMPLATES` while managed, an
 once a page of the head office is in hand (`modules/head-office.md`, "Ticket templates"). Store side only.
 
 Left: the rest of the screen test on the dev pair; the accountant on the locks.
+
+## Step 6 — the new printing only (part 1 done 2026-11-27)
+
+Zein's decision of 2026-11-27: when the ticket templates work is done, the new printing is the only one. Two parts,
+each testable alone.
+
+**Part 1 (done):** every print uses the new printing, the old settings carried into the templates, the old code still
+in the tree and never called.
+- Before any change, the old code's outputs recorded (`tools/fixtures/`, `tools/old-ticket-snapshots.mjs`): the
+  check tools compare the new printing with them, so they outlive the old code.
+- `db/3.5.0/update.sql`: the carry block (`modules/ticket-templates.md`, "The carry at the upgrade"); `APP_VERSION` is
+  now set to 3.5.0 at the end of the script, as in 3.3.0 and 3.4.0, so "still 3.4.0" means the first pass: a customer
+  coming from an older version runs the scripts in order, reaches 3.4.0, and the 3.5.0 script carries once; a second run
+  sees 3.5.0. The store guard is "`quick_quantity` or no `ho_store`" (a store database created before the projects
+  were split has `ho_store`: `pos_store_b` does).
+- Back end: no linked element (`TicketBlocks`: the address off; the thank-you, the label, the loyalty rows on; the
+  tombola section on); `linkedValues()` the built-in values; a read keeps a text longer than the limits (only a save
+  checks them); `AppConfigAPI` sends `NEW` on every store. `TicketTemplateServiceTest#carriedRows`: the script's own
+  JSON (captured from `pos_store_b`) read back complete.
+- Front: `newTicketRenderer` always true; `linkedForPrint` the built-in values; a null text the built-in text; the
+  section lists as the back end; the "Textes" tab starts from the built-in texts.
+- Tested on `pos_store_b` (Zein's go): the old values set, the carry block run by hand (its `APP_VERSION` guard
+  replaced, the database being at 3.5.0), the rows read; untouched settings give no row and two more runs no second
+  row (in a transaction rolled back); the whole script run again changes nothing.
+
+**Part 2 (next):** delete the old code (`ReceiptTemplate.vue`, `receiptPrintStyles.js`, `printSessionReport.js`,
+`receiptBranding.js`, the old branches of the 12 print screens, `ItemSelection`'s `printSessionCloseTicket`),
+`ticketRenderer` (API, DTO, app-config), `TICKET_RENDERER` and `TICKET_SHOW_LOYALTY_*` no longer created
+(`ZZDataInitializer`) nor shown, the Company Information ticket fields (entity, DTO, service, page; the columns stay),
+`showLoyalty*` in `SalesHeaderAPI`, the `LINK_*` constants and `linkedValues`, the notices "Décidé par Modèles de
+tickets", `AdminLabels`' three entries, the locales' keys; the tools keep their recorded old side.
+
+**Next release (after 3.5.0), together:** drop the `company_information` columns `receipt_print_address`,
+`receipt_show_thank_you`, `receipt_thank_you_text`, `receipt_show_software_label`, `receipt_footer_text` and the
+`general_setup` rows `TICKET_RENDERER`, `TICKET_SHOW_LOYALTY_BALANCE`, `TICKET_SHOW_LOYALTY_EARNED` (kept in 3.5.0 as
+source data, read by nothing). `invoice_footer_note` stays (the A4 invoices).
+
+Left: part 2; the screen test of part 1; the accountant on the locks.

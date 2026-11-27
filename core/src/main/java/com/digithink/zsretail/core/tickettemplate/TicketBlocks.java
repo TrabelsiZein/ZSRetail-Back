@@ -18,8 +18,11 @@ import lombok.Getter;
  * <li>A locked section or element ({@link Lock}) cannot be switched off: the save is refused.</li>
  * <li>The VAT row of each item ({@code ITEMS.VAT}) may be off only while the section {@code VAT_BY_RATE} is on (the
  * rates stay on the ticket): {@link Element#getOffNeeds}.</li>
- * <li>A linked element ({@link Element#getLinked}) takes, while the document has no template row, the value of the old
- * setting it replaces (Company Information, General setup); the old code keeps reading those settings.</li>
+ * <li>Step 6 part 1: no element is linked to an old setting any more (Company Information's ticket switches, General
+ * setup's loyalty rows, TOMBOLA_ENABLED for the slip's section): every default is the built-in one, the address off, the
+ * thank-you line, the "ZS Retail" label and the loyalty rows on, the tombola slip's section on (TOMBOLA_ENABLED alone
+ * decides, sale-ticket.js). The old values were carried into the templates at the upgrade (db/3.5.0/update.sql). The
+ * constants LINK_* stay until part 2.</li>
  * <li>Every default is today's ticket: an option's default ({@link Option#getDefaultValue}, null for the logo's width and
  * height: today's 100 px and 40 px) prints what the old code prints.</li>
  * </ul>
@@ -138,7 +141,7 @@ public final class TicketBlocks {
 		}
 	}
 
-	/** Company Information, "Print the address on the ticket" (null = no). */
+	/** Step 6 part 1: linked to no element any more (removed in part 2). Company Information, "Print the address" (null = no). */
 	public static final String LINK_PRINT_ADDRESS = "companyInformation.receiptPrintAddress";
 	/** Company Information, the thank-you line (null = yes). */
 	public static final String LINK_THANK_YOU = "companyInformation.receiptShowThankYou";
@@ -182,7 +185,9 @@ public final class TicketBlocks {
 
 	/**
 	 * Step 2b: a text of at most maxLines lines of maxLength characters (48: a line at 80 mm; the page warns above 32, a
-	 * line at 58 mm, and the ticket wraps, never cuts); null allowed: the text Company Information gives today.
+	 * line at 58 mm, and the ticket wraps, never cuts); null allowed: the built-in text (step 6 part 1: the thank-you line
+	 * "Merci pour votre achat !", no footer text; Company Information's texts were carried at the upgrade). Only a save
+	 * checks the limits: a text read longer is kept (a carried one), the page asks to shorten it before the next save.
 	 */
 	private static Option text(String key, String defaultValue, int maxLines, int maxLength) {
 		return new Option(key, defaultValue, null, null, null, true, maxLines, maxLength);
@@ -242,7 +247,7 @@ public final class TicketBlocks {
 			section("HEADER", true, Lock.LEGAL, Position.FIRST, false,
 					on("LOGO").with(number("width", null, 20, 100), number("maxHeight", null, 5, 60),
 							choice("align", "CENTER", "LEFT", "CENTER", "RIGHT")),
-					locked("STORE_NAME", Lock.LEGAL).with(size()), linked("ADDRESS", LINK_PRINT_ADDRESS), on("TITLE"),
+					locked("STORE_NAME", Lock.LEGAL).with(size()), off("ADDRESS"), on("TITLE"),
 					locked("DUPLICATE", Lock.LEGAL)),
 			section("TOP_TEXT", true, null, null, false,
 					on("TEXT").with(text("text", "", 3, 48))),
@@ -258,13 +263,13 @@ public final class TicketBlocks {
 			section(VAT_BY_RATE, false, null, null, false),
 			section("PAYMENTS", true, Lock.FUNCTIONAL, null, false),
 			section("LOYALTY", true, null, null, false,
-					on("CARD"), linked("EARNED", LINK_LOYALTY_EARNED), on("USED"), linked("BALANCE", LINK_LOYALTY_BALANCE)),
+					on("CARD"), on("EARNED"), on("USED"), on("BALANCE")),
 			section("BARCODE", true, null, null, true),
 			section("FOOTER", true, Lock.LEGAL, null, false,
-					linked("THANK_YOU", LINK_THANK_YOU).with(text("text", null, 2, 48)), on("WEBSITE"), on("EMAIL"),
+					on("THANK_YOU").with(text("text", null, 2, 48)), on("WEBSITE"), on("EMAIL"),
 					on("PHONE"), on("FAX"), locked("MF", Lock.LEGAL), on("FOOTER_NOTE").with(text("text", null, 6, 48)),
-					linked("SOFTWARE_LABEL", LINK_SOFTWARE_LABEL)),
-			linkedSection("TOMBOLA", LINK_TOMBOLA, Position.LAST)));
+					on("SOFTWARE_LABEL")),
+			section("TOMBOLA", true, null, Position.LAST, false)));
 
 	/**
 	 * Step 3: the return voucher (its first print at the till and its reprint), in the order it prints today: the item
@@ -277,7 +282,7 @@ public final class TicketBlocks {
 			section("HEADER", true, Lock.LEGAL, Position.FIRST, false,
 					on("LOGO").with(number("width", null, 20, 100), number("maxHeight", null, 5, 60),
 							choice("align", "CENTER", "LEFT", "CENTER", "RIGHT")),
-					locked("STORE_NAME", Lock.LEGAL).with(size()), linked("ADDRESS", LINK_PRINT_ADDRESS), on("TITLE"),
+					locked("STORE_NAME", Lock.LEGAL).with(size()), off("ADDRESS"), on("TITLE"),
 					locked("DUPLICATE", Lock.LEGAL), on("BADGE")),
 			section("TOP_TEXT", true, null, null, false,
 					on("TEXT").with(text("text", "", 3, 48))),
@@ -294,7 +299,7 @@ public final class TicketBlocks {
 			section("FOOTER", true, Lock.LEGAL, null, false,
 					on("MESSAGE").with(text("text", null, 2, 48)), on("VALIDITY"), on("WEBSITE"), on("EMAIL"), on("PHONE"),
 					on("FAX"), locked("MF", Lock.LEGAL), on("FOOTER_NOTE").with(text("text", null, 6, 48)),
-					linked("SOFTWARE_LABEL", LINK_SOFTWARE_LABEL))));
+					on("SOFTWARE_LABEL"))));
 
 	/**
 	 * Step 3: the cash refund slip (a return refunded in cash), in the order it prints today: no payment, no barcode, no
@@ -305,7 +310,7 @@ public final class TicketBlocks {
 			section("HEADER", true, Lock.LEGAL, Position.FIRST, false,
 					on("LOGO").with(number("width", null, 20, 100), number("maxHeight", null, 5, 60),
 							choice("align", "CENTER", "LEFT", "CENTER", "RIGHT")),
-					locked("STORE_NAME", Lock.LEGAL).with(size()), linked("ADDRESS", LINK_PRINT_ADDRESS), on("TITLE"),
+					locked("STORE_NAME", Lock.LEGAL).with(size()), off("ADDRESS"), on("TITLE"),
 					on("BADGE")),
 			section("TOP_TEXT", true, null, null, false,
 					on("TEXT").with(text("text", "", 3, 48))),
@@ -320,7 +325,7 @@ public final class TicketBlocks {
 			section("FOOTER", true, Lock.LEGAL, null, false,
 					on("MESSAGE").with(text("text", null, 2, 48)), on("WEBSITE"), on("EMAIL"), on("PHONE"), on("FAX"),
 					locked("MF", Lock.LEGAL), on("FOOTER_NOTE").with(text("text", null, 6, 48)),
-					linked("SOFTWARE_LABEL", LINK_SOFTWARE_LABEL))));
+					on("SOFTWARE_LABEL"))));
 
 	/**
 	 * Step 3 part 2: the warranty ticket and its duplicate, in the order it prints today: the title GARANTIE, DUPLICATA on
@@ -337,7 +342,7 @@ public final class TicketBlocks {
 			section("HEADER", true, Lock.LEGAL, Position.FIRST, false,
 					on("LOGO").with(number("width", null, 20, 100), number("maxHeight", null, 5, 60),
 							choice("align", "CENTER", "LEFT", "CENTER", "RIGHT")),
-					locked("STORE_NAME", Lock.LEGAL).with(size()), linked("ADDRESS", LINK_PRINT_ADDRESS), on("TITLE"),
+					locked("STORE_NAME", Lock.LEGAL).with(size()), off("ADDRESS"), on("TITLE"),
 					locked("DUPLICATE", Lock.LEGAL), on("BADGE")),
 			section("TOP_TEXT", true, null, null, false,
 					on("TEXT").with(text("text", "", 3, 48))),
@@ -353,7 +358,7 @@ public final class TicketBlocks {
 			section("FOOTER", true, Lock.LEGAL, null, false,
 					on("MESSAGE").with(text("text", null, 2, 48)), on("VALIDITY"), on("WEBSITE"), on("EMAIL"), on("PHONE"),
 					on("FAX"), locked("MF", Lock.LEGAL), on("FOOTER_NOTE").with(text("text", null, 6, 48)),
-					linked("SOFTWARE_LABEL", LINK_SOFTWARE_LABEL))));
+					on("SOFTWARE_LABEL"))));
 
 	/**
 	 * Step 3 part 2: the tombola slip (printed under the sale ticket when its switch is on, a loyalty member, never on a

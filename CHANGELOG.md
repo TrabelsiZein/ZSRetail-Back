@@ -10,6 +10,9 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
 (`docs/modules/ticket-templates.md`).
 
 ### Before deployment
+- Step 6: the script carries a store's ticket settings of before into its ticket templates on the pass that brings the
+  database from 3.4.0 (`APP_VERSION` is set to 3.5.0 at the end of the script now): run it on the database at 3.4.0,
+  as it is. A second run carries nothing again.
 - A database at 3.4.0: `db/3.5.0/update.sql`, then the 3.5.0 WAR (`AppVersionGuard`). The script stops, changing
   nothing, while APP_VERSION is not 3.4.0 or 3.5.0; it may run again. Same script on a store and a head office.
 - Run the script **before** the first start of the 3.5.0 WAR: it creates `ticket_template` and
@@ -94,6 +97,16 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   the till; a reset, the built-in default; switch off, the rows kept and editable; on again, the store's own put aside
   and replaced.
 
+- Ticket templates, step 6 part 1 (`docs/roadmap/ticket-templates.md`, "Step 6"): the new printing is the only one.
+  `GET /config` sends `ticketRenderer` `NEW` on every store whatever `TICKET_RENDERER` says (null on a head office).
+  `TicketBlocks`: no element linked to an old setting any more (the address off; the thank-you line, the ZS Retail
+  label, the loyalty earned and balance rows on; the tombola section on, `TOMBOLA_ENABLED` alone decides); a null text
+  is the built-in one; `TicketTemplateService.linkedValues()` the built-in values (Company Information's ticket fields
+  and `TICKET_SHOW_LOYALTY_*` read by no template any more); a row read back keeps a text longer than the limits (one
+  carried at the upgrade prints in full; only a save checks them). The old settings stay (one release, as source data).
+  Tests: `TicketTemplateServiceTest#carriedRows` (the upgrade script's own JSON, captured from `pos_store_b`, read back
+  complete), the defaults, the head office's, `AppConfigAPITest#ticketRenderer`.
+
 ### Fixes
 - Ticket templates step 5: a store linked to a head office did not start ("No default constructor found" for
   `TicketTemplatesManaged`: two constructors, none `@Autowired`, Spring looked for a default one). The constructor
@@ -132,6 +145,13 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   any other value still stops the startup.
 
 ### DB script
+- Step 6 part 1, `db/3.5.0/update.sql`: the carry of a store's ticket settings into `ticket_template` (Company
+  Information `receipt_print_address`, `receipt_show_thank_you`, `receipt_thank_you_text`, `receipt_show_software_label`,
+  `receipt_footer_text`, else `invoice_footer_note` on one line; General setup `TICKET_SHOW_LOYALTY_EARNED` /
+  `_BALANCE`): a row (origin LOCAL, `upgrade 3.5.0`, partial `blocks`, no layout) only for SALE / RETURN_VOUCHER /
+  CASH_REFUND / WARRANTY whose values differ from the built-in ones; a store database only (`quick_quantity` or no
+  `ho_store`), only while `APP_VERSION` is 3.4.0, never over a row; `UPDATE APP_VERSION` moved to the end of the script.
+  Nothing dropped (the columns and the three General setup rows go with the next release).
 - Step 5: `ho_store.manages_ticket_templates` (head office, bit, nullable: every store keeps its own templates) and the
   table `ticket_template_saved` (store: the store's own templates kept aside when its head office starts managing them,
   written, never read), each guarded.

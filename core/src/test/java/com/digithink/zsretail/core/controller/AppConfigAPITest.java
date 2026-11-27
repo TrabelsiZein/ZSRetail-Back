@@ -391,18 +391,19 @@ class AppConfigAPITest {
 	}
 
 	@Test
-	@DisplayName("3.5.0: ticketRenderer: NEW in any case, OLD otherwise and when the row is absent, null on a head office")
+	@DisplayName("3.5.0 step 6 part 1: ticketRenderer NEW on every store whatever the TICKET_RENDERER row says (absent, OLD,"
+			+ " anything), null on a head office")
 	void ticketRenderer() throws Exception {
 		try {
 			assertEquals("NEW", dynamics().getTicketRenderer()); // the stub: "new"
 			assertEquals("NEW", linkedStore().getTicketRenderer());
 			assertNull(headOffice().getTicketRenderer(), "a head office has no till");
 			SETUP_OVERRIDES.put(AppConfigAPI.TICKET_RENDERER, null);
-			assertEquals("OLD", standalone().getTicketRenderer(), "the row absent: the print code of before");
+			assertEquals("NEW", standalone().getTicketRenderer(), "the row absent: the new printing");
 			SETUP_OVERRIDES.put(AppConfigAPI.TICKET_RENDERER, "OLD");
-			assertEquals("OLD", dynamics().getTicketRenderer());
+			assertEquals("NEW", dynamics().getTicketRenderer(), "the row OLD: the new printing all the same");
 			SETUP_OVERRIDES.put(AppConfigAPI.TICKET_RENDERER, "anything");
-			assertEquals("OLD", dynamics().getTicketRenderer());
+			assertEquals("NEW", dynamics().getTicketRenderer());
 		} finally {
 			SETUP_OVERRIDES.clear();
 		}

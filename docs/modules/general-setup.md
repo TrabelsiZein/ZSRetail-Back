@@ -91,7 +91,10 @@ Step 2: the templates themselves are not General setup settings (the table `tick
 `TICKET_RENDERER` stays the only line. Step 2b: once a sale ticket template is saved, the tab "Programme de fidélité"
 says under `TICKET_SHOW_LOYALTY_BALANCE`, `TICKET_SHOW_LOYALTY_EARNED` and `TOMBOLA_ENABLED` "Décidé par Modèles de
 tickets (nouvelle impression)" (their values are kept and still read by the old printing; without a saved template the
-template's default reads them).
+template's default reads them). Step 6 part 1: `TICKET_RENDERER` is read by nothing (`GET /config` sends `NEW` on every
+store), and `TICKET_SHOW_LOYALTY_BALANCE` / `_EARNED` by no ticket (the upgrade carried them into the sale ticket's
+template, `ticket-templates.md`); still on the page until part 2; the three rows stay one release as source data, then are
+dropped with the Company Information ticket columns. `TOMBOLA_ENABLED` stays a feature setting.
 
 ## The cash drawer belongs to (3.2.0)
 
