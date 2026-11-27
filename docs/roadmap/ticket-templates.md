@@ -183,7 +183,7 @@ still reads them, so switching back to `OLD` gives back exactly the old ticket.
 | 1 | **Done 2026-11-26** (below). Builder + HTML renderer for the sale ticket and its duplicate, **tombola included**, behind the switch; same output as today (no table yet: the default only, reading today's settings) | back: the switch row and `GET /config`; front: the renderer |
 | 2 | **Done 2026-11-26** (below; `modules/ticket-templates.md`; **2b**, the template owning the whole ticket: below). Table, API and page "Modèles de tickets" with live preview, for the sale ticket: switches, order up / down, width, size, compact; new blocks off by default: unit price on the line, VAT by rate; `pos_machine.paper_width` | both |
 | 3 | **Done 2026-11-27** (below): part 1 (2026-11-26) the return voucher, its reprint, the refund slip, the three reprint bugs, the document selector and "Copier depuis un autre document"; part 2 the warranty and its duplicate, the tombola slip's own document and look, the fixes of part 1's screen test | front mostly |
-| 4 | Internal tickets (families B and C): width, size, compact, hide the rows at zero | front mostly |
+| 4 | **Done 2026-11-27** (below): the internal tickets (families B and C): width, size, spacing, hide the rows at zero | front mostly |
 | 5 | Copies down from the head office (`DataDomain` + `ownership.<x>`, a `DownDomainProvider` calling `CopiesDownFeed.recordChange`, a store `DownHandler`, a copy DTO in `core.link.dto`); the store's page read-only when HEAD_OFFICE | both |
 
 ### Notes on the order and the cuts
@@ -253,6 +253,8 @@ The old files stay untouched, so the new renderer carries **copies** of what it 
   voucher's VAT in one function, used by its reprint too: the reprint's fixes).
 - step 3 part 2: `warranty-formats.js`: `buildWarrantyReceiptData` of `WarrantyCreate.vue` and `WarrantyList.vue` (the
   same function in both; the check reads it from the pages), with the real VAT (the fix).
+- step 4: `internal-formats.js` (the helpers of `printSessionReport.js` and of `ItemSelection.vue`
+  `printSessionCloseTicket`) and `internal-styles.js` (their two stylesheets, the same text).
 
 They exist only because the old code and the switch exist; they are removed **together with the old code and the
 switch**, in the same change (when Zein says so): the old originals go, and these copies lose their "COPY" header and
@@ -438,3 +440,46 @@ After the screen test (2026-11-27, passed), two points, new printing only:
   under it); the other helps say "après le ticket de vente", true either way.
 
 Left: step 4 (internal tickets), step 5 (head office); the accountant on the locks.
+
+## Step 4 — done (2026-11-27)
+
+What it is now: `modules/ticket-templates.md`, "The internal tickets". Built:
+- The five internal documents on the new renderer, behind `TICKET_RENDERER` (the old code untouched, printing on the
+  old printing): `SESSION_REPORT` (the session ticket X and Z: `SessionDetailsModal.vue`, the till's closing in
+  `ItemSelection.vue` when `CASHIER_CLOSING_TICKET` is Z), `STORE_REPORT` (the store ticket X and Z, of the store or of
+  one POS machine: `StoreDay.vue`), `CLOSING_DECLARED` (the closing ticket when `CASHIER_CLOSING_TICKET` is DECLARED:
+  `ItemSelection.vue`), `CASH_MOVEMENT_SLIP` (`CashMovementModal.vue`), `CLOSING_WITHDRAWAL_SLIP`
+  (`SessionDetailsModal.vue`). One builder per document (`src/libs/ticket/internal-ticket.js`) on the sale ticket's
+  neutral lines; the HTML renderer gains the internal tickets' class table (`renderInternalTicketHtml`: the old
+  elements and classes, families B and C having their own stylesheet); `internal-print.js` the old window and timing;
+  the entry points in `src/views/admin/session/printInternalTickets.js` (the saved template, this PC's paper width).
+- Their template: the layout only (`TicketBlocks.INTERNAL_LAYOUT`): the paper (58 / 80, the POS machine's width
+  first), the text size and the spacing (the customer tickets' values; AIRY today's) and one switch, `hideZeroRows`
+  "Masquer les lignes à zéro", off. No blocks, no order: `TicketBlocks.of` is empty and a save that sends blocks is
+  refused (`TICKET_TEMPLATE_NO_BLOCKS`); the customer tickets' blank lines and separators are unknown options there. No
+  row = today's ticket (11 fixtures, each with no template and with the default as a template:
+  `tools/internal-ticket-check.mjs`, the old ticket rendered from `printSessionReport.js` itself and from the
+  method read out of `ItemSelection.vue`).
+- **One template for X and Z** (`SESSION_REPORT`, `STORE_REPORT`, as the table's document types already were): the
+  same printer prints both, the same rows in the same order (Z adds the count and the closing time), and nothing of the
+  template differs between them; two templates would mean two settings always kept the same.
+- **The rows at zero** (the rule in the builders, one place, `detail`): with the switch on, a counter or a detail row
+  with no amount and no movement is not printed (the tickets at 0, a VAT rate at 0, the tax stamp, the line, ticket and
+  loyalty discounts, the cancelled and pending tickets, a return kind at 0, a payment method at 0, a scanned tickets'
+  deduction, excess or issuer at 0, a cash movement type never used; on the closing ticket a method at 0 and the two
+  counters); never the totals (HT, TVA, TTC, returns, net, the scanned tickets' net, the declared total) nor the cash
+  control (expected, counted, difference, the verification, the opening cash, the handover, the net cash). **A section
+  left with only zero rows goes with its title and its divider** (PAIEMENTS, MOUVEMENTS DE CAISSE; on the closing ticket
+  the methods and the counters); a section with a total always keeps its title. The two slips have only their identity
+  and their amounts: the switch changes nothing there.
+- The page: the internal documents active, each with its caption and its sample (`sample-internal.js`, rows at zero in
+  it), the "Mise en page" tab alone (paper, size, spacing, the switch; no blank lines, no separators); "Copier depuis…"
+  between internal tickets (the width, the size, the spacing), between customer tickets as before.
+- One old bug, fixed in the new printing only: the closing ticket (family C) wrote the store's name, the methods' names
+  and its labels into the HTML unescaped ("Dupont & Fils", a method "<x>": a broken or wrong ticket); the renderer
+  escapes every text. Family B escaped already.
+
+Not changed: the i18n keys `admin.sessionReport` and `admin.storeTickets` (read, never renamed), the report DTOs, the
+A4 day journal and the session and journal screens; `CASHIER_CLOSING_TICKET` stays a General setup feature setting.
+
+Left: step 5 (head office); screen tests of step 4; the accountant on the locks.

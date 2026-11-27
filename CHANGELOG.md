@@ -67,6 +67,13 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   "Numéro de retour", "Remboursé en espèces", "N° de garantie", "Article sous garantie"); the event log uses it, and
   describes a template without layout without its layout lines. The description of `TICKET_RENDERER` (a new database)
   names no list of documents.
+- Ticket templates, step 4: the internal tickets have their template: `SESSION_REPORT` (the session ticket X and Z),
+  `STORE_REPORT` (the store ticket X and Z), `CLOSING_DECLARED`, `CASH_MOVEMENT_SLIP`, `CLOSING_WITHDRAWAL_SLIP`, all
+  available (`TicketDocumentType.isInternal`, `internal: true` in `GET /ticket-templates`). A layout only
+  (`TicketBlocks.INTERNAL_LAYOUT`: paper 58 / 80, size, spacing, `hideZeroRows` false), no blocks: a save that sends
+  some is refused (`TICKET_TEMPLATE_NO_BLOCKS`), blank lines and separators are unknown options. The event log names
+  them (`TicketBlockLabels`) and says "Lignes à zéro masquées / imprimées". Tests: `TicketTemplateInternalAPITest`,
+  `TicketTemplateServiceTest`.
 
 ### Fixes
 - Warranties off (`warranty.enabled` not true): the warranty ticket's template too. `GET /ticket-templates` leaves the

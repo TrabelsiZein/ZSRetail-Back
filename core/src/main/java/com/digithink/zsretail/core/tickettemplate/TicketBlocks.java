@@ -212,6 +212,17 @@ public final class TicketBlocks {
 			number("feedLines", 0, 0, 6),
 			choice("separator", "LINE", "LINE", "DASHES", "NONE")));
 
+	/**
+	 * Step 4: the layout of an internal ticket (the session and store tickets X / Z, the slips, the closing ticket): the
+	 * customer tickets' paper, text size and spacing (the same values, AIRY today's), and one switch: the rows at zero
+	 * hidden (false, today's: every row printed). No blank lines, no separators option, no blocks.
+	 */
+	private static final List<Option> INTERNAL_LAYOUT = Collections.unmodifiableList(Arrays.asList(
+			choice("paperWidth", 80, 58, 80),
+			choice("fontSize", "NORMAL", "SMALL", "NORMAL", "LARGE"),
+			choice("spacing", "AIRY", "AIRY", "NORMAL", "COMPACT"),
+			choice("hideZeroRows", false, false, true)));
+
 	/** A size level of one element: MEDIUM is today's. */
 	private static Option size() {
 		return choice("size", "MEDIUM", "SMALL", "MEDIUM", "LARGE");
@@ -379,10 +390,13 @@ public final class TicketBlocks {
 	}
 
 	/**
-	 * A document's layout options (every customer ticket the same); none for the tombola slip (the sale ticket's) and for
-	 * a document without a template yet.
+	 * A document's layout options (every customer ticket the same; step 4: an internal ticket its own, INTERNAL_LAYOUT);
+	 * none for the tombola slip (the sale ticket's) and for a document without a template yet.
 	 */
 	public static List<Option> layout(TicketDocumentType type) {
+		if (type != null && type.isInternal()) {
+			return INTERNAL_LAYOUT;
+		}
 		return of(type).isEmpty() || type == TicketDocumentType.TOMBOLA_SLIP ? Collections.emptyList() : CUSTOMER_LAYOUT;
 	}
 

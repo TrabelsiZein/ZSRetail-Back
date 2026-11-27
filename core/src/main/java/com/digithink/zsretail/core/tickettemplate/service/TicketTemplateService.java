@@ -96,6 +96,7 @@ public class TicketTemplateService {
 			document.put("type", type.name());
 			document.put("available", type.isAvailable());
 			if (type.isAvailable()) {
+				document.put("internal", type.isInternal()); // step 4: a layout only, no blocks
 				document.put("layout", TicketBlocks.layout(type));
 				document.put("sections", TicketBlocks.of(type));
 				document.put("template", saved(type).orElse(null));
@@ -235,6 +236,11 @@ public class TicketTemplateService {
 	 */
 	static TicketTemplateDTO normalise(TicketDocumentType type, TicketTemplateDTO sent, boolean strict) {
 		TicketTemplateDTO in = sent != null ? sent : new TicketTemplateDTO();
+		// step 4: an internal ticket has no blocks: a save that sends some is refused (a row read back drops them)
+		if (strict && type.isInternal() && in.getSections() != null && !in.getSections().isEmpty()) {
+			throw TicketTemplateException.refused("TICKET_TEMPLATE_NO_BLOCKS",
+					"The document " + type.name() + " has no blocks: its layout only", "type", type.name());
+		}
 		TicketTemplateDTO out = new TicketTemplateDTO();
 		out.setDocumentType(type.name());
 		out.setFormatVersion(FORMAT_VERSION);
@@ -505,13 +511,24 @@ public class TicketTemplateService {
 		Map<String, String> m = new LinkedHashMap<>();
 		Map<String, Object> layout = t.getLayout();
 		TicketDocumentType type = TicketDocumentType.of(t.getDocumentType());
-		// step 3 part 2: a document without layout (the tombola slip: the sale ticket's) has no layout lines
+		// step 3 part 2: a document without layout (the tombola slip: the sale ticket's) has no layout lines; step 4: an
+		// internal ticket its own (no blank lines, no separators, the rows at zero), and no blocks (no order, no switches)
 		if (layout != null && !layout.isEmpty()) {
 			m.put("Papier", layout.get("paperWidth") + " mm");
 			m.put("Taille", TicketBlockLabels.fr(String.valueOf(layout.get("fontSize"))));
 			m.put("Espacement", TicketBlockLabels.fr("spacing." + layout.get("spacing")));
-			m.put("Lignes avant la coupe", String.valueOf(layout.get("feedLines")));
-			m.put("Séparateurs", TicketBlockLabels.fr("separator." + layout.get("separator")));
+			if (layout.containsKey("feedLines")) {
+				m.put("Lignes avant la coupe", String.valueOf(layout.get("feedLines")));
+			}
+			if (layout.containsKey("separator")) {
+				m.put("Séparateurs", TicketBlockLabels.fr("separator." + layout.get("separator")));
+			}
+			if (layout.containsKey("hideZeroRows")) {
+				m.put("Lignes à zéro", TicketBlockLabels.fr("hideZeroRows." + layout.get("hideZeroRows")));
+			}
+		}
+		if (t.getSections().isEmpty()) {
+			return m;
 		}
 		m.put("Ordre", t.getSections().stream().map(s -> TicketBlockLabels.fr(type, s.getCode())).collect(Collectors.joining(", ")));
 		List<String> off = new ArrayList<>();

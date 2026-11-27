@@ -164,7 +164,7 @@ class TicketTemplateServiceTest {
 
 	@Test
 	@DisplayName("The page: the sale ticket with its layout options, its sections, no template yet and its default; the"
-			+ " return voucher and the cash refund slip available (step 3), the others listed as not available yet")
+			+ " return voucher, the cash refund slip, the warranty, the tombola slip (step 3) and the internal tickets (step 4), each available")
 	@SuppressWarnings("unchecked")
 	void page() {
 		Map<String, Object> page = service.page();
@@ -184,10 +184,16 @@ class TicketTemplateServiceTest {
 		assertEquals(Arrays.asList(true, true, true, true, true), documents.subList(0, 5).stream().map(d -> d.get("available"))
 				.collect(Collectors.toList()));
 		assertTrue(((List<?>) documents.get(4).get("layout")).isEmpty(), "the tombola slip has no layout (the sale ticket's)");
-		for (Map<String, Object> other : documents.subList(5, documents.size())) {
-			assertEquals(false, other.get("available"), String.valueOf(other.get("type")));
-			assertFalse(other.containsKey("template"));
+		// step 4: the internal tickets too, each with its layout only (no blocks)
+		for (Map<String, Object> internal : documents.subList(5, documents.size())) {
+			assertEquals(true, internal.get("available"), String.valueOf(internal.get("type")));
+			assertEquals(true, internal.get("internal"), String.valueOf(internal.get("type")));
+			assertTrue(((List<?>) internal.get("sections")).isEmpty());
+			assertEquals(Arrays.asList("paperWidth", "fontSize", "spacing", "hideZeroRows"),
+					((List<TicketBlocks.Option>) internal.get("layout")).stream().map(TicketBlocks.Option::getKey)
+							.collect(Collectors.toList()));
 		}
+		assertEquals(false, sale.get("internal"));
 		assertEquals(2, page.get("formatVersion"));
 	}
 
@@ -228,9 +234,10 @@ class TicketTemplateServiceTest {
 		assertEquals("TICKET_TEMPLATE_DUPLICATE",
 				refusal(t -> t.getSections().add(new SectionDTO("BARCODE", true, new ArrayList<>()))));
 
+		// step 4: an internal ticket refuses the sale ticket's blocks (TICKET_TEMPLATE_NO_BLOCKS)
 		TicketTemplateException other = assertThrows(TicketTemplateException.class,
 				() -> service.save("SESSION_REPORT", sent(t -> { }), "admin"));
-		assertEquals("TICKET_TEMPLATE_NOT_AVAILABLE", other.getCode());
+		assertEquals("TICKET_TEMPLATE_NO_BLOCKS", other.getCode());
 		TicketTemplateException unknown = assertThrows(TicketTemplateException.class,
 				() -> service.save("MENU", sent(t -> { }), "admin"));
 		assertEquals(404, unknown.getStatus());

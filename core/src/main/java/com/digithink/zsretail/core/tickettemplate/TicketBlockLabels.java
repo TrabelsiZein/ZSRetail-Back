@@ -18,6 +18,14 @@ public final class TicketBlockLabels {
 		l.put("CASH_REFUND", "Remboursement en espèces");
 		l.put("WARRANTY", "Garantie");
 		l.put("TOMBOLA_SLIP", "Ticket de tombola");
+		// step 4: the internal tickets and their switch
+		l.put("SESSION_REPORT", "Ticket X / Z de session");
+		l.put("STORE_REPORT", "Ticket X / Z du magasin");
+		l.put("CLOSING_DECLARED", "Ticket de clôture (déclaré)");
+		l.put("CASH_MOVEMENT_SLIP", "Bon de mouvement de caisse");
+		l.put("CLOSING_WITHDRAWAL_SLIP", "Bon de retrait à la clôture");
+		l.put("hideZeroRows.true", "masquées");
+		l.put("hideZeroRows.false", "imprimées");
 		l.put("HEADER", "En-tête");
 		l.put("HEADER.LOGO", "Logo");
 		l.put("HEADER.STORE_NAME", "Nom du magasin");

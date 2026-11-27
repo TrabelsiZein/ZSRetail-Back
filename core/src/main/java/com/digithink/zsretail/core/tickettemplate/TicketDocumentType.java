@@ -17,21 +17,40 @@ public enum TicketDocumentType {
 	WARRANTY(true),
 	/** Step 3 part 2: the tombola slip, printed under the sale ticket (its look; whether it prints: the sale ticket's switch). */
 	TOMBOLA_SLIP(true),
-	SESSION_REPORT(false),
-	STORE_REPORT(false),
-	CLOSING_DECLARED(false),
-	CASH_MOVEMENT_SLIP(false),
-	CLOSING_WITHDRAWAL_SLIP(false);
+	/** Step 4, an internal ticket: the session ticket X and Z (one template for both). */
+	SESSION_REPORT(true, true),
+	/** Step 4: the store ticket X and Z, of the store or of one POS machine (one template for both). */
+	STORE_REPORT(true, true),
+	/** Step 4: the cashier's closing ticket when CASHIER_CLOSING_TICKET is DECLARED (ItemSelection.vue). */
+	CLOSING_DECLARED(true, true),
+	/** Step 4: the slip of a cash movement. */
+	CASH_MOVEMENT_SLIP(true, true),
+	/** Step 4: the slip of a closing withdrawal. */
+	CLOSING_WITHDRAWAL_SLIP(true, true);
 
 	private final boolean available;
+	private final boolean internal;
 
 	TicketDocumentType(boolean available) {
+		this(available, false);
+	}
+
+	TicketDocumentType(boolean available, boolean internal) {
 		this.available = available;
+		this.internal = internal;
 	}
 
 	/** A template can be saved for it (its builder reads one). */
 	public boolean isAvailable() {
 		return available;
+	}
+
+	/**
+	 * Step 4: an internal ticket (families B and C): a layout only (width, size, spacing, the rows at zero hidden), no
+	 * blocks (TicketBlocks.of is empty; a save that sends blocks is refused).
+	 */
+	public boolean isInternal() {
+		return internal;
 	}
 
 	/** The type of a name, any case; null when unknown. */

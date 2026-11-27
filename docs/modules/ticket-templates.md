@@ -4,8 +4,8 @@ What the till's tickets print, in which order, on which width. Design and steps:
 far: step 1 (the switch and the new renderer, the same ticket), step 2 (the table, the API, the page, the sale ticket's
 template), step 2b (the layout, the options, the texts, the tombola, everything the sale ticket prints owned by the
 template) and step 3 (part 1: the return voucher, its reprint, the cash refund slip; part 2: the warranty ticket and
-its duplicate, the tombola slip's own document). The internal tickets come at step 4; the head office sends its templates
-down at step 5.
+its duplicate, the tombola slip's own document) and step 4 (the internal tickets: the session and store tickets X / Z, the
+closing ticket, the two slips). The head office sends its templates down at step 5.
 
 ## The rule
 
@@ -221,6 +221,37 @@ today's slip prints unstyled right under the ticket): its own ticket, a 2 px das
 one; the print document adds the slip's CSS. The till's print passes its template (`tombolaTemplate`,
 `ticketTemplates/templateOf('TOMBOLA_SLIP')`).
 
+## The internal tickets (step 4)
+
+`SESSION_REPORT` (the session ticket X and Z, one template), `STORE_REPORT` (the store ticket X and Z, of the store or of
+one POS machine, one template), `CLOSING_DECLARED` (the closing ticket of `CASHIER_CLOSING_TICKET` = DECLARED, a
+General setup feature setting), `CASH_MOVEMENT_SLIP`, `CLOSING_WITHDRAWAL_SLIP`. The old code (`printSessionReport.js`,
+`ItemSelection.vue` `printSessionCloseTicket`) prints them on the old printing, untouched; the new printing builds them
+in `src/libs/ticket/internal-ticket.js` (one builder each, the old rows and order), renders them with
+`html-renderer.js` `renderInternalTicketHtml` (the old classes) and `internal-styles.js` (the old stylesheets,
+copied) in the old window (`internal-print.js`); the call sites go through `src/views/admin/session/printInternalTickets.js`.
+
+Their template is a layout only, `TicketBlocks.INTERNAL_LAYOUT`:
+
+| Option | Values | Default (today's) |
+|---|---|---|
+| `paperWidth` | 58 / 80 (the POS machine's width first) | 80 |
+| `fontSize` | SMALL / NORMAL / LARGE | NORMAL |
+| `spacing` | AIRY / NORMAL / COMPACT | AIRY |
+| `hideZeroRows` | true / false, "Masquer les lignes à zéro" | false |
+
+No blocks: the page shows the "Mise en page" tab only; a save that sends blocks answers 400 `TICKET_TEMPLATE_NO_BLOCKS`;
+`feedLines` and `separator` are unknown options there. `GET /ticket-templates` marks them `internal: true`.
+
+"Masquer les lignes à zéro" (the rule in the builders, `detail`): a counter or a detail row with no amount and no
+movement is not printed; the totals and the cash control rows (expected, counted, difference, the verification, the
+opening cash, the handover, the declared total and the net cash) always print; a section left with only zero rows goes
+with its title and its divider (PAIEMENTS, MOUVEMENTS DE CAISSE, the closing ticket's methods and counters). The slips:
+nothing to hide.
+
+Fixed in the new printing only: the closing ticket's names (store, payment methods) and labels are escaped (the old one
+wrote them into the HTML as they are).
+
 ## The POS machine
 
 POS machines page: "Largeur du papier" (Celle du modèle de ticket / 58 mm / 80 mm), sent with every save (null = the
@@ -236,6 +267,10 @@ template's); the back end refuses another value (`POS_MACHINE_PAPER_WIDTH`).
   (the voucher's "Bon de retour" the one wanted difference), the reprint's fixes, the voucher's "Remise totale"; the 4
   warranty fixtures (the old data read from the pages, the real VAT the one wanted difference), a warranty's template;
   the tombola slip's look and switches; each document's catalogue and labels (5 documents).
+- `node tools/internal-ticket-check.mjs` (front, step 4): the 11 internal fixtures old = new (with no template and the
+  default as a template; the old tickets from `printSessionReport.js` and from the method of `ItemSelection.vue`), the
+  comparison seeing a change, "Masquer les lignes à zéro" on each document, the layout's CSS, the closing ticket's
+  escaping, the back end's `INTERNAL_LAYOUT` and labels = the front's. Back end: `TicketTemplateInternalAPITest`.
 - `tools/store-menu-check.mjs`: the page in the user menu after Informations société, with its read right.
 - Back end: `TicketTemplateServiceTest` (defaults and linked values, page, refusals, options, texts, normalising,
   lenient read and format 1, events, part 2, the return documents, the warranty and the tombola slip, the labels by
