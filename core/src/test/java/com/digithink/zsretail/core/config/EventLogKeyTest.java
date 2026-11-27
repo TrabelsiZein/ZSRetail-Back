@@ -9,9 +9,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
 /**
- * 3.4.0, event log: eventlog.enabled, as warranty.enabled. Absent or false: off, the start goes on. True, trimmed and in
- * any case: on, on a store. Any other value, an empty one included, stops the start naming the key; so does true on a
- * head office (version 1: the events stay in the store).
+ * 3.4.0, event log: eventlog.enabled, as warranty.enabled. Absent, blank (3.5.0) or false: off, the start goes on. True,
+ * trimmed and in any case: on, on a store. Any other value stops the start naming the key; so does true on a head office
+ * (version 1: the events stay in the store).
  */
 class EventLogKeyTest {
 
@@ -24,9 +24,11 @@ class EventLogKeyTest {
 	}
 
 	@Test
-	@DisplayName("No line or false: off, and the start goes on (store and head office)")
+	@DisplayName("No line, a blank one (3.5.0) or false: off, and the start goes on (store and head office)")
 	void offByDefault() {
 		for (MockEnvironment env : new MockEnvironment[] { store(), headOffice(),
+				store().withProperty(NodeOwnership.EVENT_LOG_KEY, ""), store().withProperty(NodeOwnership.EVENT_LOG_KEY, "  "),
+				headOffice().withProperty(NodeOwnership.EVENT_LOG_KEY, ""),
 				store().withProperty(NodeOwnership.EVENT_LOG_KEY, " FALSE "),
 				headOffice().withProperty(NodeOwnership.EVENT_LOG_KEY, "false") }) {
 			NodeOwnership.resolve(env);
@@ -43,9 +45,9 @@ class EventLogKeyTest {
 	}
 
 	@Test
-	@DisplayName("Another value, an empty one included, stops the start naming the key")
+	@DisplayName("Another value stops the start naming the key")
 	void otherValueRefused() {
-		for (String value : new String[] { "yes", "1", "" }) {
+		for (String value : new String[] { "yes", "1", "on" }) {
 			MockEnvironment env = store().withProperty(NodeOwnership.EVENT_LOG_KEY, value);
 			IllegalStateException refused = assertThrows(IllegalStateException.class, () -> NodeOwnership.resolve(env));
 			assertTrue(refused.getMessage().contains(NodeOwnership.EVENT_LOG_KEY), refused.getMessage());

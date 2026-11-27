@@ -41,13 +41,15 @@ public class WarrantyAPI {
 	@Autowired
 	private ApplicationModeService applicationModeService;
 
+	/** 3.3.0: the answer of a store without warranty.enabled=true (also the warranty ticket's template, 3.5.0). */
+	public static final String OFF_MESSAGE = "Warranties are off on this store (warranty.enabled=true turns them on).";
+
 	/** 3.3.0: the refusal of a store without warranty.enabled=true; null when the Warranties page exists. */
 	ResponseEntity<?> refusedWhenOff() {
 		if (applicationModeService.isWarrantyEnabled()) {
 			return null;
 		}
-		return ResponseEntity.status(HttpStatus.NOT_FOUND)
-				.body(Map.of("error", "Warranties are off on this store (warranty.enabled=true turns them on)."));
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", OFF_MESSAGE));
 	}
 
 	/**

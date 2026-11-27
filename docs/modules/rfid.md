@@ -42,11 +42,13 @@ included). Below, "the POS machines page" is that page.
 
 | Key | Values | When absent |
 |---|---|---|
-| `rfid.enabled` | `true` \| `false`, trimmed, any case | `false` |
+| `rfid.enabled` | `true` \| `false`, trimmed, any case; blank (3.5.0) = `false` | `false` |
 
 - The store type file states `rfid.enabled=false`; an installation turns it on in its outside file
   (`configs/machine-model.properties` shows the line, commented).
-- Any other value (blank included) stops the startup: `Invalid value '<v>' for property rfid.enabled: true (this store
+- Blank (the line with nothing after the `=`, 3.5.0) is `false`, as a missing line (`NodeOwnership.moduleSwitch`,
+  the rule of the three store module switches: `rfid.enabled`, `warranty.enabled`, `eventlog.enabled`).
+- Any other value stops the startup: `Invalid value '<v>' for property rfid.enabled: true (this store
   reads RFID tags) or false (no RFID)`. `true` on a head office stops it too: `... a head office reads no RFID tags (the
   readers belong to a store). Remove the line.` `false` on a head office is accepted.
 - Read by `NodeOwnership.isRfidSet` (core), checked in `NodeOwnership.resolve` like the other keys.

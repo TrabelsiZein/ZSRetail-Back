@@ -92,9 +92,20 @@ class RfidKeyTest {
 	}
 
 	@Test
+	@DisplayName("3.5.0: blank (nothing after the =, or spaces) is false, as a missing line, on a store and on a head office")
+	void blankOff() throws Exception {
+		for (String value : Arrays.asList("", " ")) {
+			assertOff(store().withProperty(KEY, value), "'" + value + "'");
+			MockEnvironment ho = headOffice().withProperty(KEY, value);
+			NodeOwnership.resolve(ho);
+			assertFalse(Installation.RFID.isTrue(ho), "head office '" + value + "'");
+		}
+	}
+
+	@Test
 	@DisplayName("Strict: any other value stops the startup with a message naming the key, on a store and on a head office")
 	void strict() {
-		for (String value : Arrays.asList("flase", "", " ", "yes", "1", "on")) {
+		for (String value : Arrays.asList("flase", "yes", "1", "on")) {
 			for (MockEnvironment env : Arrays.asList(store().withProperty(KEY, value), headOffice().withProperty(KEY, value))) {
 				IllegalStateException e = assertThrows(IllegalStateException.class, () -> NodeOwnership.resolve(env), value);
 				assertEquals("Invalid value '" + value + "' for property rfid.enabled: true (this store reads RFID tags) or"

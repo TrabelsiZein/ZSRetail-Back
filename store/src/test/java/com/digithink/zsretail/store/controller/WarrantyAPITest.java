@@ -85,9 +85,13 @@ class WarrantyAPITest {
 	}
 
 	@Test
-	@DisplayName("Any other value stops the startup, as rfid.enabled; true on a head office too")
+	@DisplayName("3.5.0: a blank line is false, as a missing one; any other value stops the startup, as rfid.enabled; true on a head office too")
 	void otherValuesStopTheStartup() {
-		for (String value : new String[] { "", "yes", "1", "on" }) {
+		for (String value : new String[] { "", "  " }) {
+			assertFalse(NodeOwnership.isWarrantySet(new MockEnvironment().withProperty("warranty.enabled", value)), "'" + value + "'");
+			assertFalse(TestModes.of(new MockEnvironment().withProperty("warranty.enabled", value)).isWarrantyEnabled());
+		}
+		for (String value : new String[] { "yes", "1", "on" }) {
 			IllegalStateException e = assertThrows(IllegalStateException.class,
 					() -> NodeOwnership.isWarrantySet(new MockEnvironment().withProperty("warranty.enabled", value)), value);
 			assertTrue(String.valueOf(e.getMessage()).contains("for property warranty.enabled"), e.getMessage());

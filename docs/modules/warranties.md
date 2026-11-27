@@ -10,11 +10,13 @@ them (ACTIVE, EXPIRED, USED), marks one used and prints its slip. Pages `Warrant
 
 | Key | Values | Absent |
 |---|---|---|
-| `warranty.enabled` | `true` \| `false`, trimmed, any case | `false` |
+| `warranty.enabled` | `true` \| `false`, trimmed, any case; blank (3.5.0) = `false` | `false` |
 
 - A store only. The store type file states `warranty.enabled=false`; an installation turns it on in its outside file
   (`configs/machine-model.properties` has the line, commented).
-- Any other value (blank included) stops the startup: `Invalid value '<v>' for property warranty.enabled: true (this
+- Blank (the line with nothing after the `=`, 3.5.0) is `false`, as a missing line (`NodeOwnership.moduleSwitch`, as
+  `rfid.enabled` and `eventlog.enabled`).
+- Any other value stops the startup: `Invalid value '<v>' for property warranty.enabled: true (this
   store registers warranties) or false (no Warranties page)`. `true` on a head office stops it too (as `rfid.enabled`,
   `NodeOwnership.isWarrantySet`).
 - `GET /config` field `warrantyEnabled` (last); the startup summary says `warranties on`.
@@ -23,6 +25,11 @@ them (ACTIVE, EXPIRED, USED), marks one used and prints its slip. Pages `Warrant
   warranty permissions, saved with it, not counted); a typed address goes to the dashboard; every `/warranty` endpoint
   answers 404 `{"error": "Warranties are off on this store (warranty.enabled=true turns them on)."}` before reading
   anything (`WarrantyAPITest`). Nothing is deleted: the table and its rows stay, and come back with the line.
+- **Off, the warranty ticket's template too** (3.5.0, `TicketTemplateAPI`): `GET /ticket-templates` leaves the
+  document `WARRANTY` out, so "Modèles de tickets" lists no "Garantie" and "Copier depuis…" does not offer it; `PUT` and
+  `DELETE /ticket-templates/WARRANTY` answer 404 `{"error"}` with the text of `/warranty` (`WarrantyAPI.OFF_MESSAGE`). A
+  saved warranty template stays in `ticket_template` and is listed again once the line is back on
+  (`TicketTemplateAPITest`).
 - Upgrade: `db/3.3.0/update.sql` prints `Warranties exist: add warranty.enabled=true to this store's file.` on a store
   whose `warranty` table has rows. A store already at 3.3.0 that skips the script checks it with
   `SELECT COUNT(*) FROM warranty`.

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -12,15 +13,23 @@ import static org.mockito.Mockito.when;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.ResponseEntity;
+import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.core.security.CurrentUserProvider;
+import com.digithink.zsretail.core.support.TestModes;
 import com.digithink.zsretail.core.tickettemplate.TicketTemplateDTO;
 import com.digithink.zsretail.core.tickettemplate.TicketTemplateException;
 import com.digithink.zsretail.core.tickettemplate.service.TicketTemplateService;
+import com.digithink.zsretail.store.controller.WarrantyAPI;
 
 /**
  * 3.5.0, ticket templates step 2: GET /ticket-templates for any logged user (the till prints with it); the save and the
@@ -31,7 +40,8 @@ class TicketTemplateAPITest {
 
 	private final TicketTemplateService service = mock(TicketTemplateService.class);
 	private final CurrentUserProvider current = mock(CurrentUserProvider.class);
-	private final TicketTemplateAPI api = new TicketTemplateAPI(service, current);
+	private final TicketTemplateAPI api = new TicketTemplateAPI(service, current,
+			TestModes.of(new MockEnvironment().withProperty("warranty.enabled", "true")));
 
 	private void holds(String... keys) {
 		Set<String> held = new HashSet<>(Arrays.asList(keys));
@@ -67,6 +77,50 @@ class TicketTemplateAPITest {
 		verify(service).save("SALE", sent, "admin");
 		assertEquals(204, api.reset("SALE").getStatusCodeValue());
 		verify(service).reset("SALE");
+	}
+
+	@Test
+	@DisplayName("3.5.0: warranties off (no line, blank or false): GET leaves WARRANTY out (the others listed, nothing"
+			+ " deleted), PUT and DELETE of WARRANTY answer 404 {error} as /warranty, the service never called; on: listed"
+			+ " and saved")
+	void warrantyFollowsItsSwitch() {
+		Map<String, Object> page = new LinkedHashMap<>();
+		page.put("documents", Arrays.asList(document("SALE"), document("WARRANTY"), document("TOMBOLA_SLIP")));
+		page.put("formatVersion", 2);
+		when(service.page()).thenReturn(page);
+		holds("write:admin-ticket-templates");
+		for (MockEnvironment env : new MockEnvironment[] { new MockEnvironment(),
+				new MockEnvironment().withProperty("warranty.enabled", ""),
+				new MockEnvironment().withProperty("warranty.enabled", "false") }) {
+			TicketTemplateAPI off = new TicketTemplateAPI(service, current, TestModes.of(env));
+			assertEquals(Arrays.asList("SALE", "TOMBOLA_SLIP"), types(off.page()));
+			assertEquals(2, off.page().get("formatVersion"));
+			for (ResponseEntity<?> answer : Arrays.asList(off.save("WARRANTY", new TicketTemplateDTO()), off.save("warranty", null),
+					off.reset("WARRANTY"))) {
+				assertEquals(404, answer.getStatusCodeValue());
+				assertEquals(Collections.singletonMap("error", WarrantyAPI.OFF_MESSAGE), answer.getBody());
+			}
+			off.save("SALE", new TicketTemplateDTO());
+		}
+		verify(service, never()).save(eq("WARRANTY"), any(), anyString());
+		verify(service, never()).reset(anyString());
+		assertEquals(3, ((List<?>) page.get("documents")).size(), "the service's answer untouched");
+
+		assertEquals(Arrays.asList("SALE", "WARRANTY", "TOMBOLA_SLIP"), types(api.page()));
+		assertEquals(200, api.save("WARRANTY", new TicketTemplateDTO()).getStatusCodeValue());
+		verify(service).save(eq("WARRANTY"), any(), eq("admin"));
+	}
+
+	private static Map<String, Object> document(String type) {
+		Map<String, Object> d = new LinkedHashMap<>();
+		d.put("type", type);
+		d.put("available", true);
+		return d;
+	}
+
+	@SuppressWarnings("unchecked")
+	private static List<Object> types(Map<String, Object> page) {
+		return ((List<Map<String, Object>>) page.get("documents")).stream().map(d -> d.get("type")).collect(Collectors.toList());
 	}
 
 	@Test

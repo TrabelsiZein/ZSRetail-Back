@@ -69,6 +69,9 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   names no list of documents.
 
 ### Fixes
+- Warranties off (`warranty.enabled` not true): the warranty ticket's template too. `GET /ticket-templates` leaves the
+  document `WARRANTY` out; `PUT` and `DELETE /ticket-templates/WARRANTY` answer 404 `{"error"}` as `/warranty`
+  (`WarrantyAPI.OFF_MESSAGE`). A saved warranty template stays in `ticket_template` and comes back with the line.
 - Warranties: `GET /warranty`, `GET /warranty/{id}` and `POST /warranty` send `ticketDiscountFactor` (not stored): the
   share of the sold line paid after the sale's ticket discount, the returns screen's rule
   (`WarrantyService.ticketDiscountFactor`: the ticket's %, a ticket amount as the ticket's total over its lines' TTC, a
@@ -79,6 +82,12 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   (`createdByUser`: id, username, full name; the user who made the return, else its session's cashier, else null), so
   the voucher's reprint prints it: the returns stored it, the endpoints did not send it (the old reprint printed
   "Caissier : System", the new one no row).
+
+### Config
+- `rfid.enabled`, `warranty.enabled`, `eventlog.enabled`: a blank value (the line with nothing after the `=`) is
+  `false`, as a missing line; it stopped the startup. `true` and `false` (trimmed, any case) unchanged; any other value
+  still stops the startup with its message (`NodeOwnership.moduleSwitch`). `storeorders.enabled` keeps stopping on a
+  blank for now.
 
 ### DB script
 - `db/3.5.0/update.sql`: the version check and `APP_VERSION` 3.5.0; `TICKET_RENDERER` named in a comment only (the row

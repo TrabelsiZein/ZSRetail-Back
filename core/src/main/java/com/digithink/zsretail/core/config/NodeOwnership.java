@@ -66,18 +66,18 @@ import com.digithink.zsretail.erp.api.ErpAbility;
  * supply price, supply invoice or network stock); accepted only with {@code headoffice.stock.enabled=false} and without
  * {@code headoffice.storeorders.post}. A store never reads the key.
  * <p>
- * RFID (RFID step 2): {@code rfid.enabled}, true or false (false when absent); any other value stops the startup, and
- * true on a head office too ({@link #isRfidSet}).
+ * RFID (RFID step 2): {@code rfid.enabled}, true or false (false when absent; 3.5.0: or blank, {@link #moduleSwitch});
+ * any other value stops the startup, and true on a head office too ({@link #isRfidSet}).
  * <p>
  * Warranties (3.3.0): {@code warranty.enabled}, the Warranties page of a store, as rfid.enabled: true or false (false
- * when absent); any other value stops the startup, and true on a head office too ({@link #isWarrantySet}).
+ * when absent or blank); any other value stops the startup, and true on a head office too ({@link #isWarrantySet}).
  * <p>
- * Store orders (3.3.0): {@code storeorders.enabled}, the store's "Commandes centrale", as rfid.enabled: true or false
- * (false when absent); any other value stops the startup, and true anywhere but a store whose goods come from its head
+ * Store orders (3.3.0): {@code storeorders.enabled}, the store's "Commandes centrale": true or false (false when
+ * absent); any other value, a blank included (not a module switch of 3.5.0's rule yet), stops the startup, and true anywhere but a store whose goods come from its head
  * office too ({@link #isStoreOrdersEnabledSet}).
  * <p>
  * Event log (3.4.0): {@code eventlog.enabled}, the store's "Journal des événements", as warranty.enabled: true or false
- * (false when absent); any other value stops the startup, and true on a head office too ({@link #isEventLogSet}).
+ * (false when absent or blank); any other value stops the startup, and true on a head office too ({@link #isEventLogSet}).
  * <p>
  * Communication (3.3.0, step 1): {@code communication.enabled}, true or false; absent or blank is false (the module does
  * nothing, as 3.2.0); any other value is one WARN and the module off since step 8e ({@link #isCommunicationSet}). A store
@@ -301,24 +301,9 @@ public final class NodeOwnership {
 		return true;
 	}
 
-	/**
-	 * rfid.enabled, trimmed and case-insensitive: false when absent. Any value other than true or false (blank included)
-	 * throws {@link IllegalStateException} naming the key.
-	 */
+	/** rfid.enabled, a module switch ({@link #moduleSwitch}: absent or blank false). */
 	private static boolean rfidEnabled(PropertyResolver env) {
-		if (!env.containsProperty(RFID_KEY)) {
-			return false;
-		}
-		String raw = env.getProperty(RFID_KEY);
-		String value = raw == null ? "" : raw.trim();
-		if ("true".equalsIgnoreCase(value)) {
-			return true;
-		}
-		if ("false".equalsIgnoreCase(value)) {
-			return false;
-		}
-		throw new IllegalStateException("Invalid value '" + raw + "' for property " + RFID_KEY
-				+ ": true (this store reads RFID tags) or false (no RFID)");
+		return moduleSwitch(env, RFID_KEY, "true (this store reads RFID tags) or false (no RFID)");
 	}
 
 	/**
@@ -337,23 +322,11 @@ public final class NodeOwnership {
 	}
 
 	/**
-	 * warranty.enabled, trimmed and case-insensitive: false when absent. Any value other than true or false (blank
-	 * included) throws {@link IllegalStateException} naming the key.
+	 * warranty.enabled, a module switch ({@link #moduleSwitch}): absent or blank false; any other value than true or false
+	 * throws {@link IllegalStateException} naming the key.
 	 */
 	private static boolean warrantyEnabled(PropertyResolver env) {
-		if (!env.containsProperty(WARRANTY_KEY)) {
-			return false;
-		}
-		String raw = env.getProperty(WARRANTY_KEY);
-		String value = raw == null ? "" : raw.trim();
-		if ("true".equalsIgnoreCase(value)) {
-			return true;
-		}
-		if ("false".equalsIgnoreCase(value)) {
-			return false;
-		}
-		throw new IllegalStateException("Invalid value '" + raw + "' for property " + WARRANTY_KEY
-				+ ": true (this store registers warranties) or false (no Warranties page)");
+		return moduleSwitch(env, WARRANTY_KEY, "true (this store registers warranties) or false (no Warranties page)");
 	}
 
 	/**
@@ -385,7 +358,7 @@ public final class NodeOwnership {
 	 * other than true or false, and on true on a head office (version 1 of the module: the events stay in the store).
 	 */
 	public static boolean isEventLogSet(PropertyResolver env) {
-		if (!strictBoolean(env, EVENT_LOG_KEY, "true (this store writes its event log) or false (no event log)")) {
+		if (!moduleSwitch(env, EVENT_LOG_KEY, "true (this store writes its event log) or false (no event log)")) {
 			return false;
 		}
 		if (nodeTypeOf(env) == NodeType.HEAD_OFFICE) {
@@ -394,6 +367,19 @@ public final class NodeOwnership {
 					+ " line.");
 		}
 		return true;
+	}
+
+	/**
+	 * 3.5.0: a store module switch (rfid.enabled, warranty.enabled, eventlog.enabled), trimmed and case-insensitive:
+	 * absent or blank (the line with nothing after the =) false; true; false. Any other value throws
+	 * {@link IllegalStateException} naming the key and the two meanings (the startup stops).
+	 */
+	static boolean moduleSwitch(PropertyResolver env, String key, String meanings) {
+		String raw = env.getProperty(key);
+		if (raw == null || raw.trim().isEmpty()) {
+			return false;
+		}
+		return strictBoolean(env, key, meanings);
 	}
 
 	/**

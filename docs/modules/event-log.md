@@ -35,9 +35,10 @@ Built as `warranty.enabled` (`NodeOwnership.isEventLogSet`):
 
 | Key | Values | Absent |
 |---|---|---|
-| `eventlog.enabled` | `true` / `false`, trimmed, any case | `false` |
+| `eventlog.enabled` | `true` / `false`, trimmed, any case; blank (3.5.0) = `false` | `false` |
 
-- Any other value, an empty one included, stops the start naming the key. So does `true` on a head office: in version 1
+- Blank (the line with nothing after the `=`, 3.5.0) is `false`, as a missing line (`NodeOwnership.moduleSwitch`).
+- Any other value stops the start naming the key. So does `true` on a head office: in version 1
   the events stay in the store.
 - The store type file says `false`. The machine model has the line commented.
 - `GET /config` `eventLogEnabled` is `true` on a store with the line set to `true`, and `false` everywhere else.
