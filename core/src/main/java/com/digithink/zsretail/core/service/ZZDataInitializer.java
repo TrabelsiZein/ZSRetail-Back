@@ -404,6 +404,8 @@ public class ZZDataInitializer {
 		if (applicationModeService.keepsOwnStock()) {
 			permissions.addAll(COST_ADMIN_PERMISSIONS);
 		}
+		// 3.5.0, ticket templates step 5: "Modèles de tickets" at the head office (the templates of its managed stores)
+		permissions.addAll(TICKET_TEMPLATE_ADMIN_PERMISSIONS);
 		return permissions;
 	}
 

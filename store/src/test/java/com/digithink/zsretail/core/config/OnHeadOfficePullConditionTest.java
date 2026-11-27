@@ -79,16 +79,22 @@ class OnHeadOfficePullConditionTest {
 	}
 
 	@Test
-	@DisplayName("The pull beans are registered only when the condition is true")
+	@DisplayName("The pull beans are registered on every linked store (3.5.0: the ticket templates may come to any), never"
+			+ " without a head office; a domain's handler only with the domain owned by the head office")
 	void beans() {
-		MockEnvironment[] off = { new MockEnvironment(), standalone(link()), link(),
-				standalone(link()).withProperty("ownership.promotions", "LOCAL"),
-				standalone(link()).withProperty("sales.upstream", "HEAD_OFFICE") };
-		for (MockEnvironment env : off) {
+		for (MockEnvironment env : new MockEnvironment[] { new MockEnvironment(), standalone(new MockEnvironment()) }) {
 			for (Class<?> bean : PULL_BEANS) {
 				assertFalse(registered(env, bean), bean.getSimpleName());
 			}
 		}
+		MockEnvironment[] linked = { standalone(link()), link(), standalone(link()).withProperty("ownership.promotions", "LOCAL"),
+				standalone(link()).withProperty("sales.upstream", "HEAD_OFFICE") };
+		for (MockEnvironment env : linked) {
+			for (Class<?> bean : PULL_BEANS) {
+				assertTrue(registered(env, bean), bean.getSimpleName());
+			}
+		}
+		MockEnvironment[] off = linked;
 		MockEnvironment on = standalone(link()).withProperty("ownership.promotions", "HEAD_OFFICE");
 		for (Class<?> bean : PULL_BEANS) {
 			assertTrue(registered(on, bean), bean.getSimpleName());
@@ -136,12 +142,12 @@ class OnHeadOfficePullConditionTest {
 	}
 
 	@Test
-	@DisplayName("Each pull bean carries the annotation, which uses the pull condition")
+	@DisplayName("Each pull bean carries the annotation, which asks for a linked store (3.5.0)")
 	void annotations() {
 		assertEquals(OnInstallationCondition.class,
 				ConditionalOnInstallation.class.getAnnotation(Conditional.class).value()[0]);
 		for (Class<?> bean : PULL_BEANS) {
-			assertTrue(Questions.asks(bean, Installation.COPIES_FROM_HEAD_OFFICE), bean.getSimpleName());
+			assertTrue(Questions.asks(bean, Installation.LINKED_TO_HEAD_OFFICE), bean.getSimpleName());
 		}
 	}
 }

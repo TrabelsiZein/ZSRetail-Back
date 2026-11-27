@@ -29,7 +29,8 @@ import lombok.extern.log4j.Log4j2;
  * saved from the page; while a domain has more pages waiting, the next run comes after the catch-up delay.
  */
 @Component
-@ConditionalOnInstallation(Installation.COPIES_FROM_HEAD_OFFICE)
+// 3.5.0, ticket templates step 5: on every linked store (the ticket templates come to any of them, its switch on)
+@ConditionalOnInstallation(Installation.LINKED_TO_HEAD_OFFICE)
 @Order(3)
 @Log4j2
 public class CopiesDownJob implements LinkJob {

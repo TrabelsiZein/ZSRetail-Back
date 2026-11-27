@@ -73,7 +73,8 @@ public class HeadOfficeHeartbeatAPI {
 	/**
 	 * Step 4: the answer also carries the store's loyalty rights (null in a row made before step 4: false). Step 6: and
 	 * its catalogue rights, mayChangePrices and canPurchase (null: false). 3.1.1: {@link SupplyRefused} (409) on a head
-	 * office that supplies no store, for a store whose goods come from the head office.
+	 * office that supplies no store, for a store whose goods come from the head office. 3.5.0: and whether the head office
+	 * manages its ticket templates (ticketTemplatesManaged).
 	 */
 	@PostMapping("/heartbeat")
 	public HeadOfficeHeartbeatAnswerDTO heartbeat(@AuthenticationPrincipal Store store,
@@ -85,10 +86,14 @@ public class HeadOfficeHeartbeatAPI {
 					+ " store (headoffice.supply.source=NONE)", store.getCode());
 			throw new SupplyRefused();
 		}
-		return new HeadOfficeHeartbeatAnswerDTO(store.getCode(), now.format(HeadOfficePingAPI.SERVER_TIME),
+		HeadOfficeHeartbeatAnswerDTO answer = new HeadOfficeHeartbeatAnswerDTO(store.getCode(),
+				now.format(HeadOfficePingAPI.SERVER_TIME),
 				Boolean.TRUE.equals(store.getCanEditMembers()), Boolean.TRUE.equals(store.getCanAdjustPoints()),
 				Boolean.TRUE.equals(store.getRedeemRequiresOnline()), Boolean.TRUE.equals(store.getEnrolRequiresOnline()),
 				Boolean.TRUE.equals(store.getMayChangePrices()), Boolean.TRUE.equals(store.getCanPurchase()));
+		// 3.5.0, ticket templates step 5: the head office manages its ticket templates (null: false)
+		answer.setTicketTemplatesManaged(Boolean.TRUE.equals(store.getManagesTicketTemplates()));
+		return answer;
 	}
 
 	/** 3.1.1: 409 {"error"} for a refused heartbeat. */

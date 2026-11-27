@@ -49,7 +49,8 @@ import lombok.ToString;
  * Run by {@link CopiesDownJob} on the ho-link thread. See docs/modules/head-office.md, "Copies down".
  */
 @Component
-@ConditionalOnInstallation(Installation.COPIES_FROM_HEAD_OFFICE)
+// 3.5.0, ticket templates step 5: on every linked store (the ticket templates come to any of them, its switch on)
+@ConditionalOnInstallation(Installation.LINKED_TO_HEAD_OFFICE)
 public class CopiesDownPuller {
 
 	/** Codes per page asked from the head office. */
@@ -104,7 +105,11 @@ public class CopiesDownPuller {
 		Cycle cycle = new Cycle();
 		long started = System.nanoTime();
 		for (DownHandler handler : handlers) {
-			cycle.runs.add(runDomain(handler, started));
+			// 3.5.0, step 5: a handler not active now (the ticket templates while the head office does not manage them)
+			// is not pulled: no request, no cursor
+			if (handler.active()) {
+				cycle.runs.add(runDomain(handler, started));
+			}
 		}
 		return cycle;
 	}

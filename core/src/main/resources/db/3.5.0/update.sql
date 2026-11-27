@@ -93,6 +93,38 @@ IF OBJECT_ID(N'quick_quantity', N'U') IS NOT NULL AND OBJECT_ID(N'pos_machine', 
 	ALTER TABLE pos_machine ADD paper_width int NULL;
 GO
 
+-- Ticket templates, step 5, a head office only (it has ho_store): "Le siège gère les modèles de tickets", the switch of a
+-- store's row on the Stores page. Nullable, no default: every existing store keeps its own templates (null = off).
+IF OBJECT_ID(N'ho_store', N'U') IS NOT NULL AND COL_LENGTH(N'ho_store', N'manages_ticket_templates') IS NULL
+	ALTER TABLE ho_store ADD manages_ticket_templates bit NULL;
+GO
+
+-- Ticket templates, step 5, a store only (it has quick_quantity and pos_machine): when the head office starts managing
+-- the store's templates, the store's own rows of ticket_template are copied here, dated, then replaced by the head
+-- office's. Kept for a recovery by hand only: the application writes this table and never reads it.
+IF OBJECT_ID(N'quick_quantity', N'U') IS NOT NULL AND OBJECT_ID(N'pos_machine', N'U') IS NOT NULL
+	AND OBJECT_ID(N'ticket_template_saved', N'U') IS NULL
+BEGIN
+	CREATE TABLE ticket_template_saved (
+		id bigint IDENTITY(1,1) NOT NULL,
+		active bit NULL,
+		created_at datetime2 NULL,
+		created_by varchar(255) NULL,
+		updated_at datetime2 NULL,
+		updated_by varchar(255) NULL,
+		document_type varchar(40) NOT NULL,
+		layout nvarchar(max) NULL,
+		blocks nvarchar(max) NULL,
+		format_version int NOT NULL,
+		origin varchar(20) NOT NULL,
+		template_updated_at datetime2 NULL,
+		template_updated_by varchar(255) NULL,
+		saved_at datetime2 NOT NULL,
+		CONSTRAINT PK_ticket_template_saved PRIMARY KEY (id)
+	);
+END
+GO
+
 -- The release notes of 3.5.0 are written from CHANGELOG.md when the version is closed (nothing to tell the users yet).
 
 GO

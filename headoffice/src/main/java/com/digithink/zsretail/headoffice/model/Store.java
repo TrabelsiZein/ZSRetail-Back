@@ -130,6 +130,14 @@ public class Store extends _BaseEntity {
 	@Column(name = "can_purchase")
 	private Boolean canPurchase;
 
+	/**
+	 * 3.5.0, ticket templates step 5: "Le siège gère les modèles de tickets": the store takes the head office's ticket
+	 * templates (copies down, domain TICKET_TEMPLATES) and cannot change them. Null read as false (the store keeps its
+	 * own). Sent with each heartbeat answer.
+	 */
+	@Column(name = "manages_ticket_templates")
+	private Boolean managesTicketTemplates;
+
 	// ─── Invoicing of the deliveries (step 7B) ──────────────────────────────
 	// Set on the Stores page; never sent to the store. Same PUT rule: a field absent from the body is kept.
 

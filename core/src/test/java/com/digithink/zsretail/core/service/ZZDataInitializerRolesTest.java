@@ -191,6 +191,7 @@ class ZZDataInitializerRolesTest {
 		Set<String> expected = new HashSet<>(staticSet("ADMIN_PERMISSIONS"));
 		expected.addAll(HEAD_OFFICE_PERMISSIONS);
 		expected.addAll(COST); // a head office that keeps its stock (headoffice.stock.enabled absent: true)
+		expected.addAll(TICKET_TEMPLATES); // 3.5.0, ticket templates step 5: the templates of its managed stores
 		assertEquals(expected, roles.get("ADMIN").getPermissions());
 		assertFalse(roles.get("ADMIN").getPermissions().contains(CASHIER_INTERFACE), "a head office never opens the till");
 		assertTrue(java.util.Collections.disjoint(INVENTORY, roles.get("ADMIN").getPermissions()), "no inventory count");
@@ -351,6 +352,7 @@ class ZZDataInitializerRolesTest {
 		assertEquals(Collections.singletonList("ADMIN"), saves);
 		Set<String> expected = new HashSet<>(HEAD_OFFICE_PERMISSIONS);
 		expected.addAll(COST);
+		expected.addAll(TICKET_TEMPLATES); // 3.5.0, step 5
 		expected.add("read:home");
 		expected.add("read:admin-headoffice");
 		assertEquals(expected, existing.get("ADMIN").getPermissions(), "nothing removed");
@@ -549,7 +551,7 @@ class ZZDataInitializerRolesTest {
 
 	@Test
 	@DisplayName("3.5.0, ticket templates step 2: ADMIN of every new store has the page and its save; a store of before gets"
-			+ " them at its start, once; never on a head office, never in RESPONSIBLE or POS_USER")
+			+ " them at its start, once; step 5: a head office's ADMIN too; never in RESPONSIBLE or POS_USER")
 	void ticketTemplatesGivenToAdmin() throws Exception {
 		assertEquals(TICKET_TEMPLATES, staticSet("TICKET_TEMPLATE_ADMIN_PERMISSIONS"));
 		for (boolean[] flags : STORE_PROFILES) {
@@ -558,8 +560,9 @@ class ZZDataInitializerRolesTest {
 			assertTrue(Collections.disjoint(TICKET_TEMPLATES, roles.get("RESPONSIBLE").getPermissions()));
 			assertTrue(Collections.disjoint(TICKET_TEMPLATES, roles.get("POS_USER").getPermissions()));
 		}
-		assertTrue(Collections.disjoint(TICKET_TEMPLATES, seedRoles(headOffice(), false, Collections.emptyMap()).get("ADMIN")
-				.getPermissions()), "new head office");
+		// step 5: a head office manages the templates of its stores: its ADMIN has the page and its save
+		assertTrue(seedRoles(headOffice(), false, Collections.emptyMap()).get("ADMIN").getPermissions()
+				.containsAll(TICKET_TEMPLATES), "new head office");
 		Map<String, AppRole> storeBefore = existingRoles("read:home", LICENSE);
 		seedRoles(new MockEnvironment(), false, storeBefore, new ArrayList<>());
 		assertTrue(storeBefore.get("ADMIN").getPermissions().containsAll(TICKET_TEMPLATES), "a store of before, at its start");

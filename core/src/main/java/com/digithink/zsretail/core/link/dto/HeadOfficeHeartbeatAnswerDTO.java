@@ -36,6 +36,12 @@ public class HeadOfficeHeartbeatAnswerDTO extends HeadOfficePingDTO {
 	/** Step 6: the store may purchase from its own suppliers and create its own items. */
 	private Boolean canPurchase;
 
+	/**
+	 * 3.5.0, ticket templates step 5: the head office manages the store's ticket templates (the switch of its row on the
+	 * Stores page); null from an older head office (the store keeps what it saved).
+	 */
+	private Boolean ticketTemplatesManaged;
+
 	public HeadOfficeHeartbeatAnswerDTO(String storeCode, String serverTime, Boolean canEditMembers,
 			Boolean canAdjustPoints, Boolean redeemRequiresOnline, Boolean enrolRequiresOnline) {
 		this(storeCode, serverTime, canEditMembers, canAdjustPoints, redeemRequiresOnline, enrolRequiresOnline, null,

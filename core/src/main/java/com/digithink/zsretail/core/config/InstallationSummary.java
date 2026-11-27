@@ -38,7 +38,7 @@ public class InstallationSummary {
 		StringJoiner line = new StringJoiner(", ", "Installation: ", "");
 		line.add("type " + ownership.getNodeType());
 		line.add("database " + databaseName(env.getProperty("spring.datasource.url")));
-		for (DataDomain domain : DataDomain.values()) {
+		for (DataDomain domain : DataDomain.ownershipDomains()) {
 			line.add(domain.name().toLowerCase() + " " + ownership.ownerOf(domain));
 		}
 		line.add("sales to " + (ownership.getSalesUpstreams().isEmpty() ? "nowhere" : ownership.getSalesUpstreams()));

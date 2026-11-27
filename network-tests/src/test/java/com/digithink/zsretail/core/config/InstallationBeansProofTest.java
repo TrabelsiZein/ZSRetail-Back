@@ -58,7 +58,7 @@ class InstallationBeansProofTest {
 	static final List<String> ERP_CONDITIONS = Arrays.asList("OnErpAbilityCondition", "OnErpConnectorCondition");
 
 	/** Every class and @Bean method these questions decide, by name: a lost or new annotation shows here. */
-	static final int EXPECTED_DECIDED = 139; // RFID: 3 services, the reader, 3 APIs; tags: 2 services, the check, the API;
+	static final int EXPECTED_DECIDED = 142; // RFID: 3 services, the reader, 3 APIs; tags: 2 services, the check, the API;
 	// POS: the sale tags hook, the POS service and its API; item variants (ZEN), step 9: the stores'
 	// ERP customers for the invoices read (HoErpInvoiceCustomers); 3.1.1, orders to the head office: the API, the
 	// service, the status writer, the draft index (store); the reception and admin APIs, the service, the posting
@@ -80,7 +80,10 @@ class InstallationBeansProofTest {
 	// refused by their provider (CommunicationTemplateProblems, COMMUNICATION_SENDS_HERE) (136 to 138); step 8e: the
 	// settings and the four providers only where messages are sent (COMMUNICATION to COMMUNICATION_SENDS_HERE: a store
 	// whose loyalty is the head office's no longer reads its channel lines), the WARN naming its ignored lines
-	// (CommunicationIgnoredLines, COMMUNICATION_PUSHED_UP) (138 to 139)
+	// (CommunicationIgnoredLines, COMMUNICATION_PUSHED_UP) (138 to 139); 3.5.0, ticket templates step 5: the store's switch
+	// and its handler (TicketTemplatesManaged, TicketTemplateDownHandler, LINKED_TO_HEAD_OFFICE) and the head office's
+	// provider (TicketTemplateDownProvider, HEAD_OFFICE) (139 to 142); the copies down puller, its job and DownRecordLog
+	// on every linked store (COPIES_FROM_HEAD_OFFICE to LINKED_TO_HEAD_OFFICE)
 
 	/** True for an annotation whose condition is an installation question (a class of config, not an ERP one). */
 	static boolean isQuestion(Annotation annotation) {

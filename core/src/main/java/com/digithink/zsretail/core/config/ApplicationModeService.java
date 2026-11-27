@@ -130,6 +130,12 @@ public class ApplicationModeService {
 		return rfidEnabled;
 	}
 
+	/**
+	 * 3.3.0: the answer of a store without warranty.enabled=true (the /warranty endpoints; 3.5.0, the warranty ticket's
+	 * template too).
+	 */
+	public static final String WARRANTY_OFF_MESSAGE = "Warranties are off on this store (warranty.enabled=true turns them on).";
+
 	/** 3.3.0: true on a store with warranty.enabled=true, the Warranties page and the /warranty API exist. */
 	public boolean isWarrantyEnabled() {
 		return warrantyEnabled;

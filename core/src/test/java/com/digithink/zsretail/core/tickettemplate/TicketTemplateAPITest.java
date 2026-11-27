@@ -1,4 +1,4 @@
-package com.digithink.zsretail.store.tickettemplate;
+package com.digithink.zsretail.core.tickettemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -24,12 +24,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.env.MockEnvironment;
 
+import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
 import com.digithink.zsretail.core.support.TestModes;
-import com.digithink.zsretail.core.tickettemplate.TicketTemplateDTO;
-import com.digithink.zsretail.core.tickettemplate.TicketTemplateException;
+import com.digithink.zsretail.core.tickettemplate.controller.TicketTemplateAPI;
 import com.digithink.zsretail.core.tickettemplate.service.TicketTemplateService;
-import com.digithink.zsretail.store.controller.WarrantyAPI;
 
 /**
  * 3.5.0, ticket templates step 2: GET /ticket-templates for any logged user (the till prints with it); the save and the
@@ -98,7 +97,7 @@ class TicketTemplateAPITest {
 			for (ResponseEntity<?> answer : Arrays.asList(off.save("WARRANTY", new TicketTemplateDTO()), off.save("warranty", null),
 					off.reset("WARRANTY"))) {
 				assertEquals(404, answer.getStatusCodeValue());
-				assertEquals(Collections.singletonMap("error", WarrantyAPI.OFF_MESSAGE), answer.getBody());
+				assertEquals(Collections.singletonMap("error", ApplicationModeService.WARRANTY_OFF_MESSAGE), answer.getBody());
 			}
 			off.save("SALE", new TicketTemplateDTO());
 		}
@@ -109,6 +108,26 @@ class TicketTemplateAPITest {
 		assertEquals(Arrays.asList("SALE", "WARRANTY", "TOMBOLA_SLIP"), types(api.page()));
 		assertEquals(200, api.save("WARRANTY", new TicketTemplateDTO()).getStatusCodeValue());
 		verify(service).save(eq("WARRANTY"), any(), eq("admin"));
+	}
+
+	@Test
+	@DisplayName("Step 5: a head office always lists and saves the warranty ticket (some of its stores have warranties);"
+			+ " a store managed by its head office: a save refused with 403 TICKET_TEMPLATE_MANAGED")
+	void headOfficeAndManaged() {
+		Map<String, Object> page = new LinkedHashMap<>();
+		page.put("documents", Arrays.asList(document("SALE"), document("WARRANTY")));
+		when(service.page()).thenReturn(page);
+		holds("write:admin-ticket-templates");
+		TicketTemplateAPI headOffice = new TicketTemplateAPI(service, current,
+				TestModes.of(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")));
+		assertEquals(Arrays.asList("SALE", "WARRANTY"), types(headOffice.page()));
+		assertEquals(200, headOffice.save("WARRANTY", new TicketTemplateDTO()).getStatusCodeValue());
+
+		when(service.save(eq("SALE"), any(), anyString())).thenThrow(new TicketTemplateException(403, "TICKET_TEMPLATE_MANAGED",
+				"The head office manages the ticket templates of this store", "type", "SALE"));
+		TicketTemplateException managed = assertThrows(TicketTemplateException.class, () -> api.save("SALE", new TicketTemplateDTO()));
+		assertEquals(403, api.refused(managed).getStatusCodeValue());
+		assertEquals("TICKET_TEMPLATE_MANAGED", api.refused(managed).getBody().get("code"));
 	}
 
 	private static Map<String, Object> document(String type) {

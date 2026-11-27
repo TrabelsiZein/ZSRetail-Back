@@ -74,7 +74,7 @@ class PresetTruthTableTest {
 		NodeOwnership o = NodeOwnership.resolve(env);
 		StringJoiner row = new StringJoiner(" ");
 		row.add(o.getNodeType().name());
-		for (DataDomain domain : DataDomain.values()) {
+		for (DataDomain domain : DataDomain.ownershipDomains()) {
 			row.add(domain.name() + "=" + o.ownerOf(domain));
 		}
 		row.add("up=" + o.getSalesUpstreams());

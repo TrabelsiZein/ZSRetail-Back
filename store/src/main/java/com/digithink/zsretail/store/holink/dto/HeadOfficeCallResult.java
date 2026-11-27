@@ -35,8 +35,11 @@ public final class HeadOfficeCallResult {
 	private final Boolean mayChangePrices;
 	private final Boolean canPurchase;
 
+	/** 3.5.0, ticket templates step 5: the head office manages the ticket templates; null when not sent (older one). */
+	private final Boolean ticketTemplatesManaged;
+
 	public static HeadOfficeCallResult online(String serverTime) {
-		return new HeadOfficeCallResult(HeadOfficeLinkState.ONLINE, null, serverTime, null, null, null, null, null, null);
+		return new HeadOfficeCallResult(HeadOfficeLinkState.ONLINE, null, serverTime, null, null, null, null, null, null, null);
 	}
 
 	/** Step 4: a heartbeat answer with the store's loyalty rights. */
@@ -54,16 +57,22 @@ public final class HeadOfficeCallResult {
 	public static HeadOfficeCallResult online(String serverTime, Boolean canEditMembers, Boolean canAdjustPoints,
 			Boolean redeemRequiresOnline, Boolean enrolRequiresOnline) {
 		return new HeadOfficeCallResult(HeadOfficeLinkState.ONLINE, null, serverTime, canEditMembers, canAdjustPoints,
-				redeemRequiresOnline, enrolRequiresOnline, null, null);
+				redeemRequiresOnline, enrolRequiresOnline, null, null, null);
 	}
 
 	/** Step 6: the same answer with the store's catalogue rights (mayChangePrices, canPurchase). */
 	public HeadOfficeCallResult withCatalogueRights(Boolean mayChangePrices, Boolean canPurchase) {
 		return new HeadOfficeCallResult(state, message, serverTime, canEditMembers, canAdjustPoints, redeemRequiresOnline,
-				enrolRequiresOnline, mayChangePrices, canPurchase);
+				enrolRequiresOnline, mayChangePrices, canPurchase, ticketTemplatesManaged);
+	}
+
+	/** 3.5.0, ticket templates step 5: the same answer with the "the head office manages the templates" switch. */
+	public HeadOfficeCallResult withTicketTemplatesManaged(Boolean managed) {
+		return new HeadOfficeCallResult(state, message, serverTime, canEditMembers, canAdjustPoints, redeemRequiresOnline,
+				enrolRequiresOnline, mayChangePrices, canPurchase, managed);
 	}
 
 	public static HeadOfficeCallResult failure(HeadOfficeLinkState state, String message) {
-		return new HeadOfficeCallResult(state, message, null, null, null, null, null, null, null);
+		return new HeadOfficeCallResult(state, message, null, null, null, null, null, null, null, null);
 	}
 }

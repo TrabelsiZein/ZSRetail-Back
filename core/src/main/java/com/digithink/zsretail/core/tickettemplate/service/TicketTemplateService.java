@@ -10,9 +10,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.digithink.zsretail.core.config.ApplicationModeService;
 import com.digithink.zsretail.core.dto.CompanyInformationDTO;
 import com.digithink.zsretail.core.eventlog.service.AdminEvents;
 import com.digithink.zsretail.core.service.CompanyInformationService;
@@ -28,6 +30,8 @@ import com.digithink.zsretail.core.tickettemplate.TicketTemplateDTO;
 import com.digithink.zsretail.core.tickettemplate.TicketTemplateDTO.ElementDTO;
 import com.digithink.zsretail.core.tickettemplate.TicketTemplateDTO.SectionDTO;
 import com.digithink.zsretail.core.tickettemplate.TicketTemplateException;
+import com.digithink.zsretail.core.tickettemplate.link.TicketTemplateChanges;
+import com.digithink.zsretail.core.tickettemplate.link.TicketTemplateLink;
 import com.digithink.zsretail.core.tickettemplate.model.TicketTemplate;
 import com.digithink.zsretail.core.tickettemplate.repository.TicketTemplateRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -51,6 +55,11 @@ import lombok.extern.log4j.Log4j2;
  * default, a locked block put back on), so a row of another version never breaks a print. A layout of format 1
  * ("compact": true) reads as the spacing COMPACT.</li>
  * <li>A save or a reset is an administrator's gesture in the event log (AdminEvents), when it changed something.</li>
+ * <li>Step 5, the head office manages the templates of the stores whose switch is on: at a head office the defaults are
+ * the built-in ones (no linked setting read there), a save or a reset is a change of the copies down
+ * ({@link TicketTemplateChanges}); at a managed store the templates are the head office's ({@link #receive}, origin
+ * HEAD_OFFICE) and a save or a reset is refused (TICKET_TEMPLATE_MANAGED, {@link TicketTemplateLink}). A save always
+ * makes the row the store's own (origin LOCAL).</li>
  * </ul>
  */
 @Service
@@ -61,6 +70,14 @@ public class TicketTemplateService {
 	public static final int FORMAT_VERSION = 2;
 	/** The paper widths, also a POS machine's (PosMachineService). */
 	public static final List<Integer> PAPER_WIDTHS = Arrays.asList(58, 80);
+	/** Step 5: a template of the store's own, and one received from its head office. */
+	public static final String LOCAL = "LOCAL";
+	public static final String HEAD_OFFICE = "HEAD_OFFICE";
+	/**
+	 * Step 5: the built-in text of the sale ticket's thank-you line (Company Information's default), the text a head
+	 * office's copy carries when its template leaves it null (null at a store means its own Company Information's text).
+	 */
+	public static final String BUILT_IN_THANK_YOU = "Merci pour votre achat !";
 
 	private static final ObjectMapper JSON = new ObjectMapper();
 	private static final TypeReference<List<SectionDTO>> SECTIONS = new TypeReference<List<SectionDTO>>() {
@@ -73,12 +90,47 @@ public class TicketTemplateService {
 	private final GeneralSetupService generalSetupService;
 	private final AdminEvents adminEvents;
 
+	/** Step 5: a store linked to a head office (null elsewhere: never managed). */
+	private TicketTemplateLink link;
+	/** Step 5: a head office (null elsewhere: nothing recorded). */
+	private TicketTemplateChanges changes;
+	/** Step 5: a head office's defaults are the built-in ones. */
+	private boolean headOffice;
+
 	public TicketTemplateService(TicketTemplateRepository repository, CompanyInformationService companyInformationService,
 			GeneralSetupService generalSetupService, AdminEvents adminEvents) {
 		this.repository = repository;
 		this.companyInformationService = companyInformationService;
 		this.generalSetupService = generalSetupService;
 		this.adminEvents = adminEvents;
+	}
+
+	/** Step 5: the store's link (a store linked to a head office). */
+	@Autowired(required = false)
+	public void setLink(TicketTemplateLink link) {
+		this.link = link;
+	}
+
+	/** Step 5: the head office's change recording. */
+	@Autowired(required = false)
+	public void setChanges(TicketTemplateChanges changes) {
+		this.changes = changes;
+	}
+
+	/** Step 5: a head office (its defaults built-in). */
+	@Autowired(required = false)
+	public void setMode(ApplicationModeService mode) {
+		this.headOffice = mode != null && mode.isHeadOffice();
+	}
+
+	/** Step 5: whether the head office manages this store's templates now (read-only here). */
+	public boolean managedByHeadOffice() {
+		return link != null && link.managedByHeadOffice();
+	}
+
+	/** Step 5: a head office (the built-in defaults, every document listed). */
+	public boolean isHeadOffice() {
+		return headOffice;
 	}
 
 	// ─── Reads ───────────────────────────────────────────────────────
@@ -110,6 +162,9 @@ public class TicketTemplateService {
 		page.put("linked", linked);
 		// step 2b: the passenger's customer code (General setup PASSENGER_CUSTOMER), for "hide the passenger code"
 		page.put("passengerCode", generalSetupService.findValueByCode("PASSENGER_CUSTOMER"));
+		// step 5: a store whose head office manages its templates (read-only); a head office (built-in defaults)
+		page.put("managedByHeadOffice", managedByHeadOffice());
+		page.put("headOffice", headOffice);
 		return page;
 	}
 
@@ -153,6 +208,9 @@ public class TicketTemplateService {
 	 * rows unless their General setup row says false (absent = yes, as SalesHeaderAPI sends them).
 	 */
 	Map<String, Boolean> linkedValues() {
+		if (headOffice) {
+			return builtInLinkedValues();
+		}
 		CompanyInformationDTO company = companyInformationService.get();
 		Map<String, Boolean> linked = new LinkedHashMap<>();
 		linked.put(TicketBlocks.LINK_PRINT_ADDRESS, company != null && Boolean.TRUE.equals(company.getReceiptPrintAddress()));
@@ -163,6 +221,22 @@ public class TicketTemplateService {
 		linked.put(TicketBlocks.LINK_LOYALTY_BALANCE, settingOn("TICKET_SHOW_LOYALTY_BALANCE"));
 		// step 2b: the tombola slip, "true" only (absent or anything else = no, as GET /config reads it)
 		linked.put(TicketBlocks.LINK_TOMBOLA, "true".equalsIgnoreCase(generalSetupService.findValueByCode("TOMBOLA_ENABLED")));
+		return linked;
+	}
+
+	/**
+	 * Step 5, a head office: the linked elements' built-in values, nothing read from its own Company Information or
+	 * General setup (what it saves decides for its managed stores): no address line, the thank-you line and the
+	 * "ZS Retail" label printed, the loyalty rows printed, no tombola slip.
+	 */
+	static Map<String, Boolean> builtInLinkedValues() {
+		Map<String, Boolean> linked = new LinkedHashMap<>();
+		linked.put(TicketBlocks.LINK_PRINT_ADDRESS, false);
+		linked.put(TicketBlocks.LINK_THANK_YOU, true);
+		linked.put(TicketBlocks.LINK_SOFTWARE_LABEL, true);
+		linked.put(TicketBlocks.LINK_LOYALTY_EARNED, true);
+		linked.put(TicketBlocks.LINK_LOYALTY_BALANCE, true);
+		linked.put(TicketBlocks.LINK_TOMBOLA, false);
 		return linked;
 	}
 
@@ -177,6 +251,7 @@ public class TicketTemplateService {
 	@Transactional
 	public TicketTemplateDTO save(String typeName, TicketTemplateDTO sent, String by) {
 		TicketDocumentType type = availableType(typeName);
+		refuseWhenManaged(type);
 		TicketTemplateDTO clean = normalise(type, sent, true);
 		Optional<TicketTemplate> existing = repository.findByDocumentType(type.name());
 		Map<String, String> before = existing.map(row -> describe(toDTO(type, row))).orElseGet(LinkedHashMap::new);
@@ -192,9 +267,13 @@ public class TicketTemplateService {
 		row.setFormatVersion(FORMAT_VERSION);
 		row.setUpdatedBy(by);
 		row.setActive(true);
+		row.setOrigin(LOCAL); // step 5: a save makes it the store's own (a row received earlier included)
 		TicketTemplate stored = repository.save(row);
 		TicketTemplateDTO result = toDTO(type, stored);
 		adminEvents.ticketTemplateSaved(type.name(), TicketBlockLabels.fr(type.name()), before, describe(result));
+		if (changes != null) {
+			changes.changed(type); // step 5, a head office: its stores' copies, in this transaction
+		}
 		return result;
 	}
 
@@ -202,6 +281,7 @@ public class TicketTemplateService {
 	@Transactional
 	public boolean reset(String typeName) {
 		TicketDocumentType type = availableType(typeName);
+		refuseWhenManaged(type);
 		Optional<TicketTemplate> existing = repository.findByDocumentType(type.name());
 		if (!existing.isPresent()) {
 			return false;
@@ -209,8 +289,106 @@ public class TicketTemplateService {
 		Map<String, String> before = describe(toDTO(type, existing.get()));
 		repository.delete(existing.get());
 		adminEvents.ticketTemplateReset(type.name(), TicketBlockLabels.fr(type.name()), before);
+		if (changes != null) {
+			changes.changed(type); // step 5, a head office: the stores print the built-in default again
+		}
 		return true;
 	}
+
+	/** Step 5: a store whose head office manages its templates changes none of them here (403 TICKET_TEMPLATE_MANAGED). */
+	private void refuseWhenManaged(TicketDocumentType type) {
+		if (managedByHeadOffice()) {
+			throw new TicketTemplateException(403, "TICKET_TEMPLATE_MANAGED",
+					"The head office manages the ticket templates of this store", "type", type.name());
+		}
+	}
+
+	// ─── Step 5: the copies down ─────────────────────────────────────
+
+	/**
+	 * Step 5, a head office: the copy of a document's saved template for its stores; empty when it has none (the stores
+	 * print the built-in default). A text left null (at a store: its own Company Information's) is sent as the built-in
+	 * one: the thank-you line, and no footer text; what the head office saves prints the same in every managed store.
+	 */
+	@Transactional(readOnly = true)
+	public Optional<TicketTemplateDTO> copyForStores(TicketDocumentType type) {
+		return saved(type).map(t -> {
+			t.setDocumentType(type.name());
+			t.setOrigin(HEAD_OFFICE);
+			for (SectionDTO section : t.getSections()) {
+				for (ElementDTO element : section.getElements()) {
+					if (element.getOptions() == null || !element.getOptions().containsKey("text")
+							|| element.getOptions().get("text") != null) {
+						continue;
+					}
+					if ("THANK_YOU".equals(element.getCode())) {
+						element.getOptions().put("text", BUILT_IN_THANK_YOU);
+					} else if ("FOOTER_NOTE".equals(element.getCode())) {
+						element.getOptions().put("text", "");
+					}
+				}
+			}
+			return t;
+		});
+	}
+
+	/** Step 5, a head office: the document types that have a saved template (the copies down's records). */
+	@Transactional(readOnly = true)
+	public List<TicketDocumentType> savedTypes() {
+		List<TicketDocumentType> types = new ArrayList<>();
+		for (TicketTemplate row : repository.findAll()) {
+			TicketDocumentType type = TicketDocumentType.of(row.getDocumentType());
+			if (type != null && type.isAvailable()) {
+				types.add(type);
+			}
+		}
+		return types;
+	}
+
+	/**
+	 * Step 5, a managed store: a template received from its head office, read leniently (a later version's codes and
+	 * options dropped), saved as the document's row with the origin HEAD_OFFICE; false when the row was already that.
+	 * No event (a reception is not a gesture of this store).
+	 */
+	@Transactional
+	public boolean receive(TicketDocumentType type, TicketTemplateDTO copy) {
+		TicketTemplateDTO clean = normalise(type, copy, false);
+		String layout = write(clean.getLayout());
+		String blocks = write(clean.getSections());
+		Optional<TicketTemplate> existing = repository.findByDocumentType(type.name());
+		if (existing.isPresent() && HEAD_OFFICE.equals(existing.get().getOrigin()) && layout.equals(existing.get().getLayout())
+				&& blocks.equals(existing.get().getBlocks())) {
+			return false;
+		}
+		TicketTemplate row = existing.orElseGet(() -> {
+			TicketTemplate created = new TicketTemplate();
+			created.setDocumentType(type.name());
+			created.setCreatedBy(HEAD_OFFICE_BY);
+			return created;
+		});
+		row.setLayout(layout);
+		row.setBlocks(blocks);
+		row.setFormatVersion(FORMAT_VERSION);
+		row.setOrigin(HEAD_OFFICE);
+		row.setUpdatedBy(HEAD_OFFICE_BY);
+		row.setActive(true);
+		repository.save(row);
+		return true;
+	}
+
+	/** Step 5, a managed store: a template the head office reset: the row received is deleted (the default prints). */
+	@Transactional
+	public boolean removeReceived(TicketDocumentType type) {
+		Optional<TicketTemplate> existing = repository.findByDocumentType(type.name());
+		if (!existing.isPresent() || !HEAD_OFFICE.equals(existing.get().getOrigin())) {
+			return false;
+		}
+		repository.delete(existing.get());
+		return true;
+	}
+
+	/** Step 5: the "by" of a row received from the head office. */
+	public static final String HEAD_OFFICE_BY = "siège";
 
 	private static TicketDocumentType availableType(String typeName) {
 		TicketDocumentType type = TicketDocumentType.of(typeName);

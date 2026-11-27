@@ -481,6 +481,28 @@ public class AdminEvents implements GeneralSetupChangeListener {
 						+ ".")));
 	}
 
+	/**
+	 * 3.5.0, step 5: the head office manages this store's ticket templates now; the store's own ones (their French names)
+	 * kept aside and replaced. Written by the heartbeat (no user).
+	 */
+	public void ticketTemplatesManagedOn(List<String> replaced) {
+		run("TICKET_TEMPLATES_MANAGED_ON", () -> eventLog.write(NewEvent.of(EventCode.TICKET_TEMPLATES_MANAGED_ON)
+				.subject("TICKET_TEMPLATES", "Modèles de tickets")
+				.details("Le siège gère désormais les modèles de tickets de ce magasin : "
+						+ (replaced.isEmpty() ? "le magasin n'en avait pas enregistré."
+								: "ceux du magasin (" + String.join(", ", replaced)
+										+ ") sont gardés à part (ticket_template_saved) et remplacés par ceux du siège."))));
+	}
+
+	/** 3.5.0, step 5: the switch turned off: the templates received (their French names) are the store's own again. */
+	public void ticketTemplatesManagedOff(List<String> kept) {
+		run("TICKET_TEMPLATES_MANAGED_OFF", () -> eventLog.write(NewEvent.of(EventCode.TICKET_TEMPLATES_MANAGED_OFF)
+				.subject("TICKET_TEMPLATES", "Modèles de tickets")
+				.details("Le siège ne gère plus les modèles de tickets de ce magasin : "
+						+ (kept.isEmpty() ? "aucun modèle reçu, les modèles par défaut s'impriment."
+								: "les modèles reçus (" + String.join(", ", kept) + ") sont gardés et modifiables ici."))));
+	}
+
 	/** Points given or taken by hand on a loyalty member's account (money: an Alert). */
 	public void loyaltyPointsAdjusted(Object memberId, String memberLabel, Number before, Number after, String reason) {
 		if (Objects.equals(before == null ? null : before.doubleValue(), after == null ? null : after.doubleValue())) {

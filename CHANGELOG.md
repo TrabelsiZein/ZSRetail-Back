@@ -75,6 +75,19 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   them (`TicketBlockLabels`) and says "Lignes à zéro masquées / imprimées". Tests: `TicketTemplateInternalAPITest`,
   `TicketTemplateServiceTest`.
 
+- Ticket templates, step 5 (back end): a head office manages the ticket templates of the stores whose switch "Le siège
+  gère les modèles de tickets" is on (`ho_store.manages_ticket_templates`, the Stores page, per store, off by default;
+  not an `ownership.<x>` line), sent with the heartbeat (`ticketTemplatesManaged`). A new domain of the copies down only,
+  `DataDomain.TICKET_TEMPLATES` (no property key; the ownership code loops over `DataDomain.ownershipDomains()`). Head
+  office: `TicketTemplateAPI` moved to core, the built-in defaults there, "Garantie" always listed, a save or a reset
+  sent to every store (`TicketTemplateDownProvider`, a null text sent as the built-in one), ADMIN given the two rights.
+  Store: the switch saved in `hol_link_right` (`TicketTemplatesManaged`); off → on the store's own templates copied to
+  `ticket_template_saved` and replaced, on → off the templates received kept and editable, an event each
+  (`TICKET_TEMPLATES_MANAGED_ON` / `_OFF`); `TicketTemplateDownHandler` applies the copies (origin `HEAD_OFFICE`) while
+  managed; a save or a reset answers 403 `TICKET_TEMPLATE_MANAGED`, `GET /ticket-templates` says `managedByHeadOffice`;
+  a save always sets the origin LOCAL. The copies down puller and its job are on every linked store (`DownHandler.active()`
+  skips the templates while not managed); still no bean without a head office.
+
 ### Fixes
 - Warranties off (`warranty.enabled` not true): the warranty ticket's template too. `GET /ticket-templates` leaves the
   document `WARRANTY` out; `PUT` and `DELETE /ticket-templates/WARRANTY` answer 404 `{"error"}` as `/warranty`
@@ -99,6 +112,9 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   any other value still stops the startup.
 
 ### DB script
+- Step 5: `ho_store.manages_ticket_templates` (head office, bit, nullable: every store keeps its own templates) and the
+  table `ticket_template_saved` (store: the store's own templates kept aside when its head office starts managing them,
+  written, never read), each guarded.
 - `db/3.5.0/update.sql`: the version check and `APP_VERSION` 3.5.0; `TICKET_RENDERER` named in a comment only (the row
   is created at start-up, as every General Setup setting).
 - Step 2: the table `ticket_template` (store and head office; unique `document_type`) and the column

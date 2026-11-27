@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.env.MockEnvironment;
 
 import com.digithink.zsretail.core.dto.CompanyInformationDTO;
 import com.digithink.zsretail.core.eventlog.model.EventLogEntry;
@@ -32,6 +33,7 @@ import com.digithink.zsretail.core.eventlog.service.AdminEvents;
 import com.digithink.zsretail.core.service.CompanyInformationService;
 import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.core.support.InMemoryEventLog;
+import com.digithink.zsretail.core.support.TestModes;
 import com.digithink.zsretail.core.tickettemplate.TicketTemplateDTO.ElementDTO;
 import com.digithink.zsretail.core.tickettemplate.TicketTemplateDTO.SectionDTO;
 import com.digithink.zsretail.core.tickettemplate.model.TicketTemplate;
@@ -59,6 +61,7 @@ class TicketTemplateServiceTest {
 	void setUp() {
 		TicketTemplateRepository repository = mock(TicketTemplateRepository.class);
 		when(repository.findByDocumentType(anyString())).thenAnswer(call -> Optional.ofNullable(rows.get(call.getArgument(0))));
+		when(repository.findAll()).thenAnswer(call -> new ArrayList<>(rows.values()));
 		when(repository.save(any(TicketTemplate.class))).thenAnswer(call -> {
 			TicketTemplate row = call.getArgument(0);
 			if (row.getId() == null) {
@@ -539,6 +542,78 @@ class TicketTemplateServiceTest {
 		assertEquals("Numéro de vente", TicketBlockLabels.fr(TicketDocumentType.SALE, "INFO.NUMBER"));
 		assertEquals("Caissier", TicketBlockLabels.fr(TicketDocumentType.RETURN_VOUCHER, "INFO.CASHIER"));
 		assertEquals("TOTAL", TicketBlockLabels.fr(null, "TOTALS.TOTAL"));
+	}
+
+	@Test
+	@DisplayName("Step 5, a head office: the built-in defaults (its own Company Information and General setup not read);"
+			+ " a save and a reset are changes of the copies down; the copy for the stores carries the built-in texts for"
+			+ " the texts left null; the types saved")
+	void headOffice() {
+		company.setReceiptPrintAddress(true);
+		company.setReceiptShowThankYou(false);
+		settings.put("TOMBOLA_ENABLED", "true");
+		settings.put("TICKET_SHOW_LOYALTY_BALANCE", "false");
+		List<TicketDocumentType> changed = new ArrayList<>();
+		service.setMode(TestModes.of(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE")));
+		service.setChanges(changed::add);
+		assertTrue(service.isHeadOffice());
+		TicketTemplateDTO d = service.defaults(TicketDocumentType.SALE);
+		assertFalse(on(d, "HEADER", "ADDRESS"), "no address line (built-in), whatever its Company Information says");
+		assertTrue(on(d, "FOOTER", "THANK_YOU"), "the thank-you line (built-in)");
+		assertTrue(on(d, "LOYALTY", "BALANCE"), "the balance row (built-in)");
+		assertFalse(section(d, "TOMBOLA").getOn(), "no tombola slip (built-in)");
+
+		service.save("SALE", d, "admin");
+		service.save("CASH_MOVEMENT_SLIP", service.defaults(TicketDocumentType.CASH_MOVEMENT_SLIP), "admin");
+		assertEquals(Arrays.asList(TicketDocumentType.SALE, TicketDocumentType.CASH_MOVEMENT_SLIP), changed);
+		assertEquals(2, service.savedTypes().size());
+		TicketTemplateDTO copy = service.copyForStores(TicketDocumentType.SALE).get();
+		assertEquals("SALE", copy.getDocumentType());
+		assertEquals(TicketTemplateService.HEAD_OFFICE, copy.getOrigin());
+		assertEquals(TicketTemplateService.BUILT_IN_THANK_YOU, element(copy, "FOOTER", "THANK_YOU").getOptions().get("text"),
+				"a null thank-you text sent as the built-in one (at a store null is its own Company Information's)");
+		assertEquals("", element(copy, "FOOTER", "FOOTER_NOTE").getOptions().get("text"), "no footer text");
+		assertFalse(service.copyForStores(TicketDocumentType.RETURN_VOUCHER).isPresent(), "none saved: none sent");
+		assertTrue(service.reset("SALE"));
+		assertEquals(TicketDocumentType.SALE, changed.get(2), "a reset is a change (answered as removed)");
+		assertFalse(service.reset("SALE"));
+		assertEquals(3, changed.size(), "a reset without a row records nothing");
+		assertEquals(true, service.page().get("headOffice"));
+	}
+
+	@Test
+	@DisplayName("Step 5, a store: managed by its head office, a save and a reset are refused (403 TICKET_TEMPLATE_MANAGED)"
+			+ " and the page says so; a template received is saved HEAD_OFFICE (lenient, unchanged twice), a removal deletes"
+			+ " only a row received; a save makes a row the store's own (LOCAL)")
+	void managedStore() {
+		boolean[] managed = { true };
+		service.setLink(() -> managed[0]);
+		assertEquals(true, service.page().get("managedByHeadOffice"));
+		TicketTemplateException save = assertThrows(TicketTemplateException.class, () -> service.save("SALE", sent(t -> { }), "admin"));
+		assertEquals(403, save.getStatus());
+		assertEquals("TICKET_TEMPLATE_MANAGED", save.getCode());
+		assertEquals("TICKET_TEMPLATE_MANAGED", assertThrows(TicketTemplateException.class, () -> service.reset("SALE")).getCode());
+
+		TicketTemplateDTO copy = sent(t -> t.getLayout().put("spacing", "COMPACT"));
+		copy.getLayout().put("aLaterOption", 3); // a later version's: dropped (lenient)
+		assertTrue(service.receive(TicketDocumentType.SALE, copy));
+		assertFalse(service.receive(TicketDocumentType.SALE, copy), "the same copy again: unchanged");
+		TicketTemplate row = rows.get("SALE");
+		assertEquals(TicketTemplateService.HEAD_OFFICE, row.getOrigin());
+		assertEquals(TicketTemplateService.HEAD_OFFICE_BY, row.getUpdatedBy());
+		assertEquals("COMPACT", service.saved(TicketDocumentType.SALE).get().getLayout().get("spacing"));
+		assertFalse(service.saved(TicketDocumentType.SALE).get().getLayout().containsKey("aLaterOption"));
+		int events = log.rows.size();
+		assertTrue(service.removeReceived(TicketDocumentType.SALE));
+		assertFalse(rows.containsKey("SALE"));
+		assertEquals(events, log.rows.size(), "a reception or a removal is no event");
+
+		managed[0] = false;
+		assertTrue(service.receive(TicketDocumentType.RETURN_VOUCHER, service.defaults(TicketDocumentType.RETURN_VOUCHER)));
+		service.save("RETURN_VOUCHER", service.saved(TicketDocumentType.RETURN_VOUCHER).get(), "admin");
+		assertEquals(TicketTemplateService.LOCAL, rows.get("RETURN_VOUCHER").getOrigin(), "a save: the store's own");
+		assertFalse(service.removeReceived(TicketDocumentType.RETURN_VOUCHER), "a row of the store's own is never removed");
+		assertTrue(rows.containsKey("RETURN_VOUCHER"));
 	}
 
 	private static TicketTemplateDTO with(TicketTemplateDTO t, Consumer<TicketTemplateDTO> change) {

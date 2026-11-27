@@ -361,6 +361,36 @@ class CopiesDownPullerTest {
 		assertEquals("cycle failed (IllegalStateException: boom)", run.getMessage());
 	}
 
+	@Test
+	@DisplayName("3.5.0, step 5: a handler not active now (the ticket templates while the head office does not manage them)"
+			+ " is not pulled: no request, no apply, no cursor")
+	void inactiveHandlerNotPulled() {
+		DownHandler active = handler();
+		DownHandler inactive = new DownHandler() {
+			@Override
+			public DataDomain getDomain() {
+				return DataDomain.TICKET_TEMPLATES;
+			}
+
+			@Override
+			public boolean active() {
+				return false;
+			}
+
+			@Override
+			public DownApplyResult apply(List<JsonNode> records, List<String> removed) {
+				throw new AssertionError("an inactive handler is never given a page");
+			}
+		};
+		CopiesDownJob both = job(Arrays.asList(inactive, active));
+		expect("", page("4", false, Collections.singletonList(record("P1", "Promo"))));
+		LinkJobRun run = both.run();
+		assertEquals(LinkJobResult.SUCCESS, run.getResult(), run.getMessage());
+		server.verify(); // the promotions' one request only
+		assertEquals(1, applyCalls);
+		assertFalse(cursors.containsKey(DataDomain.TICKET_TEMPLATES), "no cursor for the inactive domain");
+	}
+
 	// ─── Stubs ────────────────────────────────────────────────────
 
 	/** A new mock server on a job that keeps the in-memory tables; the exchange rows of the previous run are cleared. */

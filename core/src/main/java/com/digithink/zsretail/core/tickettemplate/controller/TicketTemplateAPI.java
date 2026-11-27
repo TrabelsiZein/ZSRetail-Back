@@ -1,4 +1,4 @@
-package com.digithink.zsretail.store.tickettemplate;
+package com.digithink.zsretail.core.tickettemplate.controller;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,7 +23,6 @@ import com.digithink.zsretail.core.tickettemplate.TicketDocumentType;
 import com.digithink.zsretail.core.tickettemplate.TicketTemplateDTO;
 import com.digithink.zsretail.core.tickettemplate.TicketTemplateException;
 import com.digithink.zsretail.core.tickettemplate.service.TicketTemplateService;
-import com.digithink.zsretail.store.controller.WarrantyAPI;
 
 /**
  * 3.5.0, ticket templates step 2 (docs/modules/ticket-templates.md): the page "Modèles de tickets" and the till's print.
@@ -35,11 +34,14 @@ import com.digithink.zsretail.store.controller.WarrantyAPI;
  * there was none).</li>
  * </ul>
  * A refusal answers {"error", "code", "params"} (400, 403, 404), the front shows serverErrors.&lt;code&gt;. Logged users
- * only (not in SecurityConfig's permitAll). A store's: a head office has no page before step 5.
+ * only (not in SecurityConfig's permitAll). Step 5: in core, on a store and on a head office (which manages the
+ * templates of its stores whose switch is on: TicketTemplateService); at a store managed by its head office, PUT and
+ * DELETE answer 403 TICKET_TEMPLATE_MANAGED, GET says managedByHeadOffice.
  * <p>
- * Step 3: the warranty ticket's template follows warranty.enabled. Off: GET leaves the document WARRANTY out of the
- * list (a saved row stays in the table, listed again once the line is back on); PUT and DELETE of WARRANTY answer 404
- * {"error"} as the /warranty endpoints (WarrantyAPI.OFF_MESSAGE).
+ * Step 3: at a store, the warranty ticket's template follows warranty.enabled. Off: GET leaves the document WARRANTY out
+ * of the list (a saved row stays in the table, listed again once the line is back on); PUT and DELETE of WARRANTY answer
+ * 404 {"error"} as the /warranty endpoints (ApplicationModeService.WARRANTY_OFF_MESSAGE). Step 5: a head office always
+ * lists it (some of its stores have warranties).
  */
 @RestController
 @RequestMapping("ticket-templates")
@@ -60,7 +62,7 @@ public class TicketTemplateAPI {
 	@SuppressWarnings("unchecked")
 	public Map<String, Object> page() {
 		Map<String, Object> page = service.page();
-		if (applicationModeService.isWarrantyEnabled()) {
+		if (warrantyListed()) {
 			return page;
 		}
 		// step 3: warranties off, the warranty ticket's document left out (its saved row kept)
@@ -73,7 +75,7 @@ public class TicketTemplateAPI {
 	@PutMapping("/{type}")
 	public ResponseEntity<?> save(@PathVariable String type, @RequestBody TicketTemplateDTO template) {
 		if (warrantyOff(type)) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", WarrantyAPI.OFF_MESSAGE));
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ApplicationModeService.WARRANTY_OFF_MESSAGE));
 		}
 		checkWrite();
 		return ResponseEntity.ok(service.save(type, template, currentUserProvider.getCurrentUserName()));
@@ -82,16 +84,21 @@ public class TicketTemplateAPI {
 	@DeleteMapping("/{type}")
 	public ResponseEntity<?> reset(@PathVariable String type) {
 		if (warrantyOff(type)) {
-			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", WarrantyAPI.OFF_MESSAGE));
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ApplicationModeService.WARRANTY_OFF_MESSAGE));
 		}
 		checkWrite();
 		service.reset(type);
 		return ResponseEntity.noContent().build();
 	}
 
-	/** Step 3: the warranty ticket's template while warranties are off (warranty.enabled not true). */
+	/** Step 3: the warranty ticket's template while warranties are off (a store without warranty.enabled=true). */
 	private boolean warrantyOff(String type) {
-		return TicketDocumentType.of(type) == TicketDocumentType.WARRANTY && !applicationModeService.isWarrantyEnabled();
+		return TicketDocumentType.of(type) == TicketDocumentType.WARRANTY && !warrantyListed();
+	}
+
+	/** The warranty ticket listed: a store with warranties, and (step 5) a head office, for its stores. */
+	private boolean warrantyListed() {
+		return applicationModeService.isWarrantyEnabled() || applicationModeService.isHeadOffice();
 	}
 
 	private void checkWrite() {

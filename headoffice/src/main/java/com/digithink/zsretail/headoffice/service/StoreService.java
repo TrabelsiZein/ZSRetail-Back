@@ -155,6 +155,7 @@ public class StoreService extends _BaseService<Store, Long> {
 		store.setEnrolRequiresOnline(Boolean.TRUE.equals(input.getEnrolRequiresOnline()));
 		store.setMayChangePrices(Boolean.TRUE.equals(input.getMayChangePrices()));
 		store.setCanPurchase(Boolean.TRUE.equals(input.getCanPurchase()));
+		store.setManagesTicketTemplates(Boolean.TRUE.equals(input.getManagesTicketTemplates())); // 3.5.0, step 5
 		store.setErpCustomerNo(erpCustomerNo(input.getErpCustomerNo(), null)); // invoices from the ERP
 		if (input.getSellingPriceListId() != null) {
 			priceListService().checkAssignable(input.getSellingPriceListId());
@@ -227,6 +228,9 @@ public class StoreService extends _BaseService<Store, Long> {
 		}
 		if (input.getCanPurchase() != null) {
 			store.setCanPurchase(input.getCanPurchase());
+		}
+		if (input.getManagesTicketTemplates() != null) { // 3.5.0, ticket templates step 5
+			store.setManagesTicketTemplates(input.getManagesTicketTemplates());
 		}
 		if (input.getErpCustomerNo() != null) { // invoices from the ERP; blank clears it
 			store.setErpCustomerNo(erpCustomerNo(input.getErpCustomerNo(), store.getId()));

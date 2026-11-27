@@ -220,7 +220,7 @@ class ModeQuestionTruthTableTest {
 		axes.put("application.standalone", new String[] { null, "true", "false" });
 		axes.put("node.type", new String[] { null, "HEAD_OFFICE" }); // STORE reads like absent (nodeTypeOf)
 		axes.put("headoffice.url", new String[] { null, "http://localhost:888/zsretail/api" });
-		for (DataDomain domain : DataDomain.values()) {
+		for (DataDomain domain : DataDomain.ownershipDomains()) {
 			// Promotions and loyalty: LOCAL is their default and ERP is always refused
 			axes.put(domain.getPropertyKey(), domain.allows(DataOwner.ERP)
 					? new String[] { null, "LOCAL", "HEAD_OFFICE", "ERP" }

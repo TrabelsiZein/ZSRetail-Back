@@ -17,6 +17,14 @@ public interface DownHandler {
 	DataDomain getDomain();
 
 	/**
+	 * 3.5.0, ticket templates step 5: whether the domain is pulled now (the ticket templates: while the head office
+	 * manages them). A domain owned by the head office always is (the default).
+	 */
+	default boolean active() {
+		return true;
+	}
+
+	/**
 	 * Applies one page: saves each record by its business code and handles each removed code (a code the store does not
 	 * have is ignored). Each record on its own: one that cannot be applied is counted as waiting or in error and the
 	 * others go on. Applying the same page twice changes nothing. Throws only when the store cannot work at all (e.g.

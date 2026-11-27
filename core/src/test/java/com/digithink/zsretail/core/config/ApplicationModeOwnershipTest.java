@@ -257,7 +257,7 @@ class ApplicationModeOwnershipTest {
 	@Test
 	@DisplayName("Head office refuses an explicit owner HEAD_OFFICE, for every domain")
 	void headOfficeRefusesHeadOfficeOwner() {
-		for (DataDomain domain : DataDomain.values()) {
+		for (DataDomain domain : DataDomain.ownershipDomains()) {
 			MockEnvironment env = headOfficeEnv().withProperty(domain.getPropertyKey(), "HEAD_OFFICE");
 			IllegalStateException e = assertThrows(IllegalStateException.class, () -> standalone(env));
 			assertTrue(e.getMessage().contains(domain.getPropertyKey()), e.getMessage());

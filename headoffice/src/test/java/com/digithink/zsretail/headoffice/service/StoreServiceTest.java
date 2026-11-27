@@ -203,6 +203,22 @@ class StoreServiceTest {
 	// --- Update ---
 
 	@Test
+	@DisplayName("3.5.0, ticket templates step 5: \"Le siège gère les modèles de tickets\" off by default, set on create,"
+			+ " changed by an update, kept by an update that does not send it")
+	void managesTicketTemplates() throws Exception {
+		Store created = service.create(input("RS01", "Store Sousse")).getStore();
+		assertFalse(created.getManagesTicketTemplates());
+		Store on = input("RS02", "Store Sfax");
+		on.setManagesTicketTemplates(true);
+		Long id = service.create(on).getStore().getId();
+		assertTrue(table.get(id).getManagesTicketTemplates());
+		assertTrue(service.update(id, input(null, "Store Sfax 2")).get().getManagesTicketTemplates(), "not sent: kept");
+		Store off = input(null, "Store Sfax 2");
+		off.setManagesTicketTemplates(false);
+		assertFalse(service.update(id, off).get().getManagesTicketTemplates());
+	}
+
+	@Test
 	@DisplayName("Update refuses a different code; the same code in another case or spacing is accepted")
 	void codeCannotChange() throws Exception {
 		Long id = service.create(input("RS01", "Store Sousse")).getStore().getId();

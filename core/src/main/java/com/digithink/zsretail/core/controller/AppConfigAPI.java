@@ -238,7 +238,7 @@ public class AppConfigAPI {
 	/** Every DataDomain name to its DataOwner name, in DataDomain order. */
 	private Map<String, String> ownership() {
 		Map<String, String> ownership = new LinkedHashMap<>();
-		for (DataDomain domain : DataDomain.values()) {
+		for (DataDomain domain : DataDomain.ownershipDomains()) {
 			ownership.put(domain.name(), applicationModeService.ownerOf(domain).name());
 		}
 		return ownership;

@@ -164,6 +164,10 @@ class HeadOfficeHeartbeatAPITest {
 		HeadOfficeHeartbeatAnswerDTO catalogue = api.heartbeat(allowed, new HeadOfficeHeartbeatDTO("2.1.0"));
 		assertEquals(Boolean.TRUE, catalogue.getMayChangePrices());
 		assertEquals(Boolean.TRUE, catalogue.getCanPurchase());
+		// 3.5.0, ticket templates step 5: "Le siège gère les modèles de tickets" (null in the row is false)
+		assertEquals(Boolean.FALSE, answer.getTicketTemplatesManaged());
+		allowed.setManagesTicketTemplates(true);
+		assertEquals(Boolean.TRUE, api.heartbeat(allowed, new HeadOfficeHeartbeatDTO("3.5.0")).getTicketTemplatesManaged());
 		assertEquals("RS01", answer.getStoreCode());
 		String json = new ObjectMapper().writeValueAsString(answer);
 		assertTrue(json.contains("\"storeCode\":\"RS01\"") && json.contains("\"serverTime\":")
@@ -203,7 +207,7 @@ class HeadOfficeHeartbeatAPITest {
 		String json = new ObjectMapper().writeValueAsString(answer);
 		// Step 4: the store's loyalty rights travel with the answer (decided); GET /ho/ping keeps its two fields
 		assertEquals(new TreeSet<>(Arrays.asList("storeCode", "serverTime", "canEditMembers", "canAdjustPoints",
-				"redeemRequiresOnline", "enrolRequiresOnline", "mayChangePrices", "canPurchase")),
+				"redeemRequiresOnline", "enrolRequiresOnline", "mayChangePrices", "canPurchase", "ticketTemplatesManaged")), // 3.5.0, step 5
 				new TreeSet<>(new JSONObject(json).keySet()));
 	}
 

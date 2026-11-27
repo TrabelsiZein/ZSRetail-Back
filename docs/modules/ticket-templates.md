@@ -256,6 +256,23 @@ ticket and closing ticket printed theirs as the API sends them ("2026-11-20 16:4
 Fixed in the new printing only: the closing ticket's names (store, payment methods) and labels are escaped (the old one
 wrote them into the HTML as they are).
 
+## The head office (step 5, back end)
+
+A head office manages the templates of the stores whose switch "Le siège gère les modèles de tickets" is on (its
+Stores page, `ho_store.manages_ticket_templates`; `modules/head-office.md`, "Copies down", "Ticket templates").
+- `TicketTemplateAPI` is in core: the same API at a head office. There the defaults are the built-in ones (no linked
+  setting read: no address line, the thank-you line, the ZS Retail label, the loyalty rows, no tombola slip), every
+  document is listed (the warranty ticket too), and ADMIN has the two rights. A save or a reset is a change of the
+  copies down `TICKET_TEMPLATES` for every store (`TicketTemplateChanges`, `TicketTemplateDownProvider`); the copy
+  carries the built-in thank-you text and no footer text for the texts left null (null at a store: its own Company
+  Information's).
+- A managed store: its templates are the head office's (`ticket_template.origin = HEAD_OFFICE`, received by
+  `TicketTemplateDownHandler`); `PUT` and `DELETE /ticket-templates/{type}` answer 403 `TICKET_TEMPLATE_MANAGED`;
+  `GET` says `managedByHeadOffice: true`. When the switch turns on, the store's own templates are copied to
+  `ticket_template_saved` (a recovery by hand only) and deleted; when it turns off, the templates received are kept, the
+  store's own again (`LOCAL`). A save always makes a row the store's own (`LOCAL`).
+- Never sent: the POS machine's paper width, the identity of Company Information.
+
 ## The POS machine
 
 POS machines page: "Largeur du papier" (Celle du modèle de ticket / 58 mm / 80 mm), sent with every save (null = the

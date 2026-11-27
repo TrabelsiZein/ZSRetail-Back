@@ -1,4 +1,4 @@
-package com.digithink.zsretail.store.tickettemplate;
+package com.digithink.zsretail.core.tickettemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -31,11 +31,10 @@ import com.digithink.zsretail.core.service.CompanyInformationService;
 import com.digithink.zsretail.core.service.GeneralSetupService;
 import com.digithink.zsretail.core.support.InMemoryEventLog;
 import com.digithink.zsretail.core.support.TestModes;
-import com.digithink.zsretail.core.tickettemplate.TicketTemplateDTO;
 import com.digithink.zsretail.core.tickettemplate.TicketTemplateDTO.SectionDTO;
-import com.digithink.zsretail.core.tickettemplate.TicketTemplateException;
 import com.digithink.zsretail.core.tickettemplate.model.TicketTemplate;
 import com.digithink.zsretail.core.tickettemplate.repository.TicketTemplateRepository;
+import com.digithink.zsretail.core.tickettemplate.controller.TicketTemplateAPI;
 import com.digithink.zsretail.core.tickettemplate.service.TicketTemplateService;
 
 /**

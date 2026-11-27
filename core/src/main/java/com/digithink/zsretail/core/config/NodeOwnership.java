@@ -208,7 +208,7 @@ public final class NodeOwnership {
 			return false;
 		}
 		NodeOwnership ownership = resolve(env);
-		for (DataDomain domain : DataDomain.values()) {
+		for (DataDomain domain : DataDomain.ownershipDomains()) {
 			if (ownership.ownerOf(domain) == DataOwner.HEAD_OFFICE) {
 				return true;
 			}
@@ -635,7 +635,7 @@ public final class NodeOwnership {
 		Set<SalesUpstream> derivedUpstreams = EnumSet.noneOf(SalesUpstream.class);
 
 		Map<DataDomain, DataOwner> owners = new EnumMap<>(DataDomain.class);
-		for (DataDomain domain : DataDomain.values()) {
+		for (DataDomain domain : DataDomain.ownershipDomains()) {
 			String key = domain.getPropertyKey();
 			if (env.containsProperty(key)) {
 				String raw = env.getProperty(key);
@@ -698,8 +698,9 @@ public final class NodeOwnership {
 		return nodeType;
 	}
 
+	/** The owner of an ownership domain; LOCAL for TICKET_TEMPLATES (no line: the Stores page's switch decides, 3.5.0). */
 	public DataOwner ownerOf(DataDomain domain) {
-		return owners.get(domain);
+		return domain != null && !domain.isOwnership() ? DataOwner.LOCAL : owners.get(domain);
 	}
 
 	/** Unmodifiable; empty means sales go nowhere. */
@@ -772,7 +773,7 @@ public final class NodeOwnership {
 		}
 		DataDomain erpDomain = null;
 		DataDomain otherDomain = null;
-		for (DataDomain domain : DataDomain.values()) {
+		for (DataDomain domain : DataDomain.ownershipDomains()) {
 			if (!domain.allows(DataOwner.ERP)) {
 				continue;
 			}

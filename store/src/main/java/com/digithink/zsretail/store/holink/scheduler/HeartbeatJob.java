@@ -21,6 +21,7 @@ import com.digithink.zsretail.store.holink.enumeration.LinkJobResult;
 import com.digithink.zsretail.store.holink.service.CatalogueRights;
 import com.digithink.zsretail.store.holink.service.HeadOfficeLinkStatus;
 import com.digithink.zsretail.store.holink.service.LinkExchangeLog;
+import com.digithink.zsretail.store.holink.service.TicketTemplatesManaged;
 
 import lombok.extern.log4j.Log4j2;
 
@@ -51,6 +52,10 @@ public class HeartbeatJob implements LinkJob {
 	/** Step 6: the catalogue rights are saved when the catalogue is the head office's; no bean otherwise. */
 	@Autowired(required = false)
 	private ObjectProvider<CatalogueRights> catalogueRights;
+
+	/** 3.5.0, ticket templates step 5: "the head office manages the ticket templates" saved, on every linked store. */
+	@Autowired(required = false)
+	private ObjectProvider<TicketTemplatesManaged> ticketTemplates;
 
 	public HeartbeatJob(HeadOfficeClient client, HeadOfficeLinkStatus status, LinkExchangeLog exchangeLog,
 			@Value("${headoffice.heartbeat-interval-seconds:" + HeartbeatJob.DEFAULT_INTERVAL_SECONDS + "}") long intervalSeconds) {
@@ -90,6 +95,14 @@ public class HeartbeatJob implements LinkJob {
 				rights.received(result.getMayChangePrices(), result.getCanPurchase(), at);
 			} catch (RuntimeException e) {
 				log.warn("Head office link: catalogue rights not saved ({})", e.getMessage());
+			}
+		}
+		TicketTemplatesManaged templates = ticketTemplates == null ? null : ticketTemplates.getIfAvailable();
+		if (online && templates != null) {
+			try {
+				templates.received(result.getTicketTemplatesManaged(), at);
+			} catch (RuntimeException e) {
+				log.warn("Head office link: the ticket templates switch not saved ({})", e.getMessage());
 			}
 		}
 		String detail = online ? "head office time " + result.getServerTime() : result.getMessage();

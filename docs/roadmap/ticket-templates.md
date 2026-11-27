@@ -184,7 +184,7 @@ still reads them, so switching back to `OLD` gives back exactly the old ticket.
 | 2 | **Done 2026-11-26** (below; `modules/ticket-templates.md`; **2b**, the template owning the whole ticket: below). Table, API and page "Modèles de tickets" with live preview, for the sale ticket: switches, order up / down, width, size, compact; new blocks off by default: unit price on the line, VAT by rate; `pos_machine.paper_width` | both |
 | 3 | **Done 2026-11-27** (below): part 1 (2026-11-26) the return voucher, its reprint, the refund slip, the three reprint bugs, the document selector and "Copier depuis un autre document"; part 2 the warranty and its duplicate, the tombola slip's own document and look, the fixes of part 1's screen test | front mostly |
 | 4 | **Done 2026-11-27** (below): the internal tickets (families B and C): width, size, spacing, hide the rows at zero | front mostly |
-| 5 | Copies down from the head office (`DataDomain` + `ownership.<x>`, a `DownDomainProvider` calling `CopiesDownFeed.recordChange`, a store `DownHandler`, a copy DTO in `core.link.dto`); the store's page read-only when HEAD_OFFICE | both |
+| 5 | **Back end done 2026-11-27** (parts 1-6, below; front: parts 7-8). The head office manages the templates of the stores whose switch "Le siège gère les modèles de tickets" (its Stores page, per store) is on: copies down `TICKET_TEMPLATES` (a domain of the copies down only, no `ownership.<x>` line), the store's page read-only | both |
 
 ### Notes on the order and the cuts
 
@@ -487,3 +487,38 @@ Not changed: the i18n keys `admin.sessionReport` and `admin.storeTickets` (read,
 A4 day journal and the session and journal screens; `CASHIER_CLOSING_TICKET` stays a General setup feature setting.
 
 Left: step 5 (head office); screen tests of step 4; the accountant on the locks.
+
+## Step 5 — the head office manages its stores' templates (back end done 2026-11-27)
+
+Decided with Zein (2026-11-27): configurable per store, off by default (a store keeps its own templates, as today). Not
+an `ownership.<x>` line: a switch of the store's row on the head office's Stores page, "Le siège gère les modèles de
+tickets" (`ho_store.manages_ticket_templates`), sent with the heartbeat as the other store settings. One set of
+templates at the head office, its "Modèles de tickets" page the store's page.
+
+Built (back end, `modules/head-office.md`, "Copies down", "Ticket templates"; `modules/ticket-templates.md`, "The head
+office"):
+1. `DataDomain.TICKET_TEMPLATES`, no property key; `DataDomain.ownershipDomains()` in the six loops of the ownership
+   code (the head office's `providerOf` keeps every domain); `ownerOf(TICKET_TEMPLATES)` is LOCAL.
+2. The head office: the column, `StoreService` (create, update), the heartbeat answer's `ticketTemplatesManaged`.
+3. The store: `TicketTemplatesManaged` (every linked store) saves the switch in `hol_link_right`; off → on in one
+   transaction: the store's own rows copied, dated, to `ticket_template_saved` (never read), deleted, the cursor
+   deleted, event `TICKET_TEMPLATES_MANAGED_ON`; on → off: the rows received kept, origin LOCAL, editable, event
+   `TICKET_TEMPLATES_MANAGED_OFF` (the event log on the transitions only). A save always sets the origin LOCAL.
+4. The head office: `TicketTemplateAPI` in core (both applications); a head office's defaults are the built-in ones
+   (nothing read from its Company Information or General setup); it always lists "Garantie"; a save or a reset is a
+   change of the copies down (`TicketTemplateDownProvider`, every store, a null text sent as the built-in one); ADMIN of
+   a head office gets `read:` / `write:admin-ticket-templates`.
+5. The store: `TicketTemplateDownHandler` (active while managed); `DownHandler.active()`; the puller on every linked
+   store.
+6. The store's API: a save or a reset while managed answers 403 `TICKET_TEMPLATE_MANAGED`; `GET /ticket-templates`
+   says `managedByHeadOffice` (and `headOffice` at a head office).
+
+What prints at a managed store: every document's template is the head office's (no exception per document); a document
+the head office has no template for prints the built-in default; a reset at the head office reaches the store (removed,
+the default prints). Always the store's: the POS machine's paper width, the identity of Company Information (name, MF,
+address, phone, logo). The store's feature settings still decide whether a feature exists (F1, to check in the front:
+the tombola slip, the loyalty rows, the warranty ticket).
+
+Left: the front (parts 7-8: the head office's menu entry and page, the Stores switch with its confirmation and the
+version warning, the store's page read-only with "Géré par le siège"); a head office at 3.5.0 to test on screen (none
+of the local ones is).

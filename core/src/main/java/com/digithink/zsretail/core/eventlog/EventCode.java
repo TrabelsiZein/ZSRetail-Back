@@ -120,6 +120,13 @@ public enum EventCode {
 	TICKET_TEMPLATE_SAVED(EventSubject.TICKET_TEMPLATE, NOTABLE, "Modèle de ticket enregistré"),
 	/** 3.5.0, ticket templates step 2: a template reset (its row deleted: the default prints again). */
 	TICKET_TEMPLATE_RESET(EventSubject.TICKET_TEMPLATE, NOTABLE, "Modèle de ticket réinitialisé"),
+	/**
+	 * 3.5.0, step 5: the head office manages this store's templates now (the switch of its row turned on): the store's
+	 * own templates kept aside (ticket_template_saved) and replaced by the head office's. An Alert: what prints changes.
+	 */
+	TICKET_TEMPLATES_MANAGED_ON(EventSubject.TICKET_TEMPLATE, ALERT, "Modèles de tickets gérés par le siège"),
+	/** 3.5.0, step 5: the switch turned off: the templates received are kept, the store's own again, editable. */
+	TICKET_TEMPLATES_MANAGED_OFF(EventSubject.TICKET_TEMPLATE, NOTABLE, "Modèles de tickets rendus au magasin"),
 
 	// ── Stock, inventory, purchases ──
 	STOCK_ADJUSTED(EventSubject.ITEM, ALERT, "Stock ajusté"),

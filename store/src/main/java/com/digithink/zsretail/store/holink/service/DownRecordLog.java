@@ -34,7 +34,8 @@ import com.digithink.zsretail.store.holink.repository.DownRecordRepository;
  * handler of each domain.
  */
 @Component
-@ConditionalOnInstallation(Installation.COPIES_FROM_HEAD_OFFICE)
+// 3.5.0, ticket templates step 5: on every linked store (the ticket templates come to any of them, its switch on)
+@ConditionalOnInstallation(Installation.LINKED_TO_HEAD_OFFICE)
 public class DownRecordLog {
 
 	static final List<DownRecordStatus> TO_RETRY = Arrays.asList(DownRecordStatus.WAITING, DownRecordStatus.ERROR);

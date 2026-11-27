@@ -229,14 +229,15 @@ public class HeadOfficeClient {
 				: HeadOfficeCallResult.online(answer.body.getServerTime(), answer.body.getCanEditMembers(),
 						answer.body.getCanAdjustPoints(), answer.body.getRedeemRequiresOnline(),
 						answer.body.getEnrolRequiresOnline())
-						.withCatalogueRights(answer.body.getMayChangePrices(), answer.body.getCanPurchase());
+						.withCatalogueRights(answer.body.getMayChangePrices(), answer.body.getCanPurchase())
+						.withTicketTemplatesManaged(answer.body.getTicketTemplatesManaged()); // 3.5.0, step 5
 	}
 
 	HeadOfficeHeartbeatDTO heartbeatBody() {
 		HeadOfficeHeartbeatDTO body = new HeadOfficeHeartbeatDTO(appVersion);
 		if (ownership != null) {
 			Map<String, String> owners = new LinkedHashMap<>();
-			for (DataDomain domain : DataDomain.values()) {
+			for (DataDomain domain : DataDomain.ownershipDomains()) {
 				owners.put(domain.name(), ownership.ownerOf(domain).name());
 			}
 			List<String> upstreams = new ArrayList<>();
