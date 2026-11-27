@@ -357,6 +357,7 @@ public class ZZDataInitializer {
 			"read:admin-headoffice-loyalty-transactions",
 			"read:admin-headoffice-company-information", // hidden when the stores' invoices come from the ERP
 			"read:admin-headoffice-license", // the Licence page (the licence left Company information)
+			"read:admin-headoffice-ticket-templates", // 3.5.0, ticket templates step 5: "Modèles de tickets" of the stores
 			"read:admin-headoffice-general-setup",
 			"read:admin-headoffice-users",
 			"read:admin-headoffice-roles",
@@ -404,8 +405,8 @@ public class ZZDataInitializer {
 		if (applicationModeService.keepsOwnStock()) {
 			permissions.addAll(COST_ADMIN_PERMISSIONS);
 		}
-		// 3.5.0, ticket templates step 5: "Modèles de tickets" at the head office (the templates of its managed stores)
-		permissions.addAll(TICKET_TEMPLATE_ADMIN_PERMISSIONS);
+		// 3.5.0, ticket templates step 5: the save of "Modèles de tickets" (the page: read:admin-headoffice-ticket-templates)
+		permissions.add(TICKET_TEMPLATES_WRITE_PERMISSION);
 		return permissions;
 	}
 

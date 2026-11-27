@@ -87,6 +87,12 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   managed; a save or a reset answers 403 `TICKET_TEMPLATE_MANAGED`, `GET /ticket-templates` says `managedByHeadOffice`;
   a save always sets the origin LOCAL. The copies down puller and its job are on every linked store (`DownHandler.active()`
   skips the templates while not managed); still no bean without a head office.
+- Ticket templates, step 5 (front's part): the head office's ADMIN receives `read:admin-headoffice-ticket-templates` (the
+  page "Modèles de tickets" of its Settings menu, `HEAD_OFFICE_ADMIN_PERMISSIONS`) and the store's
+  `write:admin-ticket-templates` (the API's save and reset, on both installations) in place of the store's two rights.
+  `TicketTemplatesRoundTripTest` (network-tests): the head office saves, the store receives it and its page gives it to
+  the till; a reset, the built-in default; switch off, the rows kept and editable; on again, the store's own put aside
+  and replaced.
 
 ### Fixes
 - Warranties off (`warranty.enabled` not true): the warranty ticket's template too. `GET /ticket-templates` leaves the

@@ -59,7 +59,7 @@ front's default (`src/libs/ticket/sale-template.js`) is the same, proved by `too
 | Fidélité (LOYALTY) | | Carte et titulaire · Points gagnés (linked) · Points utilisés (and the deduction) · Solde de points (linked) |
 | Code-barres (BARCODE) | the page warns when off (the returns scan it) | — |
 | Pied du ticket (FOOTER) | locked (the MF) | Remerciement (linked; `text` 2 lines, null = Company Information's) · Site web · E-mail · Téléphone · Fax · Matricule fiscal 🔒 · Texte de pied (`text` 6 lines, null = Company Information's) · Mention ZS Retail (linked) |
-| Ticket de tombola (TOMBOLA) | last; its switch linked to `TOMBOLA_ENABLED` | — (printed only with a loyalty member, never on a duplicate) |
+| Ticket de tombola (TOMBOLA) | last; its switch linked to `TOMBOLA_ENABLED` | — (printed only when `TOMBOLA_ENABLED` is on too, with a loyalty member, never on a duplicate) |
 
 Locks: `LEGAL` (store name, number, date, the lines, total VAT, TOTAL, MF, DUPLICATA), `FUNCTIONAL` (payments). The
 line's VAT: off only while "TVA par taux" is on (the page puts it back on, the back end refuses both off). Not locked, to
@@ -212,9 +212,13 @@ item line stays as on the sale ticket, a "Remise ticket" row (`TICKET_DISCOUNT`,
 
 `TOMBOLA_SLIP`: how the tombola slip looks under the sale ticket. One section `SLIP` (locked): Sur un ticket à part
 (the page break before it), Titre « TOMBOLA », Numéro de vente (locked), Code-barres, Nom du membre (locked), Téléphone
-du membre. No layout: it prints with the sale ticket's (its size level included). Whether it prints is the sale
-ticket's section "Ticket de tombola" (from `TOMBOLA_ENABLED` while no sale template is saved; a sale with a loyalty
-member; never on the duplicate); `TOMBOLA_ENABLED` stays a feature setting. Its default is the look it was written
+du membre. No layout: it prints with the sale ticket's (its size level included). Whether it prints: `TOMBOLA_ENABLED`
+on AND the sale ticket's section "Ticket de tombola" on (the section from `TOMBOLA_ENABLED` while no sale template is
+saved) AND a sale with a loyalty member; never on the duplicate. `TOMBOLA_ENABLED` is a feature setting: off, no slip
+whatever the template says, a head office's template included (step 5 fix; before it, a saved template's switch alone
+decided). General setup shows no "Décidé par Modèles de tickets" on it; "Modèles de tickets" says on the block (and on
+the "Ticket de tombola" document) that it has no effect while the tombola is off in the store, and at a head office that
+it prints only in the stores where it is on. Its default is the look it was written
 for: `layout-styles.js` `TOMBOLA_STYLES`, the old component's scoped styles (they never reached the print window, so
 today's slip prints unstyled right under the ticket): its own ticket, a 2 px dashed line at its top, centred, the title
 16 px with spaced letters, the number and the name in bold, small grey dashed lines that never wrap. The HTML is the old
@@ -273,6 +277,23 @@ Stores page, `ho_store.manages_ticket_templates`; `modules/head-office.md`, "Cop
   store's own again (`LOCAL`). A save always makes a row the store's own (`LOCAL`).
 - Never sent: the POS machine's paper width, the identity of Company Information.
 
+The front (step 5, parts 7-8):
+- The head office: "Modèles de tickets" in its Paramètres menu, the store's page itself (`TicketTemplatesPage.vue`;
+  route `admin-headoffice-ticket-templates`, twinOf `admin-ticket-templates`, read right
+  `read:admin-headoffice-ticket-templates`; the save and reset need the store's `write:admin-ticket-templates`, listed
+  on the head office's Roles page through `meta.extraPermissions`; ADMIN has both, `ZZDataInitializer`). There: no
+  "ancienne impression" warning, no POS machine width, the "Textes" tab starts from the built-in texts ("Merci pour
+  votre achat !", no footer text), no "linked" hints, a notice under the preview "Chaque magasin imprime son nom, son
+  logo et son MF"; the preview shows the tombola slip when its block is on.
+- The Stores page: the switch "Le siège gère les modèles de tickets" (`managesTicketTemplates`, off by default) under
+  Active in the store's form and in its details (saved at once). Turning it on asks first (the store's own templates
+  replaced, kept aside, its page read-only); off never asks. On for a store whose reported version is older than 3.5.0
+  or unknown: a warning that it ignores it until upgraded. The list shows "Modèles du siège" under the status (orange
+  with that warning).
+- A managed store's page: read-only, every tab (notice "Géré par le siège"; no save, no reset, no "Copier depuis…"); the
+  preview still works; the POS machine's paper width stays on the POS machines page. A 403 `TICKET_TEMPLATE_MANAGED`
+  (the switch turned on while the page was open) shows its `serverErrors` text and reads the page again.
+
 ## The POS machine
 
 POS machines page: "Largeur du papier" (Celle du modèle de ticket / 58 mm / 80 mm), sent with every save (null = the
@@ -293,6 +314,11 @@ template's); the back end refuses another value (`POS_MACHINE_PAPER_WIDTH`).
   comparison seeing a change, "Masquer les lignes à zéro" on each document, the layout's CSS, the closing ticket's
   escaping, the back end's `INTERNAL_LAYOUT` and labels = the front's. Back end: `TicketTemplateInternalAPITest`.
 - `tools/store-menu-check.mjs`: the page in the user menu after Informations société, with its read right.
+- `tools/headoffice-menu-check.mjs` (step 5): the head office route (the store's component, twinOf, resource, the
+  write right listed), the entry in Paramètres, the back end's `read:admin-headoffice-ticket-templates`.
+- `TicketTemplatesRoundTripTest` (network-tests, step 5): the head office saves, the store receives it (HEAD_OFFICE)
+  and its page gives it to the till, a save there refused 403; a reset, the built-in default; switch off, the rows kept,
+  LOCAL, editable, nothing more pulled; on again, the store's own put aside and replaced, pulled from the start.
 - Back end: `TicketTemplateServiceTest` (defaults and linked values, page, refusals, options, texts, normalising,
   lenient read and format 1, events, part 2, the return documents, the warranty and the tombola slip, the labels by
   document), `ReturnCashierTest` (the reprint's cashier), `TicketTemplateAPITest`, `TicketVatLinesTest`,

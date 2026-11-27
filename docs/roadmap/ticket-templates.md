@@ -488,7 +488,7 @@ A4 day journal and the session and journal screens; `CASHIER_CLOSING_TICKET` sta
 
 Left: step 5 (head office); screen tests of step 4; the accountant on the locks.
 
-## Step 5 — the head office manages its stores' templates (back end done 2026-11-27)
+## Step 5 — the head office manages its stores' templates (done 2026-11-27)
 
 Decided with Zein (2026-11-27): configurable per store, off by default (a store keeps its own templates, as today). Not
 an `ownership.<x>` line: a switch of the store's row on the head office's Stores page, "Le siège gère les modèles de
@@ -519,6 +519,17 @@ the default prints). Always the store's: the POS machine's paper width, the iden
 address, phone, logo). The store's feature settings still decide whether a feature exists (F1, to check in the front:
 the tombola slip, the loyalty rows, the warranty ticket).
 
-Left: the front (parts 7-8: the head office's menu entry and page, the Stores switch with its confirmation and the
-version warning, the store's page read-only with "Géré par le siège"); a head office at 3.5.0 to test on screen (none
-of the local ones is).
+Built (front, parts 7-8, `modules/ticket-templates.md`, "The head office"): the head office's menu entry and page
+(the store's page: built-in texts, no POS machine, no old-printing warning, the identity notice), the Stores switch
+(confirmation on turning on, the version warning, "Modèles du siège" in the list), the store's page read-only with
+"Géré par le siège" and the 403's message; the Journal's names of the two events; fr / en / ar.
+
+The tombola fix (F1, every template): the slip prints only when `TOMBOLA_ENABLED` is on AND the template's block is on
+AND a loyalty member (a saved template's switch alone decided before); the General setup notice on it removed; the
+page says the block has no effect while the tombola is off.
+
+Part 9: `TicketTemplatesRoundTripTest` (network-tests). The local pair for the screen test: the dev pair
+(`pos_headoffice` on 888, `pos_store_b` on 555; no ERP, `erp.sync.enabled=false`), brought from 2.1.0 to 3.5.0 by
+the release scripts on 2026-11-27.
+
+Left: the screen test on the dev pair; the accountant on the locks.

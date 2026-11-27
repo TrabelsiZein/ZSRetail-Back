@@ -46,7 +46,8 @@ class ZZDataInitializerRolesTest {
 			"read:admin-headoffice-item-barcodes", "read:admin-headoffice-promotions", "read:admin-headoffice-customers",
 			"read:admin-headoffice-loyalty-programs", "read:admin-headoffice-loyalty-members",
 			"read:admin-headoffice-loyalty-member-functions", "read:admin-headoffice-loyalty-transactions",
-			"read:admin-headoffice-company-information", "read:admin-headoffice-license", "read:admin-headoffice-general-setup",
+			"read:admin-headoffice-company-information", "read:admin-headoffice-license",
+			"read:admin-headoffice-ticket-templates", "read:admin-headoffice-general-setup",
 			"read:admin-headoffice-users", "read:admin-headoffice-roles", "read:admin-headoffice-data-import",
 			"read:admin-headoffice-erp-jobs", "read:admin-headoffice-erp-communications",
 			"read:admin-headoffice-erp-reference-location", "read:admin-headoffice-loyalty-overspends",
@@ -191,7 +192,7 @@ class ZZDataInitializerRolesTest {
 		Set<String> expected = new HashSet<>(staticSet("ADMIN_PERMISSIONS"));
 		expected.addAll(HEAD_OFFICE_PERMISSIONS);
 		expected.addAll(COST); // a head office that keeps its stock (headoffice.stock.enabled absent: true)
-		expected.addAll(TICKET_TEMPLATES); // 3.5.0, ticket templates step 5: the templates of its managed stores
+		expected.add("write:admin-ticket-templates"); // 3.5.0, step 5: the save (the page: in HEAD_OFFICE_PERMISSIONS)
 		assertEquals(expected, roles.get("ADMIN").getPermissions());
 		assertFalse(roles.get("ADMIN").getPermissions().contains(CASHIER_INTERFACE), "a head office never opens the till");
 		assertTrue(java.util.Collections.disjoint(INVENTORY, roles.get("ADMIN").getPermissions()), "no inventory count");
@@ -352,7 +353,7 @@ class ZZDataInitializerRolesTest {
 		assertEquals(Collections.singletonList("ADMIN"), saves);
 		Set<String> expected = new HashSet<>(HEAD_OFFICE_PERMISSIONS);
 		expected.addAll(COST);
-		expected.addAll(TICKET_TEMPLATES); // 3.5.0, step 5
+		expected.add("write:admin-ticket-templates"); // 3.5.0, step 5
 		expected.add("read:home");
 		expected.add("read:admin-headoffice");
 		assertEquals(expected, existing.get("ADMIN").getPermissions(), "nothing removed");
@@ -561,8 +562,9 @@ class ZZDataInitializerRolesTest {
 			assertTrue(Collections.disjoint(TICKET_TEMPLATES, roles.get("POS_USER").getPermissions()));
 		}
 		// step 5: a head office manages the templates of its stores: its ADMIN has the page and its save
-		assertTrue(seedRoles(headOffice(), false, Collections.emptyMap()).get("ADMIN").getPermissions()
-				.containsAll(TICKET_TEMPLATES), "new head office");
+		Set<String> headOfficeAdmin = seedRoles(headOffice(), false, Collections.emptyMap()).get("ADMIN").getPermissions();
+		assertTrue(headOfficeAdmin.contains("write:admin-ticket-templates")
+				&& headOfficeAdmin.contains("read:admin-headoffice-ticket-templates"), "new head office: its page and the save");
 		Map<String, AppRole> storeBefore = existingRoles("read:home", LICENSE);
 		seedRoles(new MockEnvironment(), false, storeBefore, new ArrayList<>());
 		assertTrue(storeBefore.get("ADMIN").getPermissions().containsAll(TICKET_TEMPLATES), "a store of before, at its start");
