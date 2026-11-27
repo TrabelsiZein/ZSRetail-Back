@@ -4,6 +4,10 @@ One section per product version, newest first. Every commit that changes behavio
 its line here, under the version of its branch. The screens are in `ZSRetail-Front/CHANGELOG.md`. The French notes shown
 in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql` from this file when a version is closed.
 
+## 3.6.0 — in progress (branch `release/3.6.0`, opened from tag `v3.5.0` on 2026-11-27)
+
+Topic: conventions (an organisation's members and their cards). Nothing changed yet but the version.
+
 ## 3.5.0 — released 2026-11-27 (branch `release/3.5.0`, tag `v3.5.0`, opened from `release/3.4.0` on 2026-11-26)
 
 Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.md`; every step done
