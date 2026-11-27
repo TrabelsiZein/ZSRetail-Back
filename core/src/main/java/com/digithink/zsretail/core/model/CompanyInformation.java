@@ -71,28 +71,8 @@ public class CompanyInformation extends _BaseEntity {
     @Column(name = "invoice_footer_note", length = 1000)
     private String invoiceFooterNote;
 
-    // ── 2.2.2: the sale ticket (receipt, duplicate, return voucher, warranty). Null = the behaviour of 2.2.1. ──
-
-    /** Print address, postal code, city and country under the company name; null = no (as 2.2.1). */
-    @Column(name = "receipt_print_address")
-    private Boolean receiptPrintAddress;
-
-    /** Footer of the ticket, several lines; null or blank = the invoice footer note is printed (as 2.2.1). */
-    @org.hibernate.annotations.Nationalized // nvarchar: any language, Arabic included
-    @Column(name = "receipt_footer_text", length = 1000)
-    private String receiptFooterText;
-
-    /** The thank-you line of a sale ticket; null or blank = "Merci pour votre achat !". */
-    @org.hibernate.annotations.Nationalized // nvarchar: any language, Arabic included
-    @Column(name = "receipt_thank_you_text", length = 200)
-    private String receiptThankYouText;
-
-    /** Print the thank-you line on a sale ticket; null = yes (as 2.2.1). */
-    @Column(name = "receipt_show_thank_you")
-    private Boolean receiptShowThankYou;
-
-    /** Print the "ZS Retail" label under the company name; null = yes (as 2.2.1). */
-    @Column(name = "receipt_show_software_label")
-    private Boolean receiptShowSoftwareLabel;
+    // 3.5.0, ticket templates step 6: the 2.2.2 ticket fields (receipt_print_address, receipt_footer_text,
+    // receipt_thank_you_text, receipt_show_thank_you, receipt_show_software_label) are no longer mapped: the ticket
+    // templates hold them (carried at the upgrade). Their columns stay in the table one release, then are dropped.
 }
 

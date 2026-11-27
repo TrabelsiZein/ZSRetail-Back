@@ -1234,10 +1234,6 @@ public class ZZDataInitializer {
 			ensureConfigWithOptions(AppConfigAPI.CASHIER_CLOSING_TICKET, "Z",
 					"Ticket printed when the cashier closes the session: Z = the full ticket Z (sales, VAT, returns, payments, control), DECLARED = the amounts declared only.",
 					false, ConfigType.SELECT, "Z,DECLARED");
-			// 3.5.0, ticket templates step 1: which code prints the tickets (docs/roadmap/ticket-templates.md); a store only
-			ensureConfigWithOptions(AppConfigAPI.TICKET_RENDERER, "OLD",
-					"Ticket printing: OLD = the print code of before 3.5.0 (default); NEW = the ticket templates' renderer for the documents the page Ticket templates offers (the others stay on the old code).",
-					false, ConfigType.SELECT, "OLD,NEW");
 			// Step D (3.1.0): how long a badge scan's grant stays good (TillGrantService, docs/modules/badge-permissions.md)
 			ensureConfig("TILL_GRANT_MAX_MINUTES", "240",
 					"Minutes a badge scan's authorisation stays good at the till when no ticket used it (one action, once, while the cashier's session is open). Not a positive number: 240.",
@@ -1317,12 +1313,9 @@ public class ZZDataInitializer {
 		ensureConfig("LOYALTY_ENABLED", "false",
 				"Enable the loyalty (fidélité) program. When true, cashiers can attach loyalty cards to sales and customers earn/redeem points. Configure rates in Loyalty Programs admin page.",
 				false, ConfigType.BOOLEAN);
-		ensureConfig("TICKET_SHOW_LOYALTY_BALANCE", "true",
-				"Show the loyalty points balance (Solde points) on the printed sales ticket when a loyalty member is attached.",
-				false, ConfigType.BOOLEAN);
-		ensureConfig("TICKET_SHOW_LOYALTY_EARNED", "true",
-				"Show the points earned from the current purchase (Points gagnés) on the printed sales ticket.", false,
-				ConfigType.BOOLEAN);
+		// 3.5.0, ticket templates step 6: the two loyalty ticket rows (and the renderer switch) are no longer created:
+		// the sale ticket's template decides (their values were carried at the upgrade); an old row stays in the table,
+		// hidden by GeneralSetupService.RETIRED_CODES, until the next release drops it
 		ensureConfig("TOMBOLA_ENABLED", "false",
 				"When enabled, a small tombola slip (ticket number + barcode + customer name + phone) is automatically printed alongside the main receipt for tickets attached to a loyalty member.",
 				false, ConfigType.BOOLEAN);

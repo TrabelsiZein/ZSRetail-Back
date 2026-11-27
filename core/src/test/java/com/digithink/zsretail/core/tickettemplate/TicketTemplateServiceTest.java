@@ -154,10 +154,7 @@ class TicketTemplateServiceTest {
 		assertTrue(on(d, "LOYALTY", "BALANCE"));
 		assertTrue(section(d, "TOMBOLA").getOn());
 
-		// the old settings changed: the default stays the built-in one (they were carried at the upgrade)
-		company.setReceiptPrintAddress(true);
-		company.setReceiptShowThankYou(false);
-		company.setReceiptShowSoftwareLabel(false);
+		// General setup rows of before (step 6: retired, read by nothing): the default stays the built-in one
 		settings.put("TICKET_SHOW_LOYALTY_EARNED", "false");
 		settings.put("TICKET_SHOW_LOYALTY_BALANCE", "false");
 		settings.put("TOMBOLA_ENABLED", "false");
@@ -643,8 +640,6 @@ class TicketTemplateServiceTest {
 			+ " a save and a reset are changes of the copies down; the copy for the stores carries the built-in texts for"
 			+ " the texts left null; the types saved")
 	void headOffice() {
-		company.setReceiptPrintAddress(true);
-		company.setReceiptShowThankYou(false);
 		settings.put("TOMBOLA_ENABLED", "true");
 		settings.put("TICKET_SHOW_LOYALTY_BALANCE", "false");
 		List<TicketDocumentType> changed = new ArrayList<>();

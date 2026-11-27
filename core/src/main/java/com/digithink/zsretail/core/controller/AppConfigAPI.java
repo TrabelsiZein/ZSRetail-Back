@@ -69,21 +69,6 @@ public class AppConfigAPI {
 	 */
 	public static final String VERIFY_PREVIOUS_SESSION_BEFORE_OPENING = "VERIFY_PREVIOUS_SESSION_BEFORE_OPENING";
 
-	/**
-	 * 3.5.0, ticket templates step 1: a store setting, which code prints the tickets: "OLD" (the print code of before,
-	 * also when the row is absent) or "NEW" (the ticket templates' renderer, docs/roadmap/ticket-templates.md; the sale
-	 * ticket and its duplicate first, the other tickets at their step).
-	 */
-	public static final String TICKET_RENDERER = "TICKET_RENDERER";
-
-	/**
-	 * Step 6 part 1: "NEW" on every store, whatever the TICKET_RENDERER row says (the new printing is the only one; the row
-	 * stays in the database, read by nothing, until the next release); null on a head office (no till). Removed in part 2.
-	 */
-	String ticketRenderer() {
-		return applicationModeService.isHeadOffice() ? null : "NEW";
-	}
-
 	/** CASHIER_CLOSING_TICKET read: "DECLARED" in any case, else "Z"; null on a head office (no till). */
 	String cashierClosingTicket() {
 		if (applicationModeService.isHeadOffice()) {
@@ -209,8 +194,7 @@ public class AppConfigAPI {
 				applicationModeService.isWarrantyEnabled(), // 3.3.0: warranty.enabled
 				applicationModeService.isStoreOrdersEnabled(), // 3.3.0: storeorders.enabled
 				applicationModeService.isEventLogEnabled(), // 3.4.0: eventlog.enabled
-				eventLogTillCodes(), // 3.4.0, event log step 4
-				ticketRenderer() // 3.5.0, ticket templates step 1: OLD or NEW, null on a head office
+				eventLogTillCodes() // 3.4.0, event log step 4
 		));
 	}
 

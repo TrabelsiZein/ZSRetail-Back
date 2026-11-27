@@ -494,13 +494,20 @@ public class AdminEvents implements GeneralSetupChangeListener {
 										+ ") sont gardés à part (ticket_template_saved) et remplacés par ceux du siège."))));
 	}
 
-	/** 3.5.0, step 5: the switch turned off: the templates received (their French names) are the store's own again. */
-	public void ticketTemplatesManagedOff(List<String> kept) {
+	/**
+	 * 3.5.0, step 5: the switch turned off: the templates received (their French names) are the store's own again. Step 6:
+	 * the store's own templates it had kept (switched off before the head office's arrived, or carried at the upgrade)
+	 * print too; the defaults only when it has none.
+	 */
+	public void ticketTemplatesManagedOff(List<String> kept, List<String> own) {
+		String received = kept.isEmpty() ? "" : "les modèles reçus (" + String.join(", ", kept) + ") sont gardés et modifiables ici";
+		String store = own.isEmpty() ? "" : "le magasin imprime ses propres modèles (" + String.join(", ", own) + ")";
+		String text = !received.isEmpty() && !store.isEmpty() ? received + " ; " + store + "."
+				: !received.isEmpty() ? received + "." : !store.isEmpty() ? "aucun modèle reçu, " + store + "."
+						: "aucun modèle reçu, les modèles par défaut s'impriment.";
 		run("TICKET_TEMPLATES_MANAGED_OFF", () -> eventLog.write(NewEvent.of(EventCode.TICKET_TEMPLATES_MANAGED_OFF)
 				.subject("TICKET_TEMPLATES", "Modèles de tickets")
-				.details("Le siège ne gère plus les modèles de tickets de ce magasin : "
-						+ (kept.isEmpty() ? "aucun modèle reçu, les modèles par défaut s'impriment."
-								: "les modèles reçus (" + String.join(", ", kept) + ") sont gardés et modifiables ici."))));
+				.details("Le siège ne gère plus les modèles de tickets de ce magasin : " + text)));
 	}
 
 	/** Points given or taken by hand on a loyalty member's account (money: an Alert). */

@@ -57,11 +57,6 @@ public class CompanyInformationService {
         entity.setBankAccount(dto.getBankAccount());
         entity.setRib(dto.getRib());
         entity.setInvoiceFooterNote(dto.getInvoiceFooterNote());
-        entity.setReceiptPrintAddress(dto.getReceiptPrintAddress());
-        entity.setReceiptFooterText(dto.getReceiptFooterText());
-        entity.setReceiptThankYouText(dto.getReceiptThankYouText());
-        entity.setReceiptShowThankYou(dto.getReceiptShowThankYou());
-        entity.setReceiptShowSoftwareLabel(dto.getReceiptShowSoftwareLabel());
         entity.setUpdatedAt(LocalDateTime.now());
         entity.setUpdatedBy(updatedBy);
 
@@ -105,11 +100,6 @@ public class CompanyInformationService {
         dto.setBankAccount(e.getBankAccount());
         dto.setRib(e.getRib());
         dto.setInvoiceFooterNote(e.getInvoiceFooterNote());
-        dto.setReceiptPrintAddress(e.getReceiptPrintAddress());
-        dto.setReceiptFooterText(e.getReceiptFooterText());
-        dto.setReceiptThankYouText(e.getReceiptThankYouText());
-        dto.setReceiptShowThankYou(e.getReceiptShowThankYou());
-        dto.setReceiptShowSoftwareLabel(e.getReceiptShowSoftwareLabel());
         return dto;
     }
 }

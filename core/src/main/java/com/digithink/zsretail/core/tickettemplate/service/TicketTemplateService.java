@@ -136,11 +136,10 @@ public class TicketTemplateService {
 
 	/**
 	 * The page's data and the till's: per document its type, whether it has a template yet, its catalogue (layout
-	 * options, sections), its saved template (null: none, the default prints) and its default; the linked settings' values.
+	 * options, sections), its saved template (null: none, the default prints) and its default.
 	 */
 	@Transactional(readOnly = true)
 	public Map<String, Object> page() {
-		Map<String, Boolean> linked = linkedValues();
 		List<Map<String, Object>> documents = new ArrayList<>();
 		for (TicketDocumentType type : TicketDocumentType.values()) {
 			Map<String, Object> document = new LinkedHashMap<>();
@@ -151,14 +150,13 @@ public class TicketTemplateService {
 				document.put("layout", TicketBlocks.layout(type));
 				document.put("sections", TicketBlocks.of(type));
 				document.put("template", saved(type).orElse(null));
-				document.put("defaults", defaults(type, linked));
+				document.put("defaults", defaults(type));
 			}
 			documents.add(document);
 		}
 		Map<String, Object> page = new LinkedHashMap<>();
 		page.put("documents", documents);
 		page.put("formatVersion", FORMAT_VERSION);
-		page.put("linked", linked);
 		// step 2b: the passenger's customer code (General setup PASSENGER_CUSTOMER), for "hide the passenger code"
 		page.put("passengerCode", generalSetupService.findValueByCode("PASSENGER_CUSTOMER"));
 		// step 5: a store whose head office manages its templates (read-only); a head office (built-in defaults)
@@ -173,12 +171,8 @@ public class TicketTemplateService {
 		return repository.findByDocumentType(type.name()).map(row -> toDTO(type, row));
 	}
 
-	/** The default of a document: the catalogue's, the linked elements from the old settings' values now. */
+	/** The default of a document: the catalogue's built-in one. */
 	public TicketTemplateDTO defaults(TicketDocumentType type) {
-		return defaults(type, linkedValues());
-	}
-
-	private TicketTemplateDTO defaults(TicketDocumentType type, Map<String, Boolean> linked) {
 		TicketTemplateDTO dto = new TicketTemplateDTO();
 		dto.setDocumentType(type.name());
 		dto.setFormatVersion(FORMAT_VERSION);
@@ -191,39 +185,11 @@ public class TicketTemplateService {
 			for (Element e : section.getElements()) {
 				Map<String, Object> options = new LinkedHashMap<>();
 				e.getOptions().forEach(option -> options.put(option.getKey(), option.getDefaultValue()));
-				elements.add(new ElementDTO(e.getCode(), e.getLinked() != null ? linked.get(e.getLinked()) : e.isDefaultOn(),
-						options));
+				elements.add(new ElementDTO(e.getCode(), e.isDefaultOn(), options));
 			}
-			boolean on = section.getLinked() != null ? Boolean.TRUE.equals(linked.get(section.getLinked()))
-					: section.isDefaultOn();
-			dto.getSections().add(new SectionDTO(section.getCode(), on, elements));
+			dto.getSections().add(new SectionDTO(section.getCode(), section.isDefaultOn(), elements));
 		}
 		return dto;
-	}
-
-	/**
-	 * Step 6 part 1: the built-in values on every installation. The old settings (Company Information's ticket switches,
-	 * General setup's loyalty rows) are read by nothing new any more: their values were carried into the templates at
-	 * the upgrade (db/3.5.0/update.sql), and no element is linked to them (TicketBlocks). Removed in part 2.
-	 */
-	Map<String, Boolean> linkedValues() {
-		return builtInLinkedValues();
-	}
-
-	/**
-	 * Step 5, a head office: the linked elements' built-in values, nothing read from its own Company Information or
-	 * General setup (what it saves decides for its managed stores): no address line, the thank-you line and the
-	 * "ZS Retail" label printed, the loyalty rows printed, no tombola slip.
-	 */
-	static Map<String, Boolean> builtInLinkedValues() {
-		Map<String, Boolean> linked = new LinkedHashMap<>();
-		linked.put(TicketBlocks.LINK_PRINT_ADDRESS, false);
-		linked.put(TicketBlocks.LINK_THANK_YOU, true);
-		linked.put(TicketBlocks.LINK_SOFTWARE_LABEL, true);
-		linked.put(TicketBlocks.LINK_LOYALTY_EARNED, true);
-		linked.put(TicketBlocks.LINK_LOYALTY_BALANCE, true);
-		linked.put(TicketBlocks.LINK_TOMBOLA, false);
-		return linked;
 	}
 
 	// ─── Writes ──────────────────────────────────────────────────────

@@ -234,7 +234,22 @@ GO
 
 UPDATE APP_VERSION SET version = '3.5.0';
 
--- The release notes of 3.5.0 are written from CHANGELOG.md when the version is closed (nothing to tell the users yet).
+-- The notes of 3.5.0 are written again on each run (the script may run more than once), from CHANGELOG.md; the version
+-- is still in progress (step 6 of the ticket templates written 2026-11-27).
+DELETE FROM APP_RELEASE_NOTES WHERE version = '3.5.0';
+
+INSERT INTO APP_RELEASE_NOTES (version, type, description) VALUES
+('3.5.0', 'NEW', N'Modèles de tickets (Paramètres) : chaque ticket imprimé se règle au même endroit, avec un aperçu : ticket de vente et son duplicata, bon de retour, remboursement, garantie, ticket de tombola, tickets X et Z, bons de caisse. Largeur du papier, taille du texte, espacement, rubriques affichées et leur ordre, texte du haut et du pied.'),
+('3.5.0', 'NEW', N'Siège : il peut gérer les modèles de tickets de ses magasins (interrupteur « Le siège gère les modèles de tickets » de la page Magasins) ; le magasin les reçoit à la synchronisation suivante.'),
+('3.5.0', 'NEW', N'Caisses : la largeur du papier de l''imprimante (58 ou 80 mm) se règle pour chaque caisse.'),
+('3.5.0', 'IMPROVE', N'Tous les tickets s''impriment avec les modèles de tickets : l''ancienne impression et le réglage « Impression des tickets » de la Configuration générale disparaissent.'),
+('3.5.0', 'IMPROVE', N'Les réglages du ticket sont dans « Modèles de tickets » : l''adresse sur le ticket, la ligne de remerciement et son texte, la mention « ZS Retail » et le texte de bas de ticket quittent Informations société ; le solde de points et les points gagnés sur le ticket quittent la Configuration générale. À la mise à jour, les valeurs déjà réglées sont reprises dans les modèles : le ticket reste le même.'),
+('3.5.0', 'IMPROVE', N'Le pied des tickets appartient au modèle : après la mise à jour, modifier la note de bas de facture dans Informations société ne change plus que les factures A4, pas les tickets.'),
+('3.5.0', 'FIX', N'Ticket de garantie : il imprime la TVA réelle (au lieu de 0.000) et, quand la garantie couvre une partie de la ligne, le montant de cette part, remise du ticket comprise.'),
+('3.5.0', 'FIX', N'Bon de retour réimprimé : « DUPLICATA » sous le titre, le caissier du retour et la même TVA que le premier ticket ; sa ligne de paiement s''appelle « Bon de retour ».'),
+('3.5.0', 'FIX', N'Ticket de tombola : il ne s''imprime que si la tombola est activée, et retrouve sa présentation sur un ticket à part.'),
+('3.5.0', 'FIX', N'Tickets X et Z et bons de caisse : les dates s''impriment en jj/mm/aaaa hh:mm ; sur le ticket de clôture, un nom avec « < » ou « & » s''imprime tel qu''il est saisi.'),
+('3.5.0', 'FIX', N'Tous les tickets s''impriment en noir sur blanc (les bandeaux de numéro en couleur étaient illisibles sur une imprimante thermique).');
 
 GO
 

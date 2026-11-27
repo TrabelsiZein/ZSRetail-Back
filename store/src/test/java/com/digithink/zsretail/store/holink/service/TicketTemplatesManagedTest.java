@@ -188,5 +188,8 @@ class TicketTemplatesManagedTest {
 		assertEquals(TicketTemplateService.LOCAL, templates.get("SALE").getOrigin());
 		assertTrue(saved.isEmpty());
 		assertTrue(log.rows.stream().noneMatch(r -> EventCode.TICKET_TEMPLATES_MANAGED_ON.name().equals(r.getCode())));
+		// step 6: the Journal says the store's own templates print, not the defaults
+		assertEquals("Le siège ne gère plus les modèles de tickets de ce magasin : aucun modèle reçu, le magasin imprime ses"
+				+ " propres modèles (Ticket de vente).", log.rows.get(log.rows.size() - 1).getDetails());
 	}
 }

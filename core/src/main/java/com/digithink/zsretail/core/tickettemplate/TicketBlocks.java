@@ -18,11 +18,9 @@ import lombok.Getter;
  * <li>A locked section or element ({@link Lock}) cannot be switched off: the save is refused.</li>
  * <li>The VAT row of each item ({@code ITEMS.VAT}) may be off only while the section {@code VAT_BY_RATE} is on (the
  * rates stay on the ticket): {@link Element#getOffNeeds}.</li>
- * <li>Step 6 part 1: no element is linked to an old setting any more (Company Information's ticket switches, General
- * setup's loyalty rows, TOMBOLA_ENABLED for the slip's section): every default is the built-in one, the address off, the
+ * <li>Step 6: every default is the built-in one (no element takes an old setting any more): the address off, the
  * thank-you line, the "ZS Retail" label and the loyalty rows on, the tombola slip's section on (TOMBOLA_ENABLED alone
- * decides, sale-ticket.js). The old values were carried into the templates at the upgrade (db/3.5.0/update.sql). The
- * constants LINK_* stay until part 2.</li>
+ * decides, sale-ticket.js). A store's old values were carried into its templates at the upgrade (db/3.5.0/update.sql).</li>
  * <li>Every default is today's ticket: an option's default ({@link Option#getDefaultValue}, null for the logo's width and
  * height: today's 100 px and 40 px) prints what the old code prints.</li>
  * </ul>
@@ -97,14 +95,12 @@ public final class TicketBlocks {
 		private final boolean defaultOn;
 		/** Null: it can be switched off. */
 		private final Lock lock;
-		/** The old setting it takes its default from while no template exists (null: none). */
-		private final String linked;
 		/** The section that must be on for this element to be off (null: none). */
 		private final String offNeeds;
 		private final List<Option> options;
 
 		Element with(Option... more) {
-			return new Element(code, defaultOn, lock, linked, offNeeds, Collections.unmodifiableList(Arrays.asList(more)));
+			return new Element(code, defaultOn, lock, offNeeds, Collections.unmodifiableList(Arrays.asList(more)));
 		}
 
 		public Option option(String key) {
@@ -127,8 +123,6 @@ public final class TicketBlocks {
 		private final Position position;
 		/** Switching it off is allowed but the page warns (the sale's barcode: the returns scan it). */
 		private final boolean warnOff;
-		/** Step 2b: the old setting its switch takes its default from while no template exists (null: none). */
-		private final String linked;
 		private final List<Element> elements;
 
 		public Element element(String elementCode) {
@@ -141,35 +135,18 @@ public final class TicketBlocks {
 		}
 	}
 
-	/** Step 6 part 1: linked to no element any more (removed in part 2). Company Information, "Print the address" (null = no). */
-	public static final String LINK_PRINT_ADDRESS = "companyInformation.receiptPrintAddress";
-	/** Company Information, the thank-you line (null = yes). */
-	public static final String LINK_THANK_YOU = "companyInformation.receiptShowThankYou";
-	/** Company Information, the "ZS Retail" label (null = yes). */
-	public static final String LINK_SOFTWARE_LABEL = "companyInformation.receiptShowSoftwareLabel";
-	/** General setup TICKET_SHOW_LOYALTY_EARNED (absent = yes). */
-	public static final String LINK_LOYALTY_EARNED = "generalSetup.TICKET_SHOW_LOYALTY_EARNED";
-	/** General setup TICKET_SHOW_LOYALTY_BALANCE (absent = yes). */
-	public static final String LINK_LOYALTY_BALANCE = "generalSetup.TICKET_SHOW_LOYALTY_BALANCE";
-	/** Step 2b: General setup TOMBOLA_ENABLED (absent = no), the tombola slip's switch. */
-	public static final String LINK_TOMBOLA = "generalSetup.TOMBOLA_ENABLED";
-
 	public static final String VAT_BY_RATE = "VAT_BY_RATE";
 
 	private static Element on(String code) {
-		return new Element(code, true, null, null, null, Collections.emptyList());
+		return new Element(code, true, null, null, Collections.emptyList());
 	}
 
 	private static Element off(String code) {
-		return new Element(code, false, null, null, null, Collections.emptyList());
+		return new Element(code, false, null, null, Collections.emptyList());
 	}
 
 	private static Element locked(String code, Lock lock) {
-		return new Element(code, true, lock, null, null, Collections.emptyList());
-	}
-
-	private static Element linked(String code, String setting) {
-		return new Element(code, true, null, setting, null, Collections.emptyList());
+		return new Element(code, true, lock, null, Collections.emptyList());
 	}
 
 	/** A choice: the default first, then every value. */
@@ -195,13 +172,7 @@ public final class TicketBlocks {
 
 	private static Section section(String code, boolean defaultOn, Lock lock, Position position, boolean warnOff,
 			Element... elements) {
-		return new Section(code, defaultOn, lock, position, warnOff, null,
-				Collections.unmodifiableList(Arrays.asList(elements)));
-	}
-
-	/** Step 2b: a section whose switch starts from an old setting (the tombola slip: TOMBOLA_ENABLED). */
-	private static Section linkedSection(String code, String setting, Position position, Element... elements) {
-		return new Section(code, false, null, position, false, setting,
+		return new Section(code, defaultOn, lock, position, warnOff,
 				Collections.unmodifiableList(Arrays.asList(elements)));
 	}
 
@@ -257,7 +228,7 @@ public final class TicketBlocks {
 			section("ITEMS", true, Lock.LEGAL, null, false,
 					locked("LINES", Lock.LEGAL).with(choice("name", "WRAP", "WRAP", "CUT")), off("ITEM_CODE"),
 					off("ITEM_BARCODE"), off("UNIT_PRICE"), on("DISCOUNT"), on("PROMOTION_NAME"),
-					new Element("VAT", true, null, null, VAT_BY_RATE, Collections.emptyList())),
+					new Element("VAT", true, null, VAT_BY_RATE, Collections.emptyList())),
 			section("TOTALS", true, Lock.LEGAL, null, false,
 					on("TICKET_DISCOUNT"), locked("TOTAL_VAT", Lock.LEGAL), locked("TOTAL", Lock.LEGAL).with(size())),
 			section(VAT_BY_RATE, false, null, null, false),

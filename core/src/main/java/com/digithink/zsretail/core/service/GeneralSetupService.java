@@ -36,17 +36,33 @@ public class GeneralSetupService extends _BaseService<GeneralSetup, Long> {
 	@Autowired(required = false)
 	private java.util.List<GeneralSetupChangeListener> changeListeners;
 
+	/**
+	 * 3.5.0, ticket templates step 6: rows no longer created, read or shown; an installation of before keeps them one
+	 * release as source data (their values were carried into the ticket templates), then the next release drops them.
+	 */
+	public static final java.util.Set<String> RETIRED_CODES = java.util.Collections.unmodifiableSet(new java.util.HashSet<>(
+			java.util.Arrays.asList("TICKET_RENDERER", "TICKET_SHOW_LOYALTY_BALANCE", "TICKET_SHOW_LOYALTY_EARNED")));
+
 	@Override
 	protected _BaseRepository<GeneralSetup, Long> getRepository() {
 		return generalSetupRepository;
 	}
 
+	/** Every row but the retired ones (the General setup page: GET /general-setup). */
+	@Override
+	public java.util.List<GeneralSetup> findAll() {
+		return super.findAll().stream().filter(s -> !RETIRED_CODES.contains(s.getCode()))
+				.collect(java.util.stream.Collectors.toList());
+	}
+
+	/** Null for a retired code too. */
 	public GeneralSetup findByCode(String code) {
-		return generalSetupRepository.findByCode(code).orElse(null);
+		return RETIRED_CODES.contains(code) ? null : generalSetupRepository.findByCode(code).orElse(null);
 	}
 
 	public String findValueByCode(String code) {
-		return generalSetupRepository.findByCode(code).map(GeneralSetup::getValeur).orElse(null);
+		return RETIRED_CODES.contains(code) ? null
+				: generalSetupRepository.findByCode(code).map(GeneralSetup::getValeur).orElse(null);
 	}
 
 	@Transactional

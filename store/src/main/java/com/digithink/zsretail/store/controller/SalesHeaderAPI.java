@@ -65,12 +65,6 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 	@Autowired
 	private SessionPosMachineService sessionPosMachineService;
 
-	private boolean getLoyaltyConfigFlag(String code) {
-		return generalSetupRepository.findByCode(code)
-				.map(s -> Boolean.parseBoolean(s.getValeur()))
-				.orElse(true);
-	}
-
 	/**
 	 * Change the payment method of a single payment on a completed ticket, without
 	 * changing amounts. Admin only; allowed while the ticket's session is not yet
@@ -165,8 +159,6 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			saleResponse.put("loyaltyPointsEarned", salesHeader.getLoyaltyPointsEarned());
 			saleResponse.put("loyaltyPointsRedeemed", salesHeader.getLoyaltyPointsRedeemed());
 			saleResponse.put("loyaltyDeductionAmount", salesHeader.getLoyaltyDeductionAmount());
-			saleResponse.put("showLoyaltyBalance", getLoyaltyConfigFlag("TICKET_SHOW_LOYALTY_BALANCE"));
-			saleResponse.put("showLoyaltyEarned", getLoyaltyConfigFlag("TICKET_SHOW_LOYALTY_EARNED"));
 			// 3.5.0, ticket templates step 2: the VAT by rate, for the block "TVA par taux"
 			saleResponse.put("vatLines", SessionReportService.ticketVatLines(salesHeader, salesLines));
 
@@ -480,8 +472,6 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			saleResponse.put("loyaltyPointsEarned", salesHeader.getLoyaltyPointsEarned());
 			saleResponse.put("loyaltyPointsRedeemed", salesHeader.getLoyaltyPointsRedeemed());
 			saleResponse.put("loyaltyDeductionAmount", salesHeader.getLoyaltyDeductionAmount());
-			saleResponse.put("showLoyaltyBalance", getLoyaltyConfigFlag("TICKET_SHOW_LOYALTY_BALANCE"));
-			saleResponse.put("showLoyaltyEarned", getLoyaltyConfigFlag("TICKET_SHOW_LOYALTY_EARNED"));
 			// 3.5.0, ticket templates step 2: the VAT by rate, for the block "TVA par taux"
 			saleResponse.put("vatLines", SessionReportService.ticketVatLines(salesHeader, salesLines));
 
@@ -789,8 +779,6 @@ public class SalesHeaderAPI extends _BaseController<SalesHeader, Long, SalesHead
 			ticketMap.put("loyaltyPointsRedeemed", ticket.getLoyaltyPointsRedeemed());
 			ticketMap.put("loyaltyPointsEarned", ticket.getLoyaltyPointsEarned());
 			ticketMap.put("loyaltyMember", ticket.getLoyaltyMember());
-			ticketMap.put("showLoyaltyBalance", getLoyaltyConfigFlag("TICKET_SHOW_LOYALTY_BALANCE"));
-			ticketMap.put("showLoyaltyEarned", getLoyaltyConfigFlag("TICKET_SHOW_LOYALTY_EARNED"));
 			// 3.5.0, ticket templates step 2: the VAT by rate, for the block "TVA par taux" of the duplicate
 			ticketMap.put("vatLines", SessionReportService.ticketVatLines(ticket, salesLines));
 			// 3.1.2: the unit cost frozen on each line, by line id, only for a user with the margins right

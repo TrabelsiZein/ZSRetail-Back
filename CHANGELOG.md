@@ -107,6 +107,16 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   Tests: `TicketTemplateServiceTest#carriedRows` (the upgrade script's own JSON, captured from `pos_store_b`, read back
   complete), the defaults, the head office's, `AppConfigAPITest#ticketRenderer`.
 
+- Ticket templates, step 6 part 2: the renderer switch removed (`ticketRenderer` from `GET /config` and `AppConfigDTO`,
+  `TICKET_RENDERER` no longer created). `TICKET_SHOW_LOYALTY_BALANCE` / `_EARNED` no longer created, out of `AdminLabels`
+  and of the sale's answers (`showLoyalty*`, `SalesHeaderAPI`); the five Company Information ticket fields out of the
+  entity, the DTO and the service (the columns stay); `TicketBlocks` without its linked machinery (`LINK_*`, an element's
+  and a section's `linked`), `TicketTemplateService` without `linkedValues` (the page's `linked` gone). The three
+  retired General setup rows hidden: not in `GET /general-setup`, null by code (`GeneralSetupService.RETIRED_CODES`,
+  `GeneralSetupRetiredCodesTest`). Journal: `TICKET_TEMPLATES_MANAGED_OFF` says the store's own templates print when it
+  has some, no longer "les modèles par défaut s'impriment" (`TicketTemplatesManagedTest`). `CompanyInformationTicketTest`
+  removed (its fields gone).
+
 ### Fixes
 - Ticket templates step 5: a store linked to a head office did not start ("No default constructor found" for
   `TicketTemplatesManaged`: two constructors, none `@Autowired`, Spring looked for a default one). The constructor
@@ -145,6 +155,8 @@ Topic: ticket templates ("Modèles de tickets"), `docs/roadmap/ticket-templates.
   any other value still stops the startup.
 
 ### DB script
+- Step 6 part 2, `db/3.5.0/update.sql`: the French `APP_RELEASE_NOTES` of 3.5.0 (written again on each run). Nothing
+  dropped: the `company_information` ticket columns and the three `general_setup` rows go with the next release.
 - Step 6 part 1, `db/3.5.0/update.sql`: the carry of a store's ticket settings into `ticket_template` (Company
   Information `receipt_print_address`, `receipt_show_thank_you`, `receipt_thank_you_text`, `receipt_show_software_label`,
   `receipt_footer_text`, else `invoice_footer_note` on one line; General setup `TICKET_SHOW_LOYALTY_EARNED` /

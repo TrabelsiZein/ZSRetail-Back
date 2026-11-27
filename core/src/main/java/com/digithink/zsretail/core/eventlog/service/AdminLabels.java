@@ -54,9 +54,6 @@ final class AdminLabels {
 		s.put("POS_SHOW_STOCK", "Comportement POS › Afficher le stock dans le POS");
 		s.put("TAX_STAMP_ERP_ITEM_CODE", "Timbre fiscal › Code article ERP du timbre");
 		s.put("TAX_STAMP_VALUE_MILLIMES", "Timbre fiscal › Montant (millimes)");
-		s.put("TICKET_RENDERER", "Caisse et clôture › Impression des tickets");
-		s.put("TICKET_SHOW_LOYALTY_BALANCE", "Programme de fidélité › Afficher le solde fidélité sur le ticket");
-		s.put("TICKET_SHOW_LOYALTY_EARNED", "Programme de fidélité › Afficher les points gagnés sur le ticket");
 		s.put("TILL_GRANT_MAX_MINUTES", "Caisse et clôture › Durée d'une autorisation par badge (minutes)");
 		s.put("TOMBOLA_ENABLED", "Programme de fidélité › Activer l'impression du ticket tombola");
 		s.put("VERIFY_PREVIOUS_SESSION_BEFORE_OPENING", "Caisse et clôture › Exiger la clôture de la session précédente avant une nouvelle ouverture");

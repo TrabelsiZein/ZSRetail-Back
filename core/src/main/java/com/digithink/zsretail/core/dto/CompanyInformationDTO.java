@@ -27,11 +27,5 @@ public class CompanyInformationDTO {
     private String bankName;
     private String bankAccount;
     private String rib;
-    private String invoiceFooterNote;
-    // 2.2.2: the sale ticket (null = as 2.2.1)
-    private Boolean receiptPrintAddress;
-    private String receiptFooterText;
-    private String receiptThankYouText;
-    private Boolean receiptShowThankYou;
-    private Boolean receiptShowSoftwareLabel;
+    private String invoiceFooterNote; // the A4 invoices' footer (3.5.0 step 6: no longer on the tickets)
 }

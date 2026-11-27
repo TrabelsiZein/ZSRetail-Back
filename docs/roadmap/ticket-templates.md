@@ -539,7 +539,7 @@ once a page of the head office is in hand (`modules/head-office.md`, "Ticket tem
 
 Left: the rest of the screen test on the dev pair; the accountant on the locks.
 
-## Step 6 — the new printing only (part 1 done 2026-11-27)
+## Step 6 — the new printing only (done 2026-11-27)
 
 Zein's decision of 2026-11-27: when the ticket templates work is done, the new printing is the only one. Two parts,
 each testable alone.
@@ -563,16 +563,20 @@ in the tree and never called.
   replaced, the database being at 3.5.0), the rows read; untouched settings give no row and two more runs no second
   row (in a transaction rolled back); the whole script run again changes nothing.
 
-**Part 2 (next):** delete the old code (`ReceiptTemplate.vue`, `receiptPrintStyles.js`, `printSessionReport.js`,
+**Part 2 (done):** delete the old code (`ReceiptTemplate.vue`, `receiptPrintStyles.js`, `printSessionReport.js`,
 `receiptBranding.js`, the old branches of the 12 print screens, `ItemSelection`'s `printSessionCloseTicket`),
 `ticketRenderer` (API, DTO, app-config), `TICKET_RENDERER` and `TICKET_SHOW_LOYALTY_*` no longer created
 (`ZZDataInitializer`) nor shown, the Company Information ticket fields (entity, DTO, service, page; the columns stay),
 `showLoyalty*` in `SalesHeaderAPI`, the `LINK_*` constants and `linkedValues`, the notices "Décidé par Modèles de
-tickets", `AdminLabels`' three entries, the locales' keys; the tools keep their recorded old side.
+tickets", `AdminLabels`' three entries, the locales' keys; the tools keep their recorded old side. Also: the three retired General
+setup rows hidden (`GeneralSetupService.RETIRED_CODES`), the invoice note's hint for the invoices only, the internal
+tickets' print functions without "New" (`printSessionTicket`...), the Journal's `TICKET_TEMPLATES_MANAGED_OFF` saying the
+store's own templates print when it has some (the store was switched off before the head office's arrived, or had
+carried rows), the French `APP_RELEASE_NOTES` of 3.5.0.
 
 **Next release (after 3.5.0), together:** drop the `company_information` columns `receipt_print_address`,
 `receipt_show_thank_you`, `receipt_thank_you_text`, `receipt_show_software_label`, `receipt_footer_text` and the
 `general_setup` rows `TICKET_RENDERER`, `TICKET_SHOW_LOYALTY_BALANCE`, `TICKET_SHOW_LOYALTY_EARNED` (kept in 3.5.0 as
 source data, read by nothing). `invoice_footer_note` stays (the A4 invoices).
 
-Left: part 2; the screen test of part 1; the accountant on the locks.
+Left: the screen test of part 2; the accountant on the locks.

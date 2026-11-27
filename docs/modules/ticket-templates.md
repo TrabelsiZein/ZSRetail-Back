@@ -12,11 +12,12 @@ closing ticket, the two slips). The head office sends its templates down at step
 Everything about the printed sale ticket is configured in the template (table `ticket_template`, page "Modèles de
 tickets"). Nothing new in General setup or Company Information: `TICKET_RENDERER` stays the only General setup line.
 
-- **Step 6 part 1: the new printing is the only one.** `GET /config` sends `ticketRenderer` `NEW` on every store,
-  whatever the General setup row `TICKET_RENDERER` says, and the getter `appConfig/newTicketRenderer` is always true:
-  every document prints through `src/libs/ticket`, which reads its template. The old print code (`ReceiptTemplate.vue`,
-  `receiptPrintStyles.js`, `printSessionReport.js`, the closing ticket of `ItemSelection.vue`) stays in the tree, never
-  called, until part 2 deletes it.
+- **Step 6: the new printing is the only one.** Every document prints through `src/libs/ticket`, which reads its
+  template. Part 2 deleted the old print code (`ReceiptTemplate.vue`, `receiptPrintStyles.js`, `printSessionReport.js`,
+  `receiptBranding.js`, the closing ticket method of `ItemSelection.vue`, the old branches of the print screens) and the
+  switch (`ticketRenderer` in `GET /config` and the app-config store, the General setup row `TICKET_RENDERER`). The
+  internal tickets' entry points are `printSessionTicket`, `printStoreTicket`, `printCashMovementSlip`,
+  `printClosingWithdrawalSlip`, `printClosingDeclared` (`printInternalTickets.js`).
 - **No row = the built-in default**: every option's default is today's value; no element is linked to an old setting
   any more (the address off; the thank-you line, the ZS Retail label and the loyalty rows on; the tombola section on, so
   `TOMBOLA_ENABLED` alone decides). A text left null is the built-in one ("Merci pour votre achat !", no footer text).
@@ -24,9 +25,13 @@ tickets"). Nothing new in General setup or Company Information: `TICKET_RENDERER
   Company Information ticket fields or `TICKET_SHOW_LOYALTY_*` rows differed from the built-in values got its template
   rows, so it prints the same ticket the day after. Proved by `tools/ticket-render-check.mjs` (the old outputs recorded,
   the carried template given) and `TicketTemplateServiceTest#carriedRows` (the script's own JSON read back).
-- **A saved template decides everything.** The old settings are never cleared or changed, and read by nothing since step
-  6 part 1; the Company Information columns and the three General setup rows (`TICKET_RENDERER`,
-  `TICKET_SHOW_LOYALTY_BALANCE`, `_EARNED`) stay one release as source data, then are dropped together.
+- **A saved template decides everything.** The old settings are gone from the code (part 2: the Company Information
+  ticket fields from the entity, the DTO, the service and the page; `TICKET_SHOW_LOYALTY_*` from `ZZDataInitializer`,
+  `AdminLabels`, the General setup page and the sale's answer, `showLoyalty*`). In the database the five
+  `company_information` columns and the three `general_setup` rows (`TICKET_RENDERER`, `TICKET_SHOW_LOYALTY_BALANCE`,
+  `_EARNED`) stay one release as source data, hidden (`GeneralSetupService.RETIRED_CODES`: not in `GET
+  /general-setup`, null by code), then are dropped together. The footer of a ticket is the template's: the invoice
+  footer note of Company Information is for the A4 invoices only.
 - The identity (name, MF, address, phone, fax, e-mail, website, logo image) stays in Company Information (the A4
   invoices use it, and a head office never sends one store's identity): the template owns whether and how each prints.
   `invoiceFooterNote` stays the invoices' setting.
@@ -172,7 +177,7 @@ setup (the loyalty earned and balance rows, the tombola). None on `invoiceFooter
   /pos-machine/my-machine` `paperWidth`) and the passenger code. A failed read prints the default.
 - `buildSaleTicket(sale, { companyInfo, duplicate, tombola, template, paperWidth, passengerCode })` → `{ document,
   layout: { paperWidth, fontSize, spacing, feedLines, separator }, blocks }`. Without a template: the built-in default
-  (`defaultSaleTemplate(linkedForPrint())`; step 6 part 1: `linkedForPrint` returns the built-in values, removed in part 2).
+  (`defaultSaleTemplate()`).
 - Dividers: each section keeps its own; the payments close with one unless the next section opens with one (the old
   rule); when sections were moved, a divider between two sections that have none at their joint, except before the
   footer and the tombola (as the old ticket).
@@ -332,8 +337,8 @@ template's); the back end refuses another value (`POS_MACHINE_PAPER_WIDTH`).
 ## Checks and tests
 
 - Step 6: the old side of both tools is the old code's outputs as recorded from the code of before (`tools/fixtures/
-  ticket-render-old.json`, `internal-ticket-old.json`, `tools/old-ticket-snapshots.mjs`; `--write-snapshots` records
-  again, only while the old code is there): the comparisons outlive the old code. For a fixture with old settings the new
+  ticket-render-old.json`, `internal-ticket-old.json`, read by `tools/old-ticket-snapshots.mjs`); the old code is gone
+  (part 2), so a fixture added now has no old side and compares with the new printing only. For a fixture with old settings the new
   side is given the template the upgrade writes (`carriedTemplate`, the carry block's mirror); the one expected
   difference (the invoice note's class) is stated, and a check that the built-in values give no row.
 - `node tools/ticket-render-check.mjs` (front): the 13 fixtures old = new; the back end's catalogue (sections,

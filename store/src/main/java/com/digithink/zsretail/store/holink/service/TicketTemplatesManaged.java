@@ -186,13 +186,16 @@ public class TicketTemplatesManaged implements TicketTemplateLink {
 			mark(false, at);
 		}
 		List<String> names = new ArrayList<>();
+		List<String> own = new ArrayList<>(); // step 6: the store's own, kept (a replacement that never came, a carried row)
 		for (TicketTemplate row : templates.findAll()) {
 			if (TicketTemplateService.HEAD_OFFICE.equals(row.getOrigin())) {
 				row.setOrigin(TicketTemplateService.LOCAL);
 				templates.save(row);
 				names.add(TicketBlockLabels.fr(row.getDocumentType()));
+			} else {
+				own.add(TicketBlockLabels.fr(row.getDocumentType()));
 			}
 		}
-		adminEvents.ticketTemplatesManagedOff(names);
+		adminEvents.ticketTemplatesManagedOff(names, own);
 	}
 }

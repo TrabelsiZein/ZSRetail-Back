@@ -237,11 +237,4 @@ public class AppConfigDTO {
 	 * when the module is off.
 	 */
 	private java.util.Map<String, Integer> eventLogTillCodes;
-
-	/**
-	 * 3.5.0, ticket templates step 1: which code prints the tickets, GeneralSetup TICKET_RENDERER: "OLD" (the print code
-	 * of before, also when the row is absent) or "NEW" (the ticket templates' renderer); null on a head office. Read as
-	 * "OLD" by the frontend when missing (an older backend).
-	 */
-	private String ticketRenderer;
 }
