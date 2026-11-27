@@ -82,6 +82,10 @@ import com.digithink.zsretail.erp.api.ErpAbility;
  * Communication (3.3.0, step 1): {@code communication.enabled}, true or false; absent or blank is false (the module does
  * nothing, as 3.2.0); any other value is one WARN and the module off since step 8e ({@link #isCommunicationSet}). A store
  * and a head office alike.
+ * <p>
+ * Conventions (3.6.0, step 1): {@code convention.enabled}, as communication.enabled: true or false; absent or blank is
+ * false; any other value is one WARN and the module off, never a startup stop ({@link #isConventionSet}). A store and a
+ * head office alike.
  */
 public final class NodeOwnership {
 
@@ -134,6 +138,8 @@ public final class NodeOwnership {
 	public static final String EVENT_LOG_KEY = "eventlog.enabled";
 	/** 3.3.0: the communication module is on (true) or off (false, absent or blank: the default). */
 	public static final String COMMUNICATION_KEY = "communication.enabled";
+	/** 3.6.0: the conventions module is on (true) or off (false, absent or blank: the default). */
+	public static final String CONVENTION_KEY = "convention.enabled";
 
 	/**
 	 * Domains a store receives as copies down from its head office today (step 3: promotions; step 4: loyalty; step 6:
@@ -429,6 +435,30 @@ public final class NodeOwnership {
 	private static final Set<String> COMMUNICATION_WARNED = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
 	/**
+	 * 3.6.0, conventions step 1 (docs/roadmap/conventions.md): convention.enabled, trimmed and case-insensitive. Absent
+	 * or blank: false (the module does nothing). Any value other than true or false is one WARN naming the key and the
+	 * module off: never a startup stop. A store and a head office alike. Also used by {@link Installation#CONVENTION}.
+	 */
+	public static boolean isConventionSet(PropertyResolver env) {
+		String raw = env.getProperty(CONVENTION_KEY);
+		String value = raw == null ? "" : raw.trim();
+		if (value.isEmpty() || "false".equalsIgnoreCase(value)) {
+			return false;
+		}
+		if ("true".equalsIgnoreCase(value)) {
+			return true;
+		}
+		if (CONVENTION_WARNED.add(raw)) {
+			org.apache.logging.log4j.LogManager.getLogger(NodeOwnership.class).warn("Conventions: {}='{}' is neither true"
+					+ " nor false: the conventions module is off", CONVENTION_KEY, raw);
+		}
+		return false;
+	}
+
+	/** The wrong values of convention.enabled already warned about (one WARN each, whatever reads the key). */
+	private static final Set<String> CONVENTION_WARNED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+	/**
 	 * 3.3.0, step 3: the module on, where the loyalty is owned: it makes and sends its own messages. Step 6: a store
 	 * alone, a store with loyalty LOCAL and a head office (the owner of its stores' loyalty); false on a store whose
 	 * loyalty is the head office's (it pushes its events up, {@link #isCommunicationPushedUp}). Also used by
@@ -624,6 +654,7 @@ public final class NodeOwnership {
 		isWarrantySet(env);
 		isEventLogSet(env);
 		isCommunicationSet(env);
+		isConventionSet(env); // 3.6.0: a wrong value warns here, at the start, never stops it
 		if (headOffice) {
 			checkWholeSeconds(env, OFFLINE_AFTER_KEY);
 			headOfficeStockEnabled(env);

@@ -237,4 +237,11 @@ public class AppConfigDTO {
 	 * when the module is off.
 	 */
 	private java.util.Map<String, Integer> eventLogTillCodes;
+
+	/**
+	 * 3.6.0, conventions step 1: true with convention.enabled=true, on a store and on a head office alike; false
+	 * everywhere else. The frontend hides the module on a store whose promotions are the head office's (until step 6)
+	 * and reads a missing field as false (an older backend).
+	 */
+	private boolean conventionEnabled;
 }

@@ -6,7 +6,32 @@ in the application (`APP_RELEASE_NOTES`) are written in `db/<version>/update.sql
 
 ## 3.6.0 — in progress (branch `release/3.6.0`, opened from tag `v3.5.0` on 2026-11-27)
 
-Topic: conventions (an organisation's members and their cards). Nothing changed yet but the version.
+Topic: conventions (an organisation's members and their cards), `docs/roadmap/conventions.md` (the decisions and
+step 1's parts).
+
+### Before deployment
+- A database at 3.5.0: `db/3.6.0/update.sql`, then the 3.6.0 WAR (`AppVersionGuard`). The script stops, changing
+  nothing, while APP_VERSION is not 3.5.0 or 3.6.0; it may run again. Same script on a store and a head office.
+
+### To do at the closing of 3.6.0
+- Drop what 3.5.0 kept as source data, read by nothing (`docs/roadmap/ticket-templates.md`, step 6, "Next release"):
+  the `company_information` columns `receipt_print_address`, `receipt_show_thank_you`, `receipt_thank_you_text`,
+  `receipt_show_software_label`, `receipt_footer_text` and the `general_setup` rows `TICKET_RENDERER`,
+  `TICKET_SHOW_LOYALTY_BALANCE`, `TICKET_SHOW_LOYALTY_EARNED` (`invoice_footer_note` stays: the A4 invoices). Not part of
+  the conventions work.
+
+### Features
+- Conventions, step 1, part B1: the switch `convention.enabled` (`NodeOwnership.isConventionSet`,
+  `Installation.CONVENTION`, `ApplicationModeService.isConventionEnabled`), a store and a head office alike; the startup
+  summary says "conventions on"; `GET /config` `conventionEnabled` (last field). Nothing else reads it yet.
+
+### Config
+- `convention.enabled`: `false` in core's `application.properties`; absent or blank is `false`; another value than
+  `true` / `false` is one WARN and the module off, never a refused start. The commented line in
+  `configs/machine-model.properties`; the configuration keys record "keys 124".
+
+### DB script
+- `db/3.6.0/update.sql`: the version check (3.5.0 / 3.6.0) and `APP_VERSION` 3.6.0, nothing else yet.
 
 ## 3.5.0 — released 2026-11-27 (branch `release/3.5.0`, tag `v3.5.0`, opened from `release/3.4.0` on 2026-11-26)
 

@@ -76,6 +76,9 @@ public class ApplicationModeService {
 	 */
 	private boolean communicationSentHere;
 
+	/** 3.6.0: convention.enabled=true (NodeOwnership.isConventionSet), a store and a head office alike. */
+	private boolean conventionEnabled;
+
 	/** Fails the startup when node.type, ownership.* or sales.upstream holds an invalid value. */
 	@PostConstruct
 	void initOwnership() {
@@ -97,6 +100,7 @@ public class ApplicationModeService {
 		storeOrders = NodeOwnership.isStoreOrdersSet(environment);
 		communicationEnabled = NodeOwnership.isCommunicationSet(environment);
 		communicationSentHere = NodeOwnership.isCommunicationSentHere(environment);
+		conventionEnabled = NodeOwnership.isConventionSet(environment);
 	}
 
 	/**
@@ -162,6 +166,11 @@ public class ApplicationModeService {
 	/** 3.3.0, step 4: the module on, on a store whose loyalty is not the head office's (the Communication page exists). */
 	public boolean isCommunicationSentHere() {
 		return communicationSentHere;
+	}
+
+	/** 3.6.0: convention.enabled=true, the conventions module is on (docs/roadmap/conventions.md). */
+	public boolean isConventionEnabled() {
+		return conventionEnabled;
 	}
 
 	/**

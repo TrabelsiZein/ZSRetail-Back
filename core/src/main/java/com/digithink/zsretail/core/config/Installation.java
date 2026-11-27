@@ -117,7 +117,11 @@ public enum Installation {
 	 * up (link job COMMUNICATION_PUSH) and makes no message.
 	 */
 	COMMUNICATION_PUSHED_UP("A store with the communication module on whose loyalty is the head office's: its events go"
-			+ " up to the head office.", NodeOwnership::isCommunicationPushedUp);
+			+ " up to the head office.", NodeOwnership::isCommunicationPushedUp),
+
+	/** 3.6.0: the conventions module is on (convention.enabled=true); off when absent, blank, false or wrong. */
+	CONVENTION("An installation whose conventions module is on: convention.enabled=true.",
+			NodeOwnership::isConventionSet);
 
 	private final String meaning;
 	private final Predicate<PropertyResolver> answer;

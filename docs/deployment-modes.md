@@ -17,7 +17,7 @@ resolves as before (`ConfigurationKeysProofTest`); the old lines of 2.2.2 and th
 
 | File | Holds |
 |---|---|
-| `application.properties` (core, in both WARs) | common lines: context path, upload limits, SQL Server driver, Hibernate dialect, `ddl-auto=update`, log rotation, `communication.enabled=false` (3.3.0) (until step 6.5 also the default type `spring.profiles.active=store`) |
+| `application.properties` (core, in both WARs) | common lines: context path, upload limits, SQL Server driver, Hibernate dialect, `ddl-auto=update`, log rotation, `communication.enabled=false` (3.3.0), `convention.enabled=false` (3.6.0) (until step 6.5 also the default type `spring.profiles.active=store`) |
 | `application-store.properties` (the store WAR) | the type store |
 | `application-headoffice.properties` (the head office WAR) | the type headoffice |
 
@@ -78,6 +78,11 @@ connector. The conditions, the connectors and the startup summary read it (`ErpC
 `core/config/ErpConnectorEnvironmentPostProcessor` checks it once the configuration files are read: an unknown value
 (an empty `erp.connector=` included) stops the startup, `Invalid value '<v>' for property erp.connector: none | emtop |
 happyness | parafendri | zen.`
+
+**Conventions module** (3.6.0, `docs/roadmap/conventions.md`): `convention.enabled`, a store and a head office alike,
+read as `communication.enabled`. `false` in core's `application.properties`; an installation turns it on with
+`convention.enabled=true` in its outside file (trimmed, any case). Absent or empty is off; any other value is off with
+one WARN line, never a refused start. On, the startup summary adds `conventions on`. No customer file names it.
 
 **Communication module** (3.3.0, `docs/modules/communication.md`): `communication.enabled`, a store and a head office
 alike. `false` in core's `application.properties`; an installation turns it on with `communication.enabled=true` in its
@@ -439,7 +444,8 @@ the "Connect a store" procedure: `docs/modules/head-office.md`, "Head office lin
   - `supplyFromHeadOffice` (step 7A): `true` on a store whose goods come from the head office by BL (URL, explicit `ownership.supply=HEAD_OFFICE`, no ERP). Since step 9 the same as `ownership.SUPPLY` = `HEAD_OFFICE`; the frontend reads this flag.
   - `rfidEnabled` (RFID step 2, last field): `true` on a store with `rfid.enabled=true`; the frontend shows the RFID pages and buttons only then (a missing field reads as `false`).
   - `warrantyEnabled` (3.3.0, last field): `true` on a store with `warranty.enabled=true`; the frontend shows the Warranties page only then (a missing field reads as `false`; `docs/modules/warranties.md`).
-  - `eventLogEnabled` (3.4.0, last field): `true` on a store with `eventlog.enabled=true`, the event log is written (a missing field reads as `false`; `docs/modules/event-log.md`).
+  - `eventLogEnabled` (3.4.0): `true` on a store with `eventlog.enabled=true`, the event log is written (a missing field reads as `false`; `docs/modules/event-log.md`).
+  - `conventionEnabled` (3.6.0, last field): `true` with `convention.enabled=true`, on a store and on a head office alike (a missing field reads as `false`; `docs/roadmap/conventions.md`).
 - **Frontend store** (`store/app-config/index.js`, task 0.5): state `nodeType` (default `'STORE'`), `ownership` (default `{}`), `salesUpstreams` (default `[]`). Getters `nodeType`, `ownerOf(domain)` (owner name, `null` when unknown) and `salesUpstreams`. Defaults when talking to an older backend, or when the call fails: a missing or unknown `nodeType` gives `'STORE'`, a missing or non-object `ownership` gives `{}`, a missing or non-array `salesUpstreams` gives `[]`. No component, route or menu reads them yet.
 
 ## 6. Frontend
@@ -484,6 +490,7 @@ own questions stay `@ConditionalOnErpAbility` and `@ConditionalOnErpConnector` (
 | `COMMUNICATION_SENDS_HERE` | 3.3.0, step 3: the module on, on a store whose loyalty is not the head office's; it makes and sends its own messages; step 4: the Communication page exists (ApplicationModeService.isCommunicationSentHere, GET /config `communication.sendsHere`). | 11 (step 3: the processor, the sender, the seeding; step 4: the page's API and service, the store's ticket search; step 7: the campaigns' service and maker; step 8a: the Canaux tab's service; step 8a part 2: the channels' pause and speed; step 8c: the templates refused by their provider) |
 | | Step 6: also a head office with the module on (it owns the loyalty): it makes and sends the messages of its stores' events and of its own members. | |
 | `COMMUNICATION_PUSHED_UP` | 3.3.0, step 6: the module on, on a store whose loyalty is the head office's: it pushes its events up and sends nothing. | 2 (the push service and its link job) |
+| `CONVENTION` | 3.6.0: an installation whose conventions module is on, `convention.enabled=true` (`docs/roadmap/conventions.md`). Store and head office. | 0 (part B1: the switch only; the API comes with part B3) |
 
 Three answers combine `NodeOwnership` methods as the old conditions did: `HEAD_OFFICE` (`nodeTypeOf == HEAD_OFFICE`),
 `HEAD_OFFICE_OWN_SUPPLY` (without ERP, not supply from the ERP and, 3.1.1, not NONE), `HEAD_OFFICE_ERP_SUPPLY`

@@ -194,7 +194,8 @@ public class AppConfigAPI {
 				applicationModeService.isWarrantyEnabled(), // 3.3.0: warranty.enabled
 				applicationModeService.isStoreOrdersEnabled(), // 3.3.0: storeorders.enabled
 				applicationModeService.isEventLogEnabled(), // 3.4.0: eventlog.enabled
-				eventLogTillCodes() // 3.4.0, event log step 4
+				eventLogTillCodes(), // 3.4.0, event log step 4
+				applicationModeService.isConventionEnabled() // 3.6.0: convention.enabled
 		));
 	}
 

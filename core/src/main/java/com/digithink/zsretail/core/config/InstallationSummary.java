@@ -66,6 +66,9 @@ public class InstallationSummary {
 		if (NodeOwnership.isCommunicationSet(env)) {
 			line.add("communication on"); // 3.3.0: off says nothing, so the line stays as in 3.2.0
 		}
+		if (NodeOwnership.isConventionSet(env)) {
+			line.add("conventions on"); // 3.6.0: off says nothing
+		}
 		line.add("ERP connector " + ErpAbilities.connectorInEffect(env));
 		String address = ErpConnectorEnvironmentPostProcessor.summaryAddress(env);
 		if (address != null) {

@@ -62,13 +62,13 @@ class AppConfigAPITest {
 	 * the head office's points de stock (headOfficeStockPoints); then 3.3.0 the communication module (communication) and
 	 * the Warranties page (warrantyEnabled), then the store orders switch (storeOrdersEnabled); then 3.4.0 the event log
 	 * (eventLogEnabled), and the codes its till may send (eventLogTillCodes); 3.5.0's renderer switch gone
-	 * at step 6 (the new printing is the only one). */
+	 * at step 6 (the new printing is the only one); then 3.6.0 the conventions module (conventionEnabled). */
 	private static final List<String> NEW_KEYS = Arrays.asList("nodeType", "ownership", "salesUpstreams",
 			"headOfficeLinked", "catalogueFromHeadOffice", "supplyFromHeadOffice", "headOfficeStock", "supplySource",
 			"allowDecimalQuantity", "taxStampActive", "posAmountsThreeDecimals", "rfidEnabled", "cashierClosingTicket",
 			"navItems", "itemCategories", "itemSections", "tillActions", "storeOrdersPost", "posCatalogueVisible",
 			"headOfficeStockPoints", "communication", "warrantyEnabled", "storeOrdersEnabled", "eventLogEnabled",
-			"eventLogTillCodes");
+			"eventLogTillCodes", "conventionEnabled");
 
 	private static final String L = "LOCAL";
 	private static final String HO = "HEAD_OFFICE";
@@ -503,6 +503,25 @@ class AppConfigAPITest {
 		} finally {
 			COMMUNICATION_SETTINGS[0] = null;
 		}
+	}
+
+	@Test
+	@DisplayName("3.6.0, conventions step 1: conventionEnabled false without the line, blank or wrong; true with"
+			+ " convention.enabled=true on a store and on a head office alike")
+	void conventionEnabled() throws Exception {
+		assertFalse(standalone().isConventionEnabled(), "no line");
+		assertFalse(headOffice().isConventionEnabled(), "no line, a head office");
+		assertFalse(config(new MockEnvironment().withProperty("convention.enabled", " "), true, true).isConventionEnabled(),
+				"blank");
+		assertFalse(config(new MockEnvironment().withProperty("convention.enabled", "yes"), true, true).isConventionEnabled(),
+				"a wrong value: off, the configuration still answers");
+		assertTrue(config(new MockEnvironment().withProperty("convention.enabled", " TRUE "), true, true)
+				.isConventionEnabled(), "a store");
+		assertTrue(config(new MockEnvironment().withProperty("node.type", "HEAD_OFFICE").withProperty("convention.enabled",
+				"true"), true, true).isConventionEnabled(), "a head office");
+		assertTrue(config(new MockEnvironment().withProperty("convention.enabled", "true"), false, true)
+				.isConventionEnabled(), "a store with an ERP: the switch alone decides");
+		assertEquals("false", new ObjectMapper().valueToTree(dynamics()).get("conventionEnabled").toString());
 	}
 
 	private static void inject(Object target, Class<?> declaringClass, String fieldName, Object value) throws Exception {

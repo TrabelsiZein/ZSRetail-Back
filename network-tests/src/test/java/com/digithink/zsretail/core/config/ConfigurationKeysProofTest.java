@@ -108,6 +108,10 @@ import com.digithink.zsretail.support.Installations;
  * 3.4.0, opened from 3.3.0: app.version=3.4.0 on every configuration; the event log, eventlog.enabled (the store type
  * file says false, no other file has the line): "keys 123" and one line per configuration, false on every store,
  * (none) on a head office; every other line unchanged.
+ * <p>
+ * 3.6.0, opened from 3.5.0: app.version=3.6.0 on every configuration; the conventions module, convention.enabled (core's
+ * application.properties says false, no other file has the line): "keys 124" and one line per configuration, false on
+ * every store and every head office; every other line unchanged.
  */
 class ConfigurationKeysProofTest {
 

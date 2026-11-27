@@ -44,6 +44,7 @@ the blocks and their locks, the API, the page, the print's width, size and compa
 - `roadmap/standalone-tasks.md` — standalone backlog
 - `roadmap/2.3-families-by-stock-point.md` — 2.3 analysis, not built
 - `roadmap/ticket-templates.md` — 3.5.0 ticket templates: today's tickets, the agreed design, the steps
+- `roadmap/conventions.md` — 3.6.0 conventions: the decisions (the reference), step 1's parts B1 to B5 and F1 to F4
 - `roadmap/open-points.md` — gaps seen and left for later (split bill, the item cost in the till's JSON)
 
 ## History — `history/`
