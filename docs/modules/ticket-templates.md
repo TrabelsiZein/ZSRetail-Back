@@ -244,10 +244,14 @@ No blocks: the page shows the "Mise en page" tab only; a save that sends blocks 
 `feedLines` and `separator` are unknown options there. `GET /ticket-templates` marks them `internal: true`.
 
 "Masquer les lignes à zéro" (the rule in the builders, `detail`): a counter or a detail row with no amount and no
-movement is not printed; the totals and the cash control rows (expected, counted, difference, the verification, the
-opening cash, the handover, the declared total and the net cash) always print; a section left with only zero rows goes
-with its title and its divider (PAIEMENTS, MOUVEMENTS DE CAISSE, the closing ticket's methods and counters). The slips:
-nothing to hide.
+movement is not printed; in CONTRÔLE (session and store tickets) and in the verification's table, a method with nothing
+expected and nothing counted (its tickets' numbers too) is not printed either (after the step 4 screen test); the totals,
+the control of a method with an amount (expected, counted, difference, a difference of 0 included), the opening cash,
+the handover, the declared total and the net cash always print; a section left with only zero rows goes with its title
+and its divider (PAIEMENTS, MOUVEMENTS DE CAISSE, the closing ticket's methods and counters). The slips: nothing to hide.
+
+Every date of an internal ticket prints as dd/MM/yyyy HH:mm (`ticketDateTime`), as the store ticket: the old session
+ticket and closing ticket printed theirs as the API sends them ("2026-11-20 16:45:52"), a fix of the new printing only.
 
 Fixed in the new printing only: the closing ticket's names (store, payment methods) and labels are escaped (the old one
 wrote them into the HTML as they are).

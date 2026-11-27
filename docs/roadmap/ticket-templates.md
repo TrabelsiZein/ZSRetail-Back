@@ -471,7 +471,11 @@ What it is now: `modules/ticket-templates.md`, "The internal tickets". Built:
   control (expected, counted, difference, the verification, the opening cash, the handover, the net cash). **A section
   left with only zero rows goes with its title and its divider** (PAIEMENTS, MOUVEMENTS DE CAISSE; on the closing ticket
   the methods and the counters); a section with a total always keeps its title. The two slips have only their identity
-  and their amounts: the switch changes nothing there.
+  and their amounts: the switch changes nothing there. After the screen test: in CONTRÔLE and in the verification's
+  table, a method with nothing expected and nothing counted goes too (a method with an amount stays, its difference of 0
+  included); every date of an internal ticket prints as dd/MM/yyyy HH:mm (the session and closing tickets printed the
+  API's "2026-11-20 16:45:52"); the store ticket of one POS machine (Journal, \`?posMachineId=\`) confirmed on the new
+  renderer and its template, its machine named (a fixture).
 - The page: the internal documents active, each with its caption and its sample (`sample-internal.js`, rows at zero in
   it), the "Mise en page" tab alone (paper, size, spacing, the switch; no blank lines, no separators); "Copier depuis…"
   between internal tickets (the width, the size, the spacing), between customer tickets as before.
