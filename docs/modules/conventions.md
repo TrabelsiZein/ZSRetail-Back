@@ -326,9 +326,10 @@ holder's phone is never in an event** (decision 15): its change is written "Tél
   modifier, gérer les cartes)" (fr / en / ar). `AdminLabels` (the event log's names of the rights) is written from the
   store's Roles page by `tools/admin-labels-check.mjs --write`.
 - **The list.** `GET /conventions` through `libs/conventions.js` (`listConventions`, `skipErrorPopup`: a refusal shows
-  in the page, `serverErrors.CONVENTION_*`). Columns: code, name, organisation, start, end ("Sans fin"), the state as a
+  in the page, `serverErrors.CONVENTION_*`; `CONVENTION_FORBIDDEN` names the right as the Roles page does,
+  `libs/right-labels.js`, as `COMM_FORBIDDEN`). Columns: code, name, organisation, start, end ("Sans fin"), the state as a
   badge (the row's `state`, never worked out in the browser), recognition, active and blocked cards ("—" with
-  `NO_CARD`). Above the table, always in view: the state filter (Actives by default, Suspendues, Expirées, À venir,
+  `NO_CARD`). Above the table, always in view: the state filter (En vigueur by default, Suspendues, Expirées, À venir,
   Toutes) and the search (code, name, organisation, after 400 ms); 10 rows a page (the server's limit 100). The empty
   state says why (no convention, none in this state, none for the search) and offers every convention. No
   "Nouvelle convention" and no link on the rows until F2.

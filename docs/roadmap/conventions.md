@@ -214,7 +214,8 @@ default; `GET /conventions/cards/template?lang=fr|en` (read), the empty file to 
 Built as below; what it does is in `docs/modules/conventions.md`, "The front". Where it differs from this plan: two
 getters, `conventionEnabled` (the module on, a store or a head office) and `conventionShown` (on, and not a store whose
 promotions are the head office's: the back end's `isConventionManagedHere`), the menus, routes and Roles pages read
-`conventionShown`; the first filter is "Actives" (Zein's word; the state ACTIVE, in force today); the state filter
+`conventionShown`; the state ACTIVE (in force today) is "En vigueur" in the filter and the badge (Zein, 2026-11-28:
+"Active" is the stored status's word only, on the convention's page in F2); the state filter
 and the search sit above the table (not in the folded filter panel), so the filter in force is always seen; the calls
 in `libs/conventions.js` from F1 (the list); no "Nouvelle convention" button and no link on the rows (F2).
 
