@@ -488,6 +488,54 @@ class ZZDataInitializerRolesTest {
 		assertTrue(nextStart.isEmpty(), "next start, saved: " + nextStart);
 	}
 
+	/** 3.6.0: the Conventions pages, ADMIN where the conventions are managed (a head office, a store owning its promotions). */
+	private static final Set<String> CONVENTIONS = new HashSet<>(java.util.Arrays.asList("read:admin-conventions",
+			"write:admin-conventions"));
+
+	@Test
+	@DisplayName("3.6.0, conventions part B3: ADMIN of a new store or head office with the module on has the two rights (the"
+			+ " same keys); a database of before gets them at its start, once; module off, or a store whose promotions are"
+			+ " the head office's: nothing; never another role")
+	void conventionRightsGivenToAdmin() throws Exception {
+		assertEquals(CONVENTIONS, staticSet("CONVENTION_ADMIN_PERMISSIONS"));
+		MockEnvironment on = new MockEnvironment().withProperty("convention.enabled", "true");
+		for (boolean[] flags : STORE_PROFILES) {
+			Map<String, AppRole> roles = seedRoles(on, flags[0], Collections.emptyMap());
+			Set<String> expected = storeAdminPermissions(flags[0]);
+			expected.addAll(CONVENTIONS);
+			assertEquals(expected, roles.get("ADMIN").getPermissions(), "new store, module on");
+			assertTrue(Collections.disjoint(CONVENTIONS, roles.get("RESPONSIBLE").getPermissions()));
+			assertTrue(Collections.disjoint(CONVENTIONS, roles.get("POS_USER").getPermissions()));
+			assertEquals(storeAdminPermissions(flags[0]), seedRoles(new MockEnvironment().withProperty("convention.enabled",
+					"yes"), flags[0], Collections.emptyMap()).get("ADMIN").getPermissions(), "a wrong value: off");
+		}
+		MockEnvironment promotionsUp = new MockEnvironment().withProperty("convention.enabled", "true")
+				.withProperty("ownership.promotions", "HEAD_OFFICE").withProperty("headoffice.url", "http://ho:888/zsretail/api")
+				.withProperty("headoffice.api-key", "k");
+		assertTrue(Collections.disjoint(CONVENTIONS, seedRoles(promotionsUp, false, Collections.emptyMap()).get("ADMIN")
+				.getPermissions()), "promotions from the head office: the conventions too, no page");
+		Map<String, AppRole> headOffice = seedRoles(headOffice().withProperty("convention.enabled", "true"), false,
+				Collections.emptyMap());
+		assertTrue(headOffice.get("ADMIN").getPermissions().containsAll(CONVENTIONS), "head office, module on");
+		assertTrue(Collections.disjoint(CONVENTIONS, seedRoles(headOffice(), false, Collections.emptyMap()).get("ADMIN")
+				.getPermissions()), "head office, module off");
+
+		// A store of before, the module turned on: ADMIN gets them at its start, once
+		Map<String, AppRole> existing = existingRoles("read:home", LICENSE);
+		List<String> saves = new ArrayList<>();
+		seedRoles(on, false, existing, saves);
+		assertEquals(Collections.singletonList("ADMIN"), saves);
+		assertTrue(existing.get("ADMIN").getPermissions().containsAll(CONVENTIONS));
+		assertTrue(Collections.disjoint(CONVENTIONS, existing.get("RESPONSIBLE").getPermissions()));
+		List<String> nextStart = new ArrayList<>();
+		seedRoles(on, false, existing, nextStart);
+		assertTrue(nextStart.isEmpty(), "next start, saved: " + nextStart);
+		// A head office of before
+		Map<String, AppRole> existingHeadOffice = existingRoles("read:home");
+		seedRoles(headOffice().withProperty("convention.enabled", "true"), false, existingHeadOffice);
+		assertTrue(existingHeadOffice.get("ADMIN").getPermissions().containsAll(CONVENTIONS));
+	}
+
 	/** The RFID pages (readers, tags, tag assignment): ADMIN of a store with rfid.enabled=true only. */
 	private static final Set<String> RFID = new HashSet<>(
 			java.util.Arrays.asList("read:admin-rfid-readers", "read:admin-rfid-tags", "read:admin-rfid-assignment"));

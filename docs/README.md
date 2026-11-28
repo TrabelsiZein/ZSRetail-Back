@@ -34,7 +34,9 @@ session tickets X and Z) · `store-orders` (3.1.1: the orders of a store to its 
 (3.3.0: the installer's guide: the switches, each channel's lines with an example, what to get from each provider, the
 real-test checklist, what the screens mean) · `event-log` (3.4.0: the "Journal des événements", `eventlog.enabled`; step 1,
 the tables, the catalogue and the helper) · `ticket-templates` (3.5.0, released 2026-11-27: "Modèles de tickets", the table `ticket_template`,
-the blocks and their locks, the API, the page, the print's width, size and compact, VAT by rate)
+the blocks and their locks, the API, the page, the print's width, size and compact, VAT by rate) · `conventions` (3.6.0:
+an organisation's members and their cards; `convention.enabled`, the tables, the API `/conventions`, its rules, rights
+and events; the cards and the pages to come)
 
 ## Specs and plans
 

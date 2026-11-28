@@ -12,6 +12,7 @@ import javax.persistence.UniqueConstraint;
 import org.hibernate.annotations.Nationalized;
 
 import com.digithink.zsretail.core.convention.enumeration.ConventionRecognition;
+import com.digithink.zsretail.core.convention.enumeration.ConventionState;
 import com.digithink.zsretail.core.convention.enumeration.ConventionStatus;
 import com.digithink.zsretail.core.model._BaseEntity;
 import com.digithink.zsretail.core.model.enumeration.RecordOrigin;
@@ -106,4 +107,22 @@ public class Convention extends _BaseEntity {
 	@Enumerated(EnumType.STRING)
 	@Column(name = "origin", nullable = false, columnDefinition = "nvarchar(20)")
 	private RecordOrigin origin = RecordOrigin.LOCAL;
+
+	/**
+	 * Part B3: what the convention is on this day (the server's date, never the browser's): SUSPENDED as stored, else
+	 * UPCOMING before its start, EXPIRED after its end, ACTIVE within them (both days included). Not a property: never
+	 * stored, never read from a request.
+	 */
+	public ConventionState stateOn(LocalDate day) {
+		if (status == ConventionStatus.SUSPENDED) {
+			return ConventionState.SUSPENDED;
+		}
+		if (startDate != null && day.isBefore(startDate)) {
+			return ConventionState.UPCOMING;
+		}
+		if (endDate != null && day.isAfter(endDate)) {
+			return ConventionState.EXPIRED;
+		}
+		return ConventionState.ACTIVE;
+	}
 }

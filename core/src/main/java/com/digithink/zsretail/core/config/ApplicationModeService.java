@@ -174,6 +174,15 @@ public class ApplicationModeService {
 	}
 
 	/**
+	 * 3.6.0, part B3: the module on and the conventions changed here, a head office or a store that owns its promotions
+	 * (decision 2: they follow the promotions). False on a store whose promotions are the head office's: no page, the
+	 * writes answer 409, its ADMIN gets no Conventions right.
+	 */
+	public boolean isConventionManagedHere() {
+		return conventionEnabled && !isPromotionsOwnedByHeadOffice();
+	}
+
+	/**
 	 * Invoices from the ERP: true on a head office with headoffice.supply.source=ERP (catalogue only from the ERP): the
 	 * stores' supply documents are the ERP's invoices; the head office makes no BL, supply price or supply invoice.
 	 * Always false on a store.

@@ -28,6 +28,15 @@ step 1's parts).
   / `NO_CARD`, the three limits, card prefix and digits, the generation counter, origin) and `ConventionCard` (number,
   convention, status, the optional holder name / phone / employee number, `exported_at`), their enums and repositories
   (`core.convention`). No service, no API yet.
+- Conventions, step 1, part B3: `/conventions` (`ConventionAPI`, `ConventionService`, `ConventionEvents`, only with
+  `convention.enabled=true`: otherwise 404), a store and a head office alike: the list (status, search, pages; each row
+  with its active / blocked cards and its state of today, active / suspended / expired / upcoming, worked out on the
+  server), one convention, create, edit (the whole form; the code fixed), suspend / reactivate, delete (only without a
+  card). The rules and their refusal codes (`ConventionException`, `serverErrors.<code>`): `docs/modules/conventions.md`.
+  Rights `read:admin-conventions` / `write:admin-conventions` (403 `CONVENTION_FORBIDDEN`), given to ADMIN where the
+  conventions are managed (a head office, a store that owns its promotions); a store whose promotions are the head
+  office's answers 409 to every change. Events (a store's event log): `CONVENTION_CREATED`, `CONVENTION_UPDATED`,
+  `CONVENTION_SUSPENDED`, `CONVENTION_REACTIVATED`, `CONVENTION_DELETED` (subject `CONVENTION`). No page yet (F1).
 
 ### Build
 - Lombok 1.18.36 set in the parent pom (`lombok.version`, over Spring Boot 2.3.9's 1.18.18, which does not compile on

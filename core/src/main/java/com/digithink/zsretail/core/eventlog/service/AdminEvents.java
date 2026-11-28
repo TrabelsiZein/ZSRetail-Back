@@ -571,7 +571,7 @@ public class AdminEvents implements GeneralSetupChangeListener {
 	}
 
 	/** "Field : before → after" for each value that changed. */
-	static List<String> changes(Map<String, String> before, Map<String, String> after) {
+	public static List<String> changes(Map<String, String> before, Map<String, String> after) {
 		List<String> out = new ArrayList<>();
 		for (Map.Entry<String, String> e : after.entrySet()) {
 			String old = norm(before.get(e.getKey()));
@@ -627,7 +627,7 @@ public class AdminEvents implements GeneralSetupChangeListener {
 	}
 
 	/** Money to the millime, "12,500"; null stays null. */
-	static String money(Double v) {
+	public static String money(Double v) {
 		return v == null ? null : BigDecimal.valueOf(v).setScale(3, RoundingMode.HALF_UP).toPlainString().replace('.', ',');
 	}
 

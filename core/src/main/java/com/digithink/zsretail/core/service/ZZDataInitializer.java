@@ -200,6 +200,9 @@ public class ZZDataInitializer {
 			if (applicationModeService.isCommunicationSentHere()) {
 				wanted.addAll(COMMUNICATION_ADMIN_PERMISSIONS); // 3.3.0, step 6: the Communication page of the head office
 			}
+			if (applicationModeService.isConventionManagedHere()) {
+				wanted.addAll(CONVENTION_ADMIN_PERMISSIONS); // 3.6.0: the Conventions pages
+			}
 			addMissingPermissions(adminRole, wanted);
 		} else {
 			// The Licence page: a database of before it gets it at its first start, so an admin keeps the licence upload
@@ -228,6 +231,9 @@ public class ZZDataInitializer {
 			}
 			if (applicationModeService.isCommunicationSentHere()) {
 				wanted.addAll(COMMUNICATION_ADMIN_PERMISSIONS); // 3.3.0: the Communication page
+			}
+			if (applicationModeService.isConventionManagedHere()) {
+				wanted.addAll(CONVENTION_ADMIN_PERMISSIONS); // 3.6.0: the Conventions pages (promotions owned here)
 			}
 			if (applicationModeService.keepsOwnStock()) {
 				wanted.addAll(COST_ADMIN_PERMISSIONS); // CMP: "Ajuster le CMP", a store that keeps its own stock
@@ -287,6 +293,9 @@ public class ZZDataInitializer {
 			if (applicationModeService.isCommunicationSentHere()) {
 				permissions.addAll(COMMUNICATION_ADMIN_PERMISSIONS); // 3.3.0, step 6
 			}
+			if (applicationModeService.isConventionManagedHere()) {
+				permissions.addAll(CONVENTION_ADMIN_PERMISSIONS); // 3.6.0: the Conventions pages
+			}
 			return permissions;
 		}
 		permissions.add("read:cashier-interface");
@@ -303,6 +312,9 @@ public class ZZDataInitializer {
 		}
 		if (applicationModeService.isCommunicationSentHere()) {
 			permissions.addAll(COMMUNICATION_ADMIN_PERMISSIONS); // 3.3.0: the Communication page
+		}
+		if (applicationModeService.isConventionManagedHere()) {
+			permissions.addAll(CONVENTION_ADMIN_PERMISSIONS); // 3.6.0: the Conventions pages (promotions owned here)
 		}
 		if (applicationModeService.keepsOwnStock()) {
 			permissions.addAll(COST_ADMIN_PERMISSIONS); // CMP: "Ajuster le CMP"
@@ -464,6 +476,17 @@ public class ZZDataInitializer {
 	 */
 	static final Set<String> COMMUNICATION_ADMIN_PERMISSIONS = new HashSet<>(
 			Arrays.asList("read:admin-communication", "write:admin-communication", "write:admin-communication-campaigns"));
+
+	/**
+	 * 3.6.0, conventions step 1, part B3: the Conventions pages, the keys the API checks (core.convention.controller.
+	 * ConventionAPI), the same on a store and a head office (decision 11). Where the module is on and the conventions are
+	 * managed here (ApplicationModeService.isConventionManagedHere: a head office, a store that owns its promotions): in
+	 * ADMIN's set of a new database, given to ADMIN at every start there (a database of before, the module turned on
+	 * later). Off, or a store whose promotions are the head office's: nothing added. Other roles: the Roles page.
+	 */
+	static final Set<String> CONVENTION_ADMIN_PERMISSIONS = new HashSet<>(Arrays.asList(
+			com.digithink.zsretail.core.convention.controller.ConventionAPI.READ,
+			com.digithink.zsretail.core.convention.controller.ConventionAPI.WRITE));
 
 	/**
 	 * 3.2.0, POS machines step 1: the POS machines page, on every store (RFID or not; docs/modules/pos-machines.md). The key

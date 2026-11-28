@@ -36,6 +36,8 @@ public enum EventSubject {
 	LOYALTY,
 	/** 3.5.0, ticket templates step 2: a document's template, identified by the document type (SALE). */
 	TICKET_TEMPLATE,
+	/** 3.6.0, conventions step 1: a convention, identified by its id (its code as the label). */
+	CONVENTION,
 	/** The event log itself: its start, its settings, its cleanups. */
 	EVENT_LOG
 }

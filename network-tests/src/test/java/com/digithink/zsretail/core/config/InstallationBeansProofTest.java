@@ -58,7 +58,7 @@ class InstallationBeansProofTest {
 	static final List<String> ERP_CONDITIONS = Arrays.asList("OnErpAbilityCondition", "OnErpConnectorCondition");
 
 	/** Every class and @Bean method these questions decide, by name: a lost or new annotation shows here. */
-	static final int EXPECTED_DECIDED = 142; // RFID: 3 services, the reader, 3 APIs; tags: 2 services, the check, the API;
+	static final int EXPECTED_DECIDED = 145; // RFID: 3 services, the reader, 3 APIs; tags: 2 services, the check, the API;
 	// POS: the sale tags hook, the POS service and its API; item variants (ZEN), step 9: the stores'
 	// ERP customers for the invoices read (HoErpInvoiceCustomers); 3.1.1, orders to the head office: the API, the
 	// service, the status writer, the draft index (store); the reception and admin APIs, the service, the posting
@@ -83,7 +83,8 @@ class InstallationBeansProofTest {
 	// (CommunicationIgnoredLines, COMMUNICATION_PUSHED_UP) (138 to 139); 3.5.0, ticket templates step 5: the store's switch
 	// and its handler (TicketTemplatesManaged, TicketTemplateDownHandler, LINKED_TO_HEAD_OFFICE) and the head office's
 	// provider (TicketTemplateDownProvider, HEAD_OFFICE) (139 to 142); the copies down puller, its job and DownRecordLog
-	// on every linked store (COPIES_FROM_HEAD_OFFICE to LINKED_TO_HEAD_OFFICE)
+	// on every linked store (COPIES_FROM_HEAD_OFFICE to LINKED_TO_HEAD_OFFICE); 3.6.0, conventions part B3: the API, the
+	// service and the events (Installation.CONVENTION, a store and a head office) (142 to 145)
 
 	/** True for an annotation whose condition is an installation question (a class of config, not an ERP one). */
 	static boolean isQuestion(Annotation annotation) {
@@ -242,6 +243,18 @@ class InstallationBeansProofTest {
 		communicationLoyaltyStore.setProperty("headoffice.url", "http://localhost:888/zsretail/api");
 		communicationLoyaltyStore.setProperty("headoffice.api-key", "key");
 		environments.put("store, loyalty from the head office, communication on", communicationLoyaltyStore);
+		// 3.6.0, conventions part B3: the module's beans only with the switch, a store and a head office alike; a store whose
+		// promotions are the head office's has them too (its reads stay, its writes answer 409)
+		MockEnvironment conventionStore = Installations.type("store");
+		conventionStore.setProperty("convention.enabled", "true");
+		environments.put("store, conventions on", conventionStore);
+		environments.put("head office, conventions on", headOffice("convention.enabled=true"));
+		MockEnvironment conventionPromotionsStore = Installations.type("store");
+		conventionPromotionsStore.setProperty("convention.enabled", "true");
+		conventionPromotionsStore.setProperty("ownership.promotions", "HEAD_OFFICE");
+		conventionPromotionsStore.setProperty("headoffice.url", "http://localhost:888/zsretail/api");
+		conventionPromotionsStore.setProperty("headoffice.api-key", "key");
+		environments.put("store, promotions from the head office, conventions on", conventionPromotionsStore);
 		return environments;
 	}
 

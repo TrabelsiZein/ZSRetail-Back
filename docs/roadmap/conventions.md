@@ -140,7 +140,15 @@ Tests: `ConventionTableTest`: the script holds Hibernate's six statements (the t
 index, the foreign key), every text column nvarchar and the names as decided; on H2 the defaults of a new row, the code
 twice refused, a card number refused in a second convention, a card without its convention refused, Arabic kept.
 
-### B3 — the conventions: API, service, rights, events
+### B3 — the conventions: API, service, rights, events (done 2026-11-28)
+
+Built as below; what it does is in `docs/modules/conventions.md`. Where it differs from this plan: the list's `status`
+filters the stored status, and each row carries `state` (ACTIVE / SUSPENDED / EXPIRED / UPCOMING, from the server's
+date: `Convention.stateOn`); the rights' French names in `AdminLabels` come with F1 (the file is written by the front's
+tool from the Roles page, a key added before would fail the front's check); card digits 4 to 9 (default 5);
+`ApplicationModeService.isConventionManagedHere` (the module on, not a store whose promotions are the head office's)
+answers both the 409 and ADMIN's rights; the API, the service and the events are the module's three beans
+(`Installation.CONVENTION`).
 
 - `ConventionAPI` (`core.convention.controller`, `@ConditionalOnInstallation(Installation.CONVENTION)`: off, no bean,
   404). Hand-written, not `_BaseController` (its `DELETE /{id}` and its PUT that writes any field skip the rules, the
@@ -192,7 +200,8 @@ twice refused, a card number refused in a second convention, a card without its 
 - `views/admin/conventions/ConventionsList.vue` on `AdminListPage` (the gradient banner): code, name, organisation,
   dates, status (with "Expirée" / "À venir" from the dates), cards active / blocked; filter Actives / Suspendues /
   Toutes (radio buttons) and a search.
-- fr / en / ar; `store-menu-check`, `headoffice-menu-check`, `admin-labels-check`.
+- fr / en / ar; `store-menu-check`, `headoffice-menu-check`, `admin-labels-check` (the two rights on the Roles pages,
+  then `--write`: `AdminLabels.java` gets their names, a back end commit with F1).
 
 ### F2 — the convention page and "Informations"
 

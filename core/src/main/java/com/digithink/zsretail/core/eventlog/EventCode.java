@@ -127,6 +127,14 @@ public enum EventCode {
 	TICKET_TEMPLATES_MANAGED_ON(EventSubject.TICKET_TEMPLATE, ALERT, "Modèles de tickets gérés par le siège"),
 	/** 3.5.0, step 5: the switch turned off: the templates received are kept, the store's own again, editable. */
 	TICKET_TEMPLATES_MANAGED_OFF(EventSubject.TICKET_TEMPLATE, NOTABLE, "Modèles de tickets rendus au magasin"),
+	/** 3.6.0, conventions step 1, part B3 (core.convention.service.ConventionEvents): a convention created, its values. */
+	CONVENTION_CREATED(EventSubject.CONVENTION, NOTABLE, "Convention créée"),
+	/** Its values changed (each field before → after); nothing when nothing changed. */
+	CONVENTION_UPDATED(EventSubject.CONVENTION, NOTABLE, "Convention modifiée"),
+	CONVENTION_SUSPENDED(EventSubject.CONVENTION, NOTABLE, "Convention suspendue"),
+	CONVENTION_REACTIVATED(EventSubject.CONVENTION, NOTABLE, "Convention réactivée"),
+	/** Only a convention without a card is deleted (decision 9): its values in the details. */
+	CONVENTION_DELETED(EventSubject.CONVENTION, NOTABLE, "Convention supprimée"),
 
 	// ── Stock, inventory, purchases ──
 	STOCK_ADJUSTED(EventSubject.ITEM, ALERT, "Stock ajusté"),
