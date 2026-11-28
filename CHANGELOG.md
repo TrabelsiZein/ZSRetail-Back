@@ -59,6 +59,9 @@ step 1's parts).
   convention code, name, organisation, holder name, employee number; never the phone), the active cards by default.
   Events `CONVENTION_CARDS_IMPORTED` and `CONVENTION_CARDS_EXPORTED`, the count as amount. The module doc
   `docs/modules/conventions.md` complete for the back end.
+- Conventions, step 1, part F1 (the front's list page): `AdminLabels` names the two rights as the Roles page does
+  ("Conventions (consulter)", "Conventions (créer, modifier, gérer les cartes)"), written by the front's
+  `tools/admin-labels-check.mjs --write`: the events of a role's rights name them.
 
 ### Build
 - Lombok 1.18.36 set in the parent pom (`lombok.version`, over Spring Boot 2.3.9's 1.18.18, which does not compile on

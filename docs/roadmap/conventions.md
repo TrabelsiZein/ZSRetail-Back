@@ -209,7 +209,14 @@ default; `GET /conventions/cards/template?lang=fr|en` (read), the empty file to 
 - POI is in core. Tests: `ConventionCardExcelTest` (the files read and written), `ConventionCardImportTest` (an .xlsx
   built in the test; the export read back), `ConventionAPITest`. The module doc complete for the back end of step 1.
 
-### F1 — the switch, the menus, the list
+### F1 — the switch, the menus, the list (done 2026-11-28)
+
+Built as below; what it does is in `docs/modules/conventions.md`, "The front". Where it differs from this plan: two
+getters, `conventionEnabled` (the module on, a store or a head office) and `conventionShown` (on, and not a store whose
+promotions are the head office's: the back end's `isConventionManagedHere`), the menus, routes and Roles pages read
+`conventionShown`; the first filter is "Actives" (Zein's word; the state ACTIVE, in force today); the state filter
+and the search sit above the table (not in the folded filter panel), so the filter in force is always seen; the calls
+in `libs/conventions.js` from F1 (the list); no "Nouvelle convention" button and no link on the rows (F2).
 
 - `store/app-config`: `conventionEnabled` (state, mutation, commit, the catch fallback), a getter that is true on a
   store and on a head office; hidden on a store whose promotions are the head office's (`ownerOf('PROMOTIONS')`).

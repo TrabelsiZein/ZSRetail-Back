@@ -7,7 +7,8 @@ steps: `docs/roadmap/conventions.md`. This file says what is built.
 
 Built: the whole back end of step 1, parts B1 (the switch), B2 (the tables), B3 (the conventions' API, rights and
 events), B4 (the cards: list, generation, one by hand, block / unblock, the holder), B5 (Excel: the template, the
-import, the export for the card printer). To come in step 1: F1 to F4 (the pages). The later steps (the promotion
+import, the export for the card printer); the front's part F1 (the switch, the menus, the Roles pages, the list: "The
+front" below). To come in step 1: F2 to F4 (the convention's page, the cards, import and export). The later steps (the promotion
 reserved to a convention, the till, the returns, the statement, the head office's ownership): the roadmap.
 
 All the calls in one place:
@@ -306,6 +307,34 @@ as the label), a card's `CONVENTION_CARD` (the id; the number as the label).
 The French names are the screen's (`ConventionEvents.describe`); the Journal's names of the codes come with F4. **The
 holder's phone is never in an event** (decision 15): its change is written "Téléphone : modifié", without the value.
 `CONVENTION_CARD_ADDED` is in the roadmap (a lost card replaced is worth its line) though not in the B4 brief.
+
+## The front (`ZSRetail-Front`, part F1)
+
+- **The switch.** `GET /config` `conventionEnabled` into the app-config store (false when absent or when the call
+  fails). Two getters: `appConfig/conventionEnabled` (the module on, a store or a head office) and
+  `appConfig/conventionShown` (on, and `ownership.promotions` is not `HEAD_OFFICE`: the back end's
+  `isConventionManagedHere`, from the ownership GET /config already gives). The pages, menus and Roles entries read
+  `conventionShown`: a store whose promotions are the head office's shows nothing (its API answers 409 to every
+  change, its ADMIN has no right), as decided for step 1.
+- **The pages.** `admin-conventions` (`/admin/conventions`) on a store, `admin-headoffice-conventions`
+  (`/headoffice/conventions`, `twinOf`, `meta.conventions`, guard `byConvention`) at the head office, the same
+  component `views/admin/conventions/ConventionsList.vue`; both with the store's keys (`resource: 'admin-conventions'`,
+  the API's). Elsewhere (`CONVENTION_ROUTES`, `navigation/store-mode-routes.js`) the route goes home and the search bar
+  hides it. The menu entry "Conventions" is in Catalogue, just after Promotions, on both. `F2` adds `/new` and `/:id`.
+- **The Roles pages.** The two rights under "Conventions" (store: `CONVENTION_PERMISSIONS`, its own group; head office:
+  the Catalogue group, from the route's `writePermission`), named "Conventions (consulter)" and "Conventions (créer,
+  modifier, gérer les cartes)" (fr / en / ar). `AdminLabels` (the event log's names of the rights) is written from the
+  store's Roles page by `tools/admin-labels-check.mjs --write`.
+- **The list.** `GET /conventions` through `libs/conventions.js` (`listConventions`, `skipErrorPopup`: a refusal shows
+  in the page, `serverErrors.CONVENTION_*`). Columns: code, name, organisation, start, end ("Sans fin"), the state as a
+  badge (the row's `state`, never worked out in the browser), recognition, active and blocked cards ("—" with
+  `NO_CARD`). Above the table, always in view: the state filter (Actives by default, Suspendues, Expirées, À venir,
+  Toutes) and the search (code, name, organisation, after 400 ms); 10 rows a page (the server's limit 100). The empty
+  state says why (no convention, none in this state, none for the search) and offers every convention. No
+  "Nouvelle convention" and no link on the rows until F2.
+- **Checks.** `tools/store-menu-check.mjs` (the page only with `conventionShown` and its right, after Promotions, the
+  search bar), `tools/headoffice-menu-check.mjs` (the twin, its keys the API's, its guard, the menu's rule, its place),
+  `tools/admin-labels-check.mjs`.
 
 ## Tests
 

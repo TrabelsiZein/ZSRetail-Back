@@ -66,6 +66,7 @@ final class AdminLabels {
 		r.put("read:admin-badge-scan-history", "Historique badges");
 		r.put("read:admin-communication", "Communication (consulter)");
 		r.put("read:admin-company-information", "Infos société (lecture)");
+		r.put("read:admin-conventions", "Conventions (consulter)");
 		r.put("read:admin-customers", "Clients (lecture)");
 		r.put("read:admin-data-import", "Import données (lecture)");
 		r.put("read:admin-erp-communications", "Communications ERP");
@@ -130,6 +131,7 @@ final class AdminLabels {
 		r.put("write:admin-communication", "Communication (modifier, renvoyer)");
 		r.put("write:admin-communication-campaigns", "Communication (lancer, annuler une campagne)");
 		r.put("write:admin-company-information", "Infos société (modifier)");
+		r.put("write:admin-conventions", "Conventions (créer, modifier, gérer les cartes)");
 		r.put("write:admin-customers", "Clients (modifier)");
 		r.put("write:admin-data-import", "Import données (exécuter)");
 		r.put("write:admin-headoffice-store-orders", "Commandes des magasins (poster, rejeter, relancer)");
