@@ -14,10 +14,15 @@ import com.digithink.zsretail.core.exception.CodedRefusal;
  * (code, asked), CONVENTION_NAME_REQUIRED, CONVENTION_ORGANISATION_REQUIRED, CONVENTION_TOO_LONG (field, max),
  * CONVENTION_START_REQUIRED, CONVENTION_END_BEFORE_START (start, end), CONVENTION_LIMIT_INVALID (field),
  * CONVENTION_RECOGNITION_UNKNOWN (value), CONVENTION_PREFIX_INVALID (prefix), CONVENTION_CARD_DIGITS (min, max),
- * CONVENTION_CARD_SETTINGS_FIXED (field, cards), CONVENTION_STATUS_UNKNOWN (value), CONVENTION_HAS_CARDS (code,
- * cards);</li>
- * <li>403: CONVENTION_FORBIDDEN (permission); 404: CONVENTION_NOT_FOUND (id); 409: CONVENTION_OWNED_BY_HEAD_OFFICE (a
- * store whose promotions are the head office's: decision 2).</li>
+ * CONVENTION_CARD_SETTINGS_FIXED (field, code), CONVENTION_STATUS_UNKNOWN (value), CONVENTION_STATE_UNKNOWN (value,
+ * the list's filter), CONVENTION_HAS_CARDS (code, cards); part B4, the cards: CONVENTION_NO_CARDS (code),
+ * CONVENTION_EXPIRED (code, end), CONVENTION_GENERATE_COUNT (min, max), CONVENTION_NUMBERS_EXHAUSTED (code, left,
+ * digits), CONVENTION_CARD_NUMBER_REQUIRED, CONVENTION_CARD_NUMBER_INVALID (number), CONVENTION_CARD_NUMBER_TAKEN
+ * (number, convention), CONVENTION_CARD_NUMBER_RESERVED (number, kind), CONVENTION_CARD_IDS (min, max),
+ * CONVENTION_CARD_STATUS_UNKNOWN (value);</li>
+ * <li>403: CONVENTION_FORBIDDEN (permission); 404: CONVENTION_NOT_FOUND (id), CONVENTION_CARD_NOT_FOUND (ids); 409:
+ * CONVENTION_OWNED_BY_HEAD_OFFICE (a store whose promotions are the head office's: decision 2), CONVENTION_CARDS_BUSY
+ * (code: a number taken during a generation, try again).</li>
  * </ul>
  */
 public class ConventionException extends IllegalArgumentException implements CodedRefusal {

@@ -37,6 +37,17 @@ step 1's parts).
   conventions are managed (a head office, a store that owns its promotions); a store whose promotions are the head
   office's answers 409 to every change. Events (a store's event log): `CONVENTION_CREATED`, `CONVENTION_UPDATED`,
   `CONVENTION_SUSPENDED`, `CONVENTION_REACTIVATED`, `CONVENTION_DELETED` (subject `CONVENTION`). No page yet (F1).
+- Conventions: the list filters on the state of today (`GET /conventions?state=ACTIVE|SUSPENDED|EXPIRED|UPCOMING|all`;
+  ACTIVE = in force today), the same rule as each row's `state`; an unknown state answers `CONVENTION_STATE_UNKNOWN`.
+- Conventions, step 1, part B4: the cards (`ConventionCards`), same rights, 404 and 409: the list of a convention's
+  cards (status, never exported, search in number / holder name / employee number), the generation of 1 to 5,000
+  cards (prefix + `-` + the digits of the counter `last_card_seq`, read under the convention's row lock; a number
+  already a card, an item code, an item barcode or a loyalty card number is skipped and counted; all or nothing;
+  JDBC batches: 5,000 in half a second), one card by hand (such a number refused), block / unblock up to 500 cards in
+  one call (the unchanged left alone), the holder's name / phone / employee number (free). Only a convention with
+  recognition `CARDS`, not expired. A card is never deleted. Events: `CONVENTION_CARDS_GENERATED` (the count as amount),
+  `CONVENTION_CARD_ADDED`, `CONVENTION_CARD_BLOCKED` / `UNBLOCKED` (one per card changed),
+  `CONVENTION_CARD_HOLDER_CHANGED` (the phone never written). Refusal codes: `docs/modules/conventions.md`.
 
 ### Build
 - Lombok 1.18.36 set in the parent pom (`lombok.version`, over Spring Boot 2.3.9's 1.18.18, which does not compile on

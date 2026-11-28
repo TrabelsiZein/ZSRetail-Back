@@ -108,6 +108,11 @@ public class Convention extends _BaseEntity {
 	@Column(name = "origin", nullable = false, columnDefinition = "nvarchar(20)")
 	private RecordOrigin origin = RecordOrigin.LOCAL;
 
+	/** Part B4: the prefix of a generated number, the card prefix or, empty, the code. Not a property. */
+	public String prefixInEffect() {
+		return cardPrefix == null || cardPrefix.trim().isEmpty() ? code : cardPrefix;
+	}
+
 	/**
 	 * Part B3: what the convention is on this day (the server's date, never the browser's): SUSPENDED as stored, else
 	 * UPCOMING before its start, EXPIRED after its end, ACTIVE within them (both days included). Not a property: never

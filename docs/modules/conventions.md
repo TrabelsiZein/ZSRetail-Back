@@ -5,8 +5,9 @@ their member number) at the till and get a benefit. The benefit itself is a prom
 2); this module holds the conventions and their cards. The design, the decisions (the reference) and the order of the
 steps: `docs/roadmap/conventions.md`. This file says what is built.
 
-Built: step 1, parts B1 (the switch), B2 (the tables), B3 (the conventions' API, rights and events). To come in step 1:
-B4 (the cards), B5 (Excel import and export), F1 to F4 (the pages).
+Built: step 1, parts B1 (the switch), B2 (the tables), B3 (the conventions' API, rights and events), B4 (the cards:
+list, generation, one by hand, block / unblock, the holder). To come in step 1: B5 (Excel import and export), F1 to F4
+(the pages).
 
 ## The switch: `convention.enabled` (part B1)
 
@@ -20,7 +21,8 @@ B4 (the cards), B5 (Excel import and export), F1 to F4 (the pages).
   false: the conventions module is off`) and the module off: never a refused start (`NodeOwnership.isConventionSet`,
   as `communication.enabled`). Seen live on 2026-11-28 (a value `true,eventlog.enabled=true` given by mistake).
 - `GET /config` field `conventionEnabled` (last); the startup summary says `conventions on`.
-- **Off**: no bean of the module (`Installation.CONVENTION`: `ConventionAPI`, `ConventionService`, `ConventionEvents`),
+- **Off**: no bean of the module (`Installation.CONVENTION`: `ConventionAPI`, `ConventionService`, `ConventionCards`,
+  `ConventionEvents`),
   so every `/conventions` address answers 404. The tables and their rows stay.
 
 ## Who changes them (decision 2)
@@ -48,7 +50,7 @@ the rules and the events). Every change goes through `core.convention.service.Co
 
 | Call | Right | Answer |
 |---|---|---|
-| `GET /conventions?status=ACTIVE\|SUSPENDED\|all&q=&page=&size=` | `read:admin-conventions` | `{content, totalElements, totalPages, number, size}`, by code; `size` at most 100 (default 20) |
+| `GET /conventions?state=ACTIVE\|SUSPENDED\|EXPIRED\|UPCOMING\|all&q=&page=&size=` | `read:admin-conventions` | `{content, totalElements, totalPages, number, size}`, by code; `size` at most 100 (default 20) |
 | `GET /conventions/{id}` | `read:admin-conventions` | the convention (the row below) |
 | `POST /conventions` | `write:admin-conventions` | the convention created |
 | `PUT /conventions/{id}` | `write:admin-conventions` | the whole form (an empty limit is no limit); the convention |
@@ -58,8 +60,10 @@ the rules and the events). Every change goes through `core.convention.service.Co
 - The form: `code`, `name`, `organisation`, `startDate`, `endDate` (`yyyy-MM-dd`), `recognition`, `maxUsesPerDay`,
   `maxUsesPerMonth`, `maxAmountPerMonth`, `cardPrefix`, `cardDigits`. Anything else (`status`, `origin`,
   `lastCardSeq`...) is ignored: the status has its own call, the origin and the counter are never read from a request.
-- `status` filters the stored status; `q` is found in the code, the name or the organisation, any case, `%` and `_` as
-  typed.
+- `state` filters on the state of today (Zein, 2026-11-28: the front's radio filter): ACTIVE = in force today (the
+  status ACTIVE and today within the dates), SUSPENDED, EXPIRED, UPCOMING, or all (empty, `all`); the same rule as
+  the row's `state` (`ConventionService.inState`, a Specification, and `Convention.stateOn`). `q` is found in the code,
+  the name or the organisation, any case, `%` and `_` as typed.
 - A row: the stored values, plus `state` (`ACTIVE`, `SUSPENDED`, `EXPIRED`, `UPCOMING`), `cardsActive`,
   `cardsBlocked` (one GROUP BY over `ix_convention_card_convention` for the whole page), `cardSettingsFixed` (the
   convention has a card: recognition, prefix and digits locked), `createdAt` / `createdBy` / `updatedAt` / `updatedBy`.
@@ -96,7 +100,7 @@ the rules and the events). Every change goes through `core.convention.service.Co
 | 400 | `CONVENTION_TOO_LONG` | `field` (`code`, `name`, `organisation`, `cardPrefix`), `max` |
 | 400 | `CONVENTION_END_BEFORE_START` | `start`, `end` |
 | 400 | `CONVENTION_LIMIT_INVALID` | `field` (`maxUsesPerDay`, `maxUsesPerMonth`, `maxAmountPerMonth`) |
-| 400 | `CONVENTION_RECOGNITION_UNKNOWN`, `CONVENTION_STATUS_UNKNOWN` | `value` |
+| 400 | `CONVENTION_RECOGNITION_UNKNOWN`, `CONVENTION_STATUS_UNKNOWN` (`PUT …/status`), `CONVENTION_STATE_UNKNOWN` (the list) | `value` |
 | 400 | `CONVENTION_PREFIX_INVALID` | `prefix` |
 | 400 | `CONVENTION_CARD_DIGITS` | `min`, `max` |
 | 400 | `CONVENTION_CARD_SETTINGS_FIXED` | `field` (`recognition`, `cardPrefix`, `cardDigits`), `code` |
@@ -116,35 +120,130 @@ Roles page, F1). The labels of the Roles page and of `AdminLabels` come with F1:
 front's `tools/admin-labels-check.mjs --write` from the Roles page, so a key added by hand before the page has it would
 fail the front's check; until then an event names the key itself.
 
+## The cards (part B4)
+
+`core.convention.service.ConventionCards`, on the same API, the same rights (the list: read; the rest: write), the same
+404 and 409. A card is never deleted, only blocked; a blocked card can be unblocked.
+
+| Call | Right | Answer |
+|---|---|---|
+| `GET /conventions/{id}/cards?status=ACTIVE\|BLOCKED\|all&q=&exported=&page=&size=` | read | a page by number; `q` in the number, the holder's name or employee number (never the phone); `exported` true / false (`exported_at`, B5) |
+| `POST /conventions/{id}/cards/generate {count}` | write | `{conventionId, generated, skipped, skippedNumbers (the first 50), first, last, lastCardSeq}` |
+| `POST /conventions/{id}/cards {number, holderName, holderPhone, holderEmployeeNo}` | write | the card |
+| `PUT /conventions/{id}/cards/status {ids, status: BLOCKED\|ACTIVE}` | write | `{status, changed, unchanged}` |
+| `PUT /conventions/{id}/cards/{cardId}/holder {holderName, holderPhone, holderEmployeeNo}` | write | the card |
+
+A card: `id, cardNumber, status, holderName, holderPhone, holderEmployeeNo, exportedAt, createdAt, createdBy,
+updatedAt, updatedBy`. The calls on several cards name their convention in the address (the roadmap's
+`/conventions/cards/status` became `/conventions/{id}/cards/status`): a card of another convention is refused, 404
+with its id, and nothing changes.
+
+### Which conventions take cards
+
+- Recognition `CARDS` only (decision 4): with `NO_CARD`, a generation and a card by hand answer `CONVENTION_NO_CARDS`.
+- Not an expired one (its end before today): `CONVENTION_EXPIRED`. A suspended or upcoming one takes cards: the cards
+  are prepared before the start, or during a suspension. Blocking, unblocking and the holder stay possible on any.
+
+### The generation
+
+- Number = the prefix in effect (`Convention.prefixInEffect`: the card prefix, else the code) + `-` + the counter on
+  the convention's digits: `MIN-SANTE-00001`, `CLT-00001`. 1 to 5,000 per run (`CONVENTION_GENERATE_COUNT`).
+- The counter `last_card_seq` is read under the convention's row lock (`ConventionRepository.lockById`,
+  `PESSIMISTIC_WRITE`: SQL Server `updlock, holdlock, rowlock`) and written in the same transaction: two generations of
+  one convention follow each other, never the same number.
+- A number already used is **skipped** and counted (the counter goes past it): a card of any convention (a number
+  typed by hand, another convention with the same prefix), an item code, an item barcode (`item.barcode` and
+  `item_barcode.barcode`), a loyalty card number (`loyalty_member`; on a store whose loyalty is the head office's the
+  copies are written there too). One query per table with `PREFIX-%`, whatever the count; those columns are varchar,
+  read by a scan (cheap at a store's size, once per generation, never at the till).
+- **All or nothing**: not enough numbers left on the digits (`CONVENTION_NUMBERS_EXHAUSTED`, with `left`) inserts
+  nothing and keeps the counter. A number taken between the read and the insert (a rare race with a card by hand or
+  another convention's generation) meets `uk_convention_card_number`: everything rolls back, 409
+  `CONVENTION_CARDS_BUSY`, try again.
+- Inserted in JDBC batches of 1,000 (`ConventionCardBatchInsert`, in the generation's transaction): 5,000 cards in
+  0.5 s on store B (the HTTP call, measured 2026-11-28).
+
+### One card by hand
+
+The number typed: trimmed, upper-cased, A-Z, 0-9 and `-`, at most 40. Refused: empty, other characters, too long, a
+card of any convention (`CONVENTION_CARD_NUMBER_TAKEN`, with its convention's code), a number the till already reads
+(`CONVENTION_CARD_NUMBER_RESERVED`, `kind` `ITEM_CODE`, `ITEM_BARCODE` or `LOYALTY_CARD`; any case). The counter does
+not move: a later generation skips that number. The holder's three fields may come with it.
+
+### Block, unblock, the holder
+
+- Block / unblock: 1 to 500 cards of the convention in one call (`CONVENTION_CARD_IDS`); the cards already in the asked
+  status are left alone, without an event (`unchanged`); one event per card changed.
+- The holder: name (150), phone (30), employee number (50), all optional, trimmed, blank is empty, never checked
+  (decision 5). A save that changes nothing writes nothing.
+
+## Refusals of the cards
+
+| Status | Code | Params |
+|---|---|---|
+| 400 | `CONVENTION_NO_CARDS` | `code` |
+| 400 | `CONVENTION_EXPIRED` | `code`, `end` |
+| 400 | `CONVENTION_GENERATE_COUNT` | `min`, `max` |
+| 400 | `CONVENTION_NUMBERS_EXHAUSTED` | `code`, `left`, `digits` |
+| 400 | `CONVENTION_CARD_NUMBER_REQUIRED` | |
+| 400 | `CONVENTION_CARD_NUMBER_INVALID` | `number` |
+| 400 | `CONVENTION_CARD_NUMBER_TAKEN` | `number`, `convention` |
+| 400 | `CONVENTION_CARD_NUMBER_RESERVED` | `number`, `kind` |
+| 400 | `CONVENTION_TOO_LONG` | `field` (`cardNumber`, `holderName`, `holderPhone`, `holderEmployeeNo`), `max` |
+| 400 | `CONVENTION_CARD_IDS` | `min`, `max` |
+| 400 | `CONVENTION_CARD_STATUS_UNKNOWN` | `value` |
+| 404 | `CONVENTION_CARD_NOT_FOUND` | `ids` |
+| 409 | `CONVENTION_CARDS_BUSY` | `code` |
+
 ## The events (decision 3: a store's event log only)
 
-`core.convention.service.ConventionEvents`, subject `CONVENTION` (the id; the code as the label), all Notable, written
-after the commit (none for a refusal). On a head office the event log is off: nothing is written.
+`core.convention.service.ConventionEvents`, all Notable, written after the commit (none for a refusal). On a head
+office the event log is off: nothing is written. A convention's events have the subject `CONVENTION` (the id; the code
+as the label), a card's `CONVENTION_CARD` (the id; the number as the label).
 
-| Code | When | Values |
-|---|---|---|
-| `CONVENTION_CREATED` | created | the details list its values: "Convention MIN « … » créée : Nom … ; Organisation … ; Du … ; …" |
-| `CONVENTION_UPDATED` | a value changed | each field before → after: "Nom : A → B ; Utilisations max par jour : 1 → 2" |
-| `CONVENTION_SUSPENDED` / `CONVENTION_REACTIVATED` | the status changed | old / new value `ACTIVE` / `SUSPENDED` |
-| `CONVENTION_DELETED` | deleted (no card) | its values in the details |
+| Code | Subject | When | Values |
+|---|---|---|---|
+| `CONVENTION_CREATED` | convention | created | the details list its values: "Convention MIN « … » créée : Nom … ; Organisation … ; Du … ; …" |
+| `CONVENTION_UPDATED` | convention | a value changed | each field before → after: "Nom : A → B ; Utilisations max par jour : 1 → 2" |
+| `CONVENTION_SUSPENDED` / `CONVENTION_REACTIVATED` | convention | the status changed | old / new value `ACTIVE` / `SUSPENDED` |
+| `CONVENTION_DELETED` | convention | deleted (no card) | its values in the details |
+| `CONVENTION_CARDS_GENERATED` | convention | one per run | the count in the amount column (`AMOUNT_IS_COUNT`): "20 cartes générées pour la convention MIN-SANTE : MIN-SANTE-00001 à MIN-SANTE-00020 (1 numéro sauté, déjà pris)." |
+| `CONVENTION_CARD_ADDED` | card | one by hand | "Carte X ajoutée à la convention Y, titulaire …, matricule …" |
+| `CONVENTION_CARD_BLOCKED` / `CONVENTION_CARD_UNBLOCKED` | card | one per card changed | old / new value `ACTIVE` / `BLOCKED` |
+| `CONVENTION_CARD_HOLDER_CHANGED` | card | a holder field changed | "Titulaire : A → B ; Matricule : … ; Téléphone : modifié" |
 
-The French names are the screen's (`ConventionEvents.describe`); the Journal's names of the codes come with F4. The
-holder's phone is never in an event (decision 15; the cards' events: B4).
+The French names are the screen's (`ConventionEvents.describe`); the Journal's names of the codes come with F4. **The
+holder's phone is never in an event** (decision 15): its change is written "Téléphone : modifié", without the value.
+`CONVENTION_CARD_ADDED` is in the roadmap (a lost card replaced is worth its line) though not in the B4 brief.
 
 ## Tests
 
 - `ConventionServiceTest` (core): the rules above over the real repositories and their JPQL (`ConventionTestBed`:
-  Hibernate over H2, the event log in memory): the code and its uniqueness, the code fixed, the texts, the dates, the
-  limits, recognition / prefix / digits and their lock with a card, suspend / reactivate, delete only without a card,
-  409, the list (counts, states, filter, search, pages), the events' sentences.
-- `ConventionAPITest` (core): standalone MockMvc over the real API and service: 403 per right, each refusal's status,
-  code and params, 404, 409, the fields of a form that are ignored, the JSON (dates as text); the three beans only with
-  `convention.enabled=true` (false, blank, a wrong value, no line: none).
+  Hibernate over H2 with core's entities, the event log in memory): the code and its uniqueness, the code fixed, the
+  texts, the dates, the limits, recognition / prefix / digits and their lock with a card, suspend / reactivate, delete
+  only without a card, 409, the list (counts, the state filter and its boundary days, search, pages), the events'
+  sentences.
+- `ConventionCardsTest` (core): the generation (prefix, digits, the counter, each kind of number skipped, 1 to 5,000,
+  5,000 in one run, all or nothing when the digits run out, two generations at the same moment in two sessions: no
+  number twice, a number taken meanwhile: 409), which conventions take cards, a card by hand and each refusal, block /
+  unblock (the unchanged left alone, a card of another convention refusing the call), the holder (the phone never in
+  an event), 409, the list and its filters.
+- `ConventionAPITest` (core): standalone MockMvc over the real API and services: 403 per right, each refusal's status,
+  code and params, 404, 409, the fields of a form that are ignored, the JSON (dates as text), the card endpoints; the
+  four beans only with `convention.enabled=true` (false, blank, a wrong value, no line: none).
 - `ZZDataInitializerRolesTest.conventionRightsGivenToAdmin`; `ConventionKeyTest`, `AppConfigAPITest` (B1);
   `ConventionTableTest` (B2).
-- `InstallationBeansProofTest` (network-tests): "decided 145"; the shapes "store, conventions on", "head office,
+- `InstallationBeansProofTest` (network-tests): "decided 146"; the shapes "store, conventions on", "head office,
   conventions on", "store, promotions from the head office, conventions on" (the beans are there: the reads stay).
 
-Real check, 2026-11-28, store B (`pos_store_b`, port 555, `-Set 'convention.enabled=true','eventlog.enabled=true'`):
-each call once, the refusals, the rows and the events as above; three conventions left for the next parts
-(`MIN-SANTE` active with limits, `BANQUE-BT` `NO_CARD` to come, `POSTE` expired with prefix `PT` and 6 digits).
+## Real checks (store B, `pos_store_b`, port 555, `-Set 'convention.enabled=true','eventlog.enabled=true'`)
+
+- B3, 2026-11-28: each call once, the refusals, the rows and the events; three conventions left: `MIN-SANTE` (active,
+  limits), `BANQUE-BT` (`NO_CARD`, starts 2026-12-01), `POSTE` (expired, prefix `PT`, 6 digits).
+- B4, 2026-11-28: the list by state (ACTIVE `MIN-SANTE`, UPCOMING `BANQUE-BT`, EXPIRED `POSTE`); 20 cards on
+  `MIN-SANTE`, `MIN-SANTE-00022` by hand, 5 more (00022 skipped: 00021 to 00026); `CLINIQUE-TEST` (prefix `CLT`) with
+  5,000 cards in 484 ms (all distinct, one batch); an item barcode typed by hand refused (`ITEM_BARCODE`), a card
+  number twice refused, `POSTE` refused (expired), `BANQUE-BT` refused (no cards); three blocked in one call, again
+  (changed 0, unchanged 2), one unblocked; a holder changed twice (the phone never in the log); a card asked through
+  another convention: 404. Left in the database: `MIN-SANTE` 26 cards (00001 and 00003 blocked, 00004 with a holder),
+  `CLINIQUE-TEST` 5,000 cards.

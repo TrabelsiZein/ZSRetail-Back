@@ -142,9 +142,9 @@ twice refused, a card number refused in a second convention, a card without its 
 
 ### B3 — the conventions: API, service, rights, events (done 2026-11-28)
 
-Built as below; what it does is in `docs/modules/conventions.md`. Where it differs from this plan: the list's `status`
-filters the stored status, and each row carries `state` (ACTIVE / SUSPENDED / EXPIRED / UPCOMING, from the server's
-date: `Convention.stateOn`); the rights' French names in `AdminLabels` come with F1 (the file is written by the front's
+Built as below; what it does is in `docs/modules/conventions.md`. Where it differs from this plan: each row carries
+`state` (ACTIVE / SUSPENDED / EXPIRED / UPCOMING, from the server's date: `Convention.stateOn`) and the list filters on
+it (`state=`, Zein 2026-11-28, before B4; first built on the stored status); the rights' French names in `AdminLabels` come with F1 (the file is written by the front's
 tool from the Roles page, a key added before would fail the front's check); card digits 4 to 9 (default 5);
 `ApplicationModeService.isConventionManagedHere` (the module on, not a store whose promotions are the head office's)
 answers both the 409 and ADMIN's rights; the API, the service and the events are the module's three beans
@@ -153,7 +153,8 @@ answers both the 409 and ADMIN's rights; the API, the service and the events are
 - `ConventionAPI` (`core.convention.controller`, `@ConditionalOnInstallation(Installation.CONVENTION)`: off, no bean,
   404). Hand-written, not `_BaseController` (its `DELETE /{id}` and its PUT that writes any field skip the rules, the
   events and step 6's change hook): every write goes through `ConventionService`.
-- `GET /conventions?status=ACTIVE|SUSPENDED|all&q=&page=&size=` (each row with its active / blocked card counts),
+- `GET /conventions?state=ACTIVE|SUSPENDED|EXPIRED|UPCOMING|all&q=&page=&size=` (each row with its active / blocked
+  card counts),
   `GET /conventions/{id}`, `POST /conventions`, `PUT /conventions/{id}`, `PUT /conventions/{id}/status`,
   `DELETE /conventions/{id}` (only without a card).
 - Every read needs `read:admin-conventions`, every change `write:admin-conventions` (403 otherwise). Refusals: 400
@@ -167,7 +168,15 @@ answers both the 409 and ADMIN's rights; the API, the service and the events are
   reactivate, delete only without a card), `ConventionAPITest` (403 per right, 400 codes, 404, 409), the events, the
   roles (`ZZDataInitializerRolesTest`), the installation beans record (a "convention on" environment).
 
-### B4 — the cards
+### B4 — the cards (done 2026-11-28)
+
+Built as below; what it does is in `docs/modules/conventions.md`, "The cards". Where it differs from this plan: the
+calls on several cards name their convention (`PUT /conventions/{id}/cards/status`, `PUT
+/conventions/{id}/cards/{cardId}/holder`: a card of another convention is refused); cards are taken by a suspended or
+upcoming convention, not an expired one (Zein's point 4); a generation skips (and counts) a number already used, a card
+by hand is refused; block / unblock at most 500 cards per call, the unchanged left alone without an event; a number
+taken during a generation answers 409 `CONVENTION_CARDS_BUSY`; the run's event has the subject `CONVENTION` (the
+convention's history shows its runs), the card events `CONVENTION_CARD`; `ConventionCards` is the module's fourth bean.
 
 - `GET /conventions/{id}/cards?status=&q=&exported=&page=&size=` (q: number, holder name, employee number),
   `POST /conventions/{id}/cards/generate {count}`, `POST /conventions/{id}/cards {number, holder...}` (one by hand),
@@ -198,8 +207,8 @@ answers both the 409 and ADMIN's rights; the API, the service and the events are
 - Menu "Conventions" after "Promotions" (`navigation/vertical/index.js`, `navigation/headoffice/index.js` and its
   `linkShown`), `search-and-bookmark-data.js`; the Roles pages (`RoleManagement.vue`, `HeadOfficeRoles.vue`).
 - `views/admin/conventions/ConventionsList.vue` on `AdminListPage` (the gradient banner): code, name, organisation,
-  dates, status (with "Expirée" / "À venir" from the dates), cards active / blocked; filter Actives / Suspendues /
-  Toutes (radio buttons) and a search.
+  dates, the state (`state`: active, suspended, expired, upcoming), cards active / blocked; the radio filter on the
+  state (`GET /conventions?state=`: En vigueur / Suspendues / Expirées / À venir / Toutes) and a search.
 - fr / en / ar; `store-menu-check`, `headoffice-menu-check`, `admin-labels-check` (the two rights on the Roles pages,
   then `--write`: `AdminLabels.java` gets their names, a back end commit with F1).
 

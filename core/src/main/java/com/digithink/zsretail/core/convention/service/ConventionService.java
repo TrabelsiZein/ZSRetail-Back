@@ -11,11 +11,15 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import javax.persistence.criteria.Path;
+import javax.persistence.criteria.Predicate;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +30,7 @@ import com.digithink.zsretail.core.convention.ConventionException;
 import com.digithink.zsretail.core.convention.ConventionNumbers;
 import com.digithink.zsretail.core.convention.enumeration.ConventionCardStatus;
 import com.digithink.zsretail.core.convention.enumeration.ConventionRecognition;
+import com.digithink.zsretail.core.convention.enumeration.ConventionState;
 import com.digithink.zsretail.core.convention.enumeration.ConventionStatus;
 import com.digithink.zsretail.core.convention.model.Convention;
 import com.digithink.zsretail.core.convention.repository.ConventionCardRepository;
@@ -98,17 +103,18 @@ public class ConventionService {
 	// ─── Reads ───────────────────────────────────────────────────────
 
 	/**
-	 * A page of conventions by code: status ACTIVE / SUSPENDED (as stored) or all (empty, "all"), q in the code, the
-	 * name or the organisation. {content, totalElements, totalPages, number, size}; each row as {@link #get}.
+	 * A page of conventions by code: the state of today (ACTIVE: in force today, SUSPENDED, EXPIRED, UPCOMING; the rule
+	 * of {@link Convention#stateOn}) or all (empty, "all"), q in the code, the name or the organisation. {content,
+	 * totalElements, totalPages, number, size}; each row as {@link #get}.
 	 */
 	@Transactional(readOnly = true)
-	public Map<String, Object> list(String status, String q, int page, int size) {
-		ConventionStatus wanted = status == null || status.trim().isEmpty() || "all".equalsIgnoreCase(status.trim()) ? null
-				: statusOf(status);
-		Page<Convention> found = conventions.search(wanted, like(q), PageRequest.of(Math.max(0, page),
-				Math.max(1, Math.min(size, MAX_PAGE_SIZE)), Sort.by("code")));
-		Map<Long, long[]> counts = counts(found.getContent().stream().map(Convention::getId).collect(Collectors.toList()));
+	public Map<String, Object> list(String state, String q, int page, int size) {
+		ConventionState wanted = state == null || state.trim().isEmpty() || "all".equalsIgnoreCase(state.trim()) ? null
+				: stateOf(state);
 		LocalDate day = today.get();
+		Page<Convention> found = conventions.findAll(inState(wanted, day).and(containing(like(q))), PageRequest.of(
+				Math.max(0, page), Math.max(1, Math.min(size, MAX_PAGE_SIZE)), Sort.by("code")));
+		Map<Long, long[]> counts = counts(found.getContent().stream().map(Convention::getId).collect(Collectors.toList()));
 		Map<String, Object> result = new LinkedHashMap<>();
 		result.put("content", found.getContent().stream().map(c -> view(c, counts.get(c.getId()), day))
 				.collect(Collectors.toList()));
@@ -345,8 +351,52 @@ public class ConventionService {
 				+ " cards: its " + field + " cannot change any more.", "field", field, "code", c.getCode());
 	}
 
-	/** "%text%" in lower case, its LIKE characters escaped by \ (ConventionRepository.SEARCH); null when empty. */
-	static String like(String q) {
+	private static ConventionState stateOf(String value) {
+		try {
+			return ConventionState.valueOf(value.trim().toUpperCase(Locale.ROOT));
+		} catch (IllegalArgumentException unknown) {
+			throw ConventionException.refused("CONVENTION_STATE_UNKNOWN", "Unknown state '" + value.trim() + "': ACTIVE,"
+					+ " SUSPENDED, EXPIRED, UPCOMING or all.", "value", value.trim());
+		}
+	}
+
+	/**
+	 * The state of {@link Convention#stateOn} as a query (null: any): SUSPENDED as stored; else, the status ACTIVE and
+	 * UPCOMING the start after the day, EXPIRED the end before it, ACTIVE within them (both days included).
+	 */
+	static Specification<Convention> inState(ConventionState state, LocalDate day) {
+		return (root, query, cb) -> {
+			if (state == null) {
+				return cb.conjunction();
+			}
+			if (state == ConventionState.SUSPENDED) {
+				return cb.equal(root.get("status"), ConventionStatus.SUSPENDED);
+			}
+			Predicate active = cb.equal(root.get("status"), ConventionStatus.ACTIVE);
+			Path<LocalDate> start = root.get("startDate");
+			Path<LocalDate> end = root.get("endDate");
+			switch (state) {
+			case UPCOMING:
+				return cb.and(active, cb.greaterThan(start, day));
+			case EXPIRED:
+				return cb.and(active, cb.lessThan(end, day));
+			default:
+				return cb.and(active, cb.lessThanOrEqualTo(start, day), cb.or(cb.isNull(end),
+						cb.greaterThanOrEqualTo(end, day)));
+			}
+		};
+	}
+
+	/** The text (a {@link #like} pattern; null: any) in the code, the name or the organisation, any case. */
+	private static Specification<Convention> containing(String pattern) {
+		return (root, query, cb) -> pattern == null ? cb.conjunction()
+				: cb.or(cb.like(cb.lower(root.get("code")), pattern, '\\'),
+						cb.like(cb.lower(root.get("name")), pattern, '\\'),
+						cb.like(cb.lower(root.get("organisation")), pattern, '\\'));
+	}
+
+	/** "%text%" in lower case, its LIKE characters escaped by \; null when empty. Also the cards' search. */
+	public static String like(String q) {
 		if (q == null || q.trim().isEmpty()) {
 			return null;
 		}

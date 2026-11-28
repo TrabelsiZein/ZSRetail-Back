@@ -294,16 +294,16 @@ class ConventionServiceTest {
 	// ─── The list ────────────────────────────────────────────────────
 
 	@SuppressWarnings("unchecked")
-	private List<Map<String, Object>> rows(String status, String q) {
-		return (List<Map<String, Object>>) bed.tx(() -> bed.service.list(status, q, 0, 20)).get("content");
+	private List<Map<String, Object>> rows(String state, String q) {
+		return (List<Map<String, Object>>) bed.tx(() -> bed.service.list(state, q, 0, 20)).get("content");
 	}
 
-	private List<Object> codes(String status, String q) {
-		return rows(status, q).stream().map(r -> r.get("code")).collect(Collectors.toList());
+	private List<Object> codes(String state, String q) {
+		return rows(state, q).stream().map(r -> r.get("code")).collect(Collectors.toList());
 	}
 
 	@Test
-	@DisplayName("The list by code: the cards active / blocked per convention, the state of today from the dates, the status"
+	@DisplayName("The list by code: the cards active / blocked per convention, the state of today from the dates, the state"
 			+ " filter, the search in code, name and organisation (any case, % and _ as typed), the pages")
 	void list() {
 		Form expired = ConventionTestBed.form("B-OLD");
@@ -335,10 +335,15 @@ class ConventionServiceTest {
 		assertEquals(0L, all.get(1).get("cardsActive"));
 		assertEquals(false, all.get(1).get("cardSettingsFixed"));
 
-		assertEquals(Arrays.asList("A-NOW", "B-OLD", "C-NEXT"), codes("ACTIVE", null), "the stored status");
-		assertEquals(Collections.singletonList("D-LAST"), codes("suspended", " "));
+		// the filter is the state of today, the row's state
+		assertEquals(Collections.singletonList("A-NOW"), codes("ACTIVE", null), "in force today");
+		assertEquals(Collections.singletonList("B-OLD"), codes("expired", null));
+		assertEquals(Collections.singletonList("C-NEXT"), codes("UPCOMING", null));
+		assertEquals(Collections.singletonList("D-LAST"), codes("suspended", " "), "suspended, whatever its dates");
 		assertEquals(codes(null, null), codes("", null));
-		refused("CONVENTION_STATUS_UNKNOWN", () -> rows("EXPIRED", null));
+		assertEquals(4, codes("all", null).size());
+		assertEquals("GONE", refused("CONVENTION_STATE_UNKNOWN", () -> rows("GONE", null)).getParams().get("value"));
+		assertEquals(Collections.singletonList("A-NOW"), codes("active", "a-"), "the state and the text together");
 
 		assertEquals(Collections.singletonList("B-OLD"), codes(null, "b-o"), "the code");
 		assertEquals(Collections.singletonList("C-NEXT"), codes(null, "100%"), "% as typed");
@@ -351,6 +356,16 @@ class ConventionServiceTest {
 		assertEquals(2, second.get("totalPages"));
 		assertEquals(1, ((List<?>) second.get("content")).size());
 		refused("CONVENTION_NOT_FOUND", () -> bed.tx(() -> bed.service.get(12345)));
+
+		// both days included, as Convention.stateOn
+		bed.today = LocalDate.of(2026, 11, 27);
+		assertEquals(Arrays.asList("A-NOW", "B-OLD"), codes("ACTIVE", null), "its last day");
+		bed.today = LocalDate.of(2026, 11, 29);
+		assertEquals(Arrays.asList("A-NOW", "C-NEXT"), codes("ACTIVE", null), "its first day");
+		assertEquals(Collections.singletonList("B-OLD"), codes("EXPIRED", null));
+		assertEquals(Collections.emptyList(), codes("UPCOMING", null));
+		rows("all", null).forEach(r -> assertEquals(r.get("state"), bed.row(((Number) r.get("id")).longValue())
+				.stateOn(bed.today), "the filter and the row's state agree"));
 	}
 
 	@Test

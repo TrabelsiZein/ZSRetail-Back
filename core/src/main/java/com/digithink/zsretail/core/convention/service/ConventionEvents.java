@@ -12,6 +12,7 @@ import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.convention.enumeration.ConventionRecognition;
 import com.digithink.zsretail.core.convention.model.Convention;
+import com.digithink.zsretail.core.convention.model.ConventionCard;
 import com.digithink.zsretail.core.eventlog.EventCode;
 import com.digithink.zsretail.core.eventlog.service.AdminEvents;
 import com.digithink.zsretail.core.eventlog.service.EventLog;
@@ -87,6 +88,66 @@ public class ConventionEvents {
 		run(EventCode.CONVENTION_DELETED, () -> eventLog.write(NewEvent.of(EventCode.CONVENTION_DELETED)
 				.subject(c.getId(), c.getCode()).details(label(c) + " supprimée : " + String.join(" ; ",
 						values(describe(c))) + ".")));
+	}
+
+	// ─── The cards (part B4) ─────────────────────────────────────────
+
+	/** One generation run: the count as the amount, the first and last numbers, the numbers skipped. */
+	public void cardsGenerated(Convention c, int count, String first, String last, int skipped) {
+		run(EventCode.CONVENTION_CARDS_GENERATED, () -> eventLog.write(NewEvent.of(EventCode.CONVENTION_CARDS_GENERATED)
+				.subject(c.getId(), c.getCode()).amount((double) count)
+				.details(count + (count > 1 ? " cartes générées" : " carte générée") + " pour la convention " + c.getCode()
+						+ " : " + first + (count > 1 ? " à " + last : "") + (skipped == 0 ? "" : " (" + skipped
+								+ (skipped > 1 ? " numéros sautés, déjà pris" : " numéro sauté, déjà pris") + ")")
+						+ ".")));
+	}
+
+	/** A card added by hand: its number, its holder's name and employee number (never the phone). */
+	public void cardAdded(Convention c, ConventionCard card) {
+		run(EventCode.CONVENTION_CARD_ADDED, () -> eventLog.write(NewEvent.of(EventCode.CONVENTION_CARD_ADDED)
+				.subject(card.getId(), card.getCardNumber()).details("Carte " + card.getCardNumber()
+						+ " ajoutée à la convention " + c.getCode() + holder(card) + ".")));
+	}
+
+	/** One card blocked or unblocked (the caller writes only the cards whose status changed). */
+	public void cardStatusChanged(Convention c, ConventionCard card, boolean blocked) {
+		EventCode code = blocked ? EventCode.CONVENTION_CARD_BLOCKED : EventCode.CONVENTION_CARD_UNBLOCKED;
+		run(code, () -> eventLog.write(NewEvent.of(code).subject(card.getId(), card.getCardNumber())
+				.change(blocked ? "ACTIVE" : "BLOCKED", blocked ? "BLOCKED" : "ACTIVE")
+				.details("Carte " + card.getCardNumber() + " de la convention " + c.getCode()
+						+ (blocked ? " bloquée." : " débloquée."))));
+	}
+
+	/**
+	 * The holder changed: the name and the employee number before → after; the phone only as "modifié", never its
+	 * value (decision 15). Nothing when nothing changed.
+	 */
+	public void holderChanged(Convention c, ConventionCard card, String nameBefore, String employeeNoBefore,
+			boolean phoneChanged) {
+		run(EventCode.CONVENTION_CARD_HOLDER_CHANGED, () -> {
+			Map<String, String> before = new LinkedHashMap<>();
+			before.put("Titulaire", nameBefore);
+			before.put("Matricule", employeeNoBefore);
+			Map<String, String> after = new LinkedHashMap<>();
+			after.put("Titulaire", card.getHolderName());
+			after.put("Matricule", card.getHolderEmployeeNo());
+			List<String> changes = new ArrayList<>(AdminEvents.changes(before, after));
+			if (phoneChanged) {
+				changes.add("Téléphone : modifié");
+			}
+			if (!changes.isEmpty()) {
+				eventLog.write(NewEvent.of(EventCode.CONVENTION_CARD_HOLDER_CHANGED)
+						.subject(card.getId(), card.getCardNumber()).details("Titulaire de la carte "
+								+ card.getCardNumber() + " (convention " + c.getCode() + ") modifié : "
+								+ String.join(" ; ", changes) + "."));
+			}
+		});
+	}
+
+	private static String holder(ConventionCard card) {
+		String name = card.getHolderName();
+		String number = card.getHolderEmployeeNo();
+		return (name == null ? "" : ", titulaire " + name) + (number == null ? "" : ", matricule " + number);
 	}
 
 	/** "Convention MIN « Ministère »". */

@@ -38,6 +38,8 @@ public enum EventSubject {
 	TICKET_TEMPLATE,
 	/** 3.6.0, conventions step 1: a convention, identified by its id (its code as the label). */
 	CONVENTION,
+	/** 3.6.0, part B4: a convention's card, identified by its id (its number as the label). */
+	CONVENTION_CARD,
 	/** The event log itself: its start, its settings, its cleanups. */
 	EVENT_LOG
 }

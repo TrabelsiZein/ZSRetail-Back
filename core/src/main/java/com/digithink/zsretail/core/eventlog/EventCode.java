@@ -135,6 +135,18 @@ public enum EventCode {
 	CONVENTION_REACTIVATED(EventSubject.CONVENTION, NOTABLE, "Convention réactivée"),
 	/** Only a convention without a card is deleted (decision 9): its values in the details. */
 	CONVENTION_DELETED(EventSubject.CONVENTION, NOTABLE, "Convention supprimée"),
+	/**
+	 * 3.6.0, part B4: one generation run (subject the convention: its history shows its runs), the count in the amount
+	 * column (AMOUNT_IS_COUNT), the first and last numbers and the numbers skipped in the details.
+	 */
+	CONVENTION_CARDS_GENERATED(EventSubject.CONVENTION, NOTABLE, "Cartes de convention générées"),
+	/** One card added by hand, its number typed (a lost card replaced). */
+	CONVENTION_CARD_ADDED(EventSubject.CONVENTION_CARD, NOTABLE, "Carte de convention ajoutée"),
+	/** One per card (a card's history), only for the cards whose status really changed. */
+	CONVENTION_CARD_BLOCKED(EventSubject.CONVENTION_CARD, NOTABLE, "Carte de convention bloquée"),
+	CONVENTION_CARD_UNBLOCKED(EventSubject.CONVENTION_CARD, NOTABLE, "Carte de convention débloquée"),
+	/** The holder's name and employee number before → after; the phone only as "modifié" (decision 15). */
+	CONVENTION_CARD_HOLDER_CHANGED(EventSubject.CONVENTION_CARD, NOTABLE, "Titulaire d'une carte de convention modifié"),
 
 	// ── Stock, inventory, purchases ──
 	STOCK_ADJUSTED(EventSubject.ITEM, ALERT, "Stock ajusté"),
@@ -189,7 +201,7 @@ public enum EventCode {
 	 */
 	public static final java.util.Set<EventCode> AMOUNT_IS_COUNT = java.util.Collections.unmodifiableSet(
 			java.util.EnumSet.of(LOGIN_REFUSED_REPEATED, EVENTLOG_EVENTS_DROPPED, EVENTLOG_CLEANUP,
-			EVENTLOG_CLEANUP_NIGHTLY));
+			EVENTLOG_CLEANUP_NIGHTLY, CONVENTION_CARDS_GENERATED));
 
 	/**
 	 * Step 8: the events a cleanup never deletes (the cleanups and the changes of the settings: how the journal itself

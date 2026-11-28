@@ -40,6 +40,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import com.digithink.zsretail.core.convention.controller.ConventionAPI;
 import com.digithink.zsretail.core.convention.enumeration.ConventionCardStatus;
 import com.digithink.zsretail.core.convention.enumeration.ConventionStatus;
+import com.digithink.zsretail.core.convention.service.ConventionCards;
 import com.digithink.zsretail.core.convention.service.ConventionEvents;
 import com.digithink.zsretail.core.convention.service.ConventionService;
 import com.digithink.zsretail.core.security.CurrentUserProvider;
@@ -81,6 +82,7 @@ class ConventionAPITest {
 	void setUp() {
 		ConventionAPI api = new ConventionAPI();
 		ReflectionTestUtils.setField(api, "service", bed.service);
+		ReflectionTestUtils.setField(api, "cards", bed.cardService);
 		ReflectionTestUtils.setField(api, "currentUserProvider", current);
 		when(current.getCurrentUserName()).thenReturn("admin");
 		when(current.currentUserHasPermission(anyString())).thenAnswer(call -> held.contains(call.getArgument(0)));
@@ -132,7 +134,7 @@ class ConventionAPITest {
 		long id = bed.conventions.findByCode("MIN").get().getId();
 		mvc.perform(get("/conventions/" + id)).andExpect(status().isOk()).andExpect(jsonPath("$.name")
 				.value("Ministère de la Santé"));
-		mvc.perform(get("/conventions").param("status", "all").param("q", "santé")).andExpect(status().isOk())
+		mvc.perform(get("/conventions").param("state", "all").param("q", "santé")).andExpect(status().isOk())
 				.andExpect(jsonPath("$.totalElements").value(1))
 				.andExpect(jsonPath("$.content[0].code").value("MIN"));
 		assertEquals("CONVENTION_CREATED", bed.log.only("CONVENTION_CREATED").getCode());
@@ -182,7 +184,8 @@ class ConventionAPITest {
 				"CONVENTION_STATUS_UNKNOWN");
 		refusal(mvc.perform(delete("/conventions/" + id)), 400, "CONVENTION_HAS_CARDS")
 				.andExpect(jsonPath("$.params.cards").value(1));
-		refusal(mvc.perform(get("/conventions").param("status", "EXPIRED")), 400, "CONVENTION_STATUS_UNKNOWN");
+		refusal(mvc.perform(get("/conventions").param("state", "GONE")), 400, "CONVENTION_STATE_UNKNOWN");
+		mvc.perform(get("/conventions").param("state", "EXPIRED")).andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(0));
 		assertEquals(1, bed.conventions.count());
 		assertEquals("Ministère de la Santé", bed.row(id).getName());
 	}
@@ -228,29 +231,103 @@ class ConventionAPITest {
 		mvc.perform(get("/conventions/" + id)).andExpect(status().isOk());
 	}
 
+	// ─── The cards (part B4) ─────────────────────────────────────────
+
 	@Test
-	@DisplayName("The module's beans (the API, the service, the events) only with convention.enabled=true: off, blank or a"
-			+ " wrong value, none (the address answers 404)")
+	@DisplayName("B4 over HTTP: generate, add one, the list, block / unblock in one call, the holder; 200 each, the answers"
+			+ " as the Cards tab reads them")
+	void cards() throws Exception {
+		long id = createMin();
+		mvc.perform(json(post("/conventions/" + id + "/cards/generate"), "{\"count\":3}")).andExpect(status().isOk())
+				.andExpect(jsonPath("$.generated").value(3)).andExpect(jsonPath("$.skipped").value(0))
+				.andExpect(jsonPath("$.first").value("MIN-00001")).andExpect(jsonPath("$.last").value("MIN-00003"));
+		mvc.perform(json(post("/conventions/" + id + "/cards"), "{\"number\":\" min-x1 \",\"holderName\":\"Ali\","
+				+ "\"holderPhone\":\"98111222\"}")).andExpect(status().isOk())
+				.andExpect(jsonPath("$.cardNumber").value("MIN-X1")).andExpect(jsonPath("$.status").value("ACTIVE"))
+				.andExpect(jsonPath("$.holderPhone").value("98111222"));
+		mvc.perform(get("/conventions/" + id + "/cards").param("q", "00")).andExpect(status().isOk())
+				.andExpect(jsonPath("$.totalElements").value(3))
+				.andExpect(jsonPath("$.content[0].cardNumber").value("MIN-00001"));
+		long first = bed.cards.findByCardNumber("MIN-00001").get().getId();
+		long second = bed.cards.findByCardNumber("MIN-00002").get().getId();
+		mvc.perform(json(put("/conventions/" + id + "/cards/status"), "{\"ids\":[" + first + "," + second
+				+ "],\"status\":\"BLOCKED\"}")).andExpect(status().isOk()).andExpect(jsonPath("$.changed").value(2))
+				.andExpect(jsonPath("$.unchanged").value(0));
+		mvc.perform(get("/conventions/" + id + "/cards").param("status", "BLOCKED").param("exported", "false"))
+				.andExpect(jsonPath("$.totalElements").value(2));
+		mvc.perform(json(put("/conventions/" + id + "/cards/" + first + "/holder"), "{\"holderEmployeeNo\":\"M-12\"}"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.holderEmployeeNo").value("M-12"));
+		mvc.perform(get("/conventions/" + id)).andExpect(jsonPath("$.cardsActive").value(2))
+				.andExpect(jsonPath("$.cardsBlocked").value(2)).andExpect(jsonPath("$.cardSettingsFixed").value(true));
+	}
+
+	@Test
+	@DisplayName("B4: the cards' reads need the read right, the changes the write right (403); 404 for a convention or a"
+			+ " card not there; 409 on a store whose promotions are the head office's (the list stays)")
+	void cardsRightsAndRefusals() throws Exception {
+		long id = createMin();
+		bed.card(id, "MIN-00001", ConventionCardStatus.ACTIVE);
+		long card = bed.cards.findByCardNumber("MIN-00001").get().getId();
+		java.util.List<MockHttpServletRequestBuilder> changes = Arrays.asList(
+				json(post("/conventions/" + id + "/cards/generate"), "{\"count\":1}"),
+				json(post("/conventions/" + id + "/cards"), "{\"number\":\"MIN-X\"}"),
+				json(put("/conventions/" + id + "/cards/status"), "{\"ids\":[" + card + "],\"status\":\"BLOCKED\"}"),
+				json(put("/conventions/" + id + "/cards/" + card + "/holder"), "{\"holderName\":\"X\"}"));
+		held.remove(ConventionAPI.WRITE);
+		mvc.perform(get("/conventions/" + id + "/cards")).andExpect(status().isOk());
+		for (MockHttpServletRequestBuilder change : changes) {
+			refusal(mvc.perform(change), 403, "CONVENTION_FORBIDDEN");
+		}
+		held.clear();
+		refusal(mvc.perform(get("/conventions/" + id + "/cards")), 403, "CONVENTION_FORBIDDEN");
+		held.addAll(Arrays.asList(ConventionAPI.READ, ConventionAPI.WRITE));
+
+		bed.ownedByHeadOffice = true;
+		for (MockHttpServletRequestBuilder change : changes) {
+			refusal(mvc.perform(change), 409, "CONVENTION_OWNED_BY_HEAD_OFFICE");
+		}
+		mvc.perform(get("/conventions/" + id + "/cards")).andExpect(status().isOk());
+		bed.ownedByHeadOffice = false;
+
+		refusal(mvc.perform(get("/conventions/999/cards")), 404, "CONVENTION_NOT_FOUND");
+		refusal(mvc.perform(json(post("/conventions/999/cards/generate"), "{\"count\":1}")), 404, "CONVENTION_NOT_FOUND");
+		refusal(mvc.perform(json(put("/conventions/" + id + "/cards/12345/holder"), "{}")), 404, "CONVENTION_CARD_NOT_FOUND")
+				.andExpect(jsonPath("$.params.ids[0]").value(12345));
+		refusal(mvc.perform(json(post("/conventions/" + id + "/cards/generate"), "{\"count\":5001}")), 400,
+				"CONVENTION_GENERATE_COUNT").andExpect(jsonPath("$.params.max").value(5000));
+		refusal(mvc.perform(get("/conventions/" + id + "/cards").param("status", "LOST")), 400,
+				"CONVENTION_CARD_STATUS_UNKNOWN");
+		assertEquals(1, bed.cards.count());
+	}
+
+	@Test
+	@DisplayName("The module's beans (the API, the two services, the events) only with convention.enabled=true: off, blank"
+			+ " or a wrong value, none (the address answers 404)")
 	void onlyWithTheSwitch() {
 		ApplicationContextRunner runner = new ApplicationContextRunner()
-				.withUserConfiguration(ConventionAPI.class, ConventionService.class, ConventionEvents.class)
+				.withUserConfiguration(ConventionAPI.class, ConventionService.class, ConventionCards.class,
+						ConventionEvents.class)
 				.withInitializer(context -> { // as they are: Spring injects nothing into them
 					context.getBeanFactory().registerSingleton("conventionRepository", bed.conventions);
 					context.getBeanFactory().registerSingleton("conventionCardRepository", bed.cards);
 					context.getBeanFactory().registerSingleton("eventLog", bed.log.eventLog());
 					context.getBeanFactory().registerSingleton("applicationModeService",
 							mock(com.digithink.zsretail.core.config.ApplicationModeService.class));
+					context.getBeanFactory().registerSingleton("jdbcTemplate",
+							mock(org.springframework.jdbc.core.JdbcTemplate.class));
 					context.getBeanFactory().registerSingleton("currentUserProvider", current);
 				});
 		runner.withPropertyValues("convention.enabled=true").run(context -> {
 			assertEquals(1, context.getBeansOfType(ConventionAPI.class).size());
 			assertEquals(1, context.getBeansOfType(ConventionService.class).size());
+			assertEquals(1, context.getBeansOfType(ConventionCards.class).size());
 			assertEquals(1, context.getBeansOfType(ConventionEvents.class).size());
 		});
 		for (String off : new String[] { "convention.enabled=false", "convention.enabled=", "convention.enabled=yes" }) {
 			runner.withPropertyValues(off).run(context -> {
 				assertEquals(0, context.getBeansOfType(ConventionAPI.class).size(), off);
 				assertEquals(0, context.getBeansOfType(ConventionService.class).size(), off);
+				assertEquals(0, context.getBeansOfType(ConventionCards.class).size(), off);
 				assertEquals(0, context.getBeansOfType(ConventionEvents.class).size(), off);
 			});
 		}
