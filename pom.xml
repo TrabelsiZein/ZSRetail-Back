@@ -32,6 +32,8 @@
 	<properties>
 		<java.version>11</java.version>
 		<maven-jar-plugin.version>3.1.1</maven-jar-plugin.version>
+		<!-- 3.6.0: over Spring Boot 2.3.9's 1.18.18, which does not compile on JDK 21 (no -Dlombok.version needed any more) -->
+		<lombok.version>1.18.36</lombok.version>
 	</properties>
 
 	<dependencyManagement>

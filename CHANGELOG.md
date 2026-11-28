@@ -29,6 +29,10 @@ step 1's parts).
   convention, status, the optional holder name / phone / employee number, `exported_at`), their enums and repositories
   (`core.convention`). No service, no API yet.
 
+### Build
+- Lombok 1.18.36 set in the parent pom (`lombok.version`, over Spring Boot 2.3.9's 1.18.18, which does not compile on
+  JDK 21): no `-Dlombok.version` flag any more, `devenv/build.ps1` no longer passes it.
+
 ### Config
 - `convention.enabled`: `false` in core's `application.properties`; absent or blank is `false`; another value than
   `true` / `false` is one WARN and the module off, never a refused start. The commented line in
