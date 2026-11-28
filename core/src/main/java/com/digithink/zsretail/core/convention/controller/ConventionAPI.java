@@ -4,7 +4,9 @@ import java.util.Collections;
 import java.util.function.Supplier;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,10 +17,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.digithink.zsretail.core.config.ConditionalOnInstallation;
 import com.digithink.zsretail.core.config.Installation;
 import com.digithink.zsretail.core.convention.ConventionException;
+import com.digithink.zsretail.core.convention.service.ConventionCardExcel;
+import com.digithink.zsretail.core.convention.service.ConventionCardImport;
 import com.digithink.zsretail.core.convention.service.ConventionCards;
 import com.digithink.zsretail.core.convention.service.ConventionCards.CardForm;
 import com.digithink.zsretail.core.convention.service.ConventionService;
@@ -39,7 +44,10 @@ import lombok.extern.log4j.Log4j2;
  * <li>POST /conventions, PUT /conventions/{id} (the whole form), PUT /conventions/{id}/status {status}, DELETE
  * /conventions/{id} (only without a card); POST /conventions/{id}/cards/generate {count}, POST /conventions/{id}/cards
  * {number, holderName, holderPhone, holderEmployeeNo}, PUT /conventions/{id}/cards/status {ids, status}, PUT
- * /conventions/{id}/cards/{cardId}/holder {holderName, holderPhone, holderEmployeeNo}: write:admin-conventions.</li>
+ * /conventions/{id}/cards/{cardId}/holder {holderName, holderPhone, holderEmployeeNo}: write:admin-conventions;</li>
+ * <li>part B5: GET /conventions/cards/template?lang=fr|en (read), POST /conventions/{id}/cards/import (multipart
+ * "file", write), POST /conventions/{id}/cards/export {status, onlyNeverExported} (write: it stamps exported_at and
+ * gives the file that becomes cards).</li>
  * </ul>
  * Without the right: 403 CONVENTION_FORBIDDEN. A change refused: 400 {error, code, params} (the front's
  * serverErrors.&lt;code&gt;), 404 CONVENTION_NOT_FOUND / CONVENTION_CARD_NOT_FOUND, 409 CONVENTION_OWNED_BY_HEAD_OFFICE on
@@ -61,6 +69,9 @@ public class ConventionAPI {
 
 	@Autowired
 	private ConventionCards cards;
+
+	@Autowired
+	private ConventionCardImport cardImport;
 
 	@Autowired
 	private CurrentUserProvider currentUserProvider;
@@ -138,10 +149,61 @@ public class ConventionAPI {
 		return answer(WRITE, () -> cards.holder(id, cardId, form, user()));
 	}
 
+	// ─── Excel (part B5) ─────────────────────────────────────────────
+
+	/** The empty import file (read right): its header in French, or English with lang=en. */
+	@GetMapping("/cards/template")
+	public ResponseEntity<?> template(@RequestParam(required = false) String lang) {
+		boolean english = "en".equalsIgnoreCase(lang);
+		return file(READ, () -> new ConventionCards.ExcelFile(english ? "convention-cards-template.xlsx"
+				: "modele-cartes-convention.xlsx", ConventionCardExcel.template(english), 0));
+	}
+
+	/** Multipart "file" (.xlsx): {conventionId, lines, accepted, refused: [{row, number, reason, ...}]}. */
+	@PostMapping("/{id}/cards/import")
+	public ResponseEntity<?> importCards(@PathVariable long id, @RequestParam("file") MultipartFile file) {
+		return answer(WRITE, () -> {
+			try {
+				return cardImport.run(id, file.getBytes(), file.getOriginalFilename(), user());
+			} catch (java.io.IOException e) {
+				throw new java.io.UncheckedIOException(e);
+			}
+		});
+	}
+
+	/** {status: ACTIVE (default) | BLOCKED | all, onlyNeverExported}. */
+	public static final class ExportForm {
+		public String status;
+		public Boolean onlyNeverExported;
+	}
+
+	/**
+	 * The file for the card printer (write right: it stamps the cards' first export and gives the file that becomes
+	 * cards). A POST: it changes the cards.
+	 */
+	@PostMapping("/{id}/cards/export")
+	public ResponseEntity<?> export(@PathVariable long id, @RequestBody(required = false) ExportForm form) {
+		ExportForm f = form == null ? new ExportForm() : form;
+		return file(WRITE, () -> cards.export(id, f.status, Boolean.TRUE.equals(f.onlyNeverExported), user()));
+	}
+
 	// ─── Rights and answers ──────────────────────────────────────────
 
 	private String user() {
 		return currentUserProvider.getCurrentUserName();
+	}
+
+	/** A file in the answer (an attachment; its card count in X-Cards-Count), or the JSON refusal. */
+	private ResponseEntity<?> file(String permission, Supplier<ConventionCards.ExcelFile> call) {
+		ResponseEntity<?> json = answer(permission, call::get);
+		if (!(json.getBody() instanceof ConventionCards.ExcelFile)) {
+			return json;
+		}
+		ConventionCards.ExcelFile f = (ConventionCards.ExcelFile) json.getBody();
+		return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + f.name + "\"")
+				.header("X-Cards-Count", String.valueOf(f.count))
+				.header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION + ", X-Cards-Count")
+				.contentType(MediaType.parseMediaType(ConventionCardExcel.CONTENT_TYPE)).body(f.bytes);
 	}
 
 	private ResponseEntity<?> answer(String permission, Supplier<Object> call) {

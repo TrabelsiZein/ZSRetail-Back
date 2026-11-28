@@ -102,6 +102,23 @@ public class ConventionEvents {
 						+ ".")));
 	}
 
+	/** Part B5: one import run: the cards accepted as the amount, the lines refused and the file's name in the details. */
+	public void cardsImported(Convention c, int accepted, int refused, String fileName) {
+		run(EventCode.CONVENTION_CARDS_IMPORTED, () -> eventLog.write(NewEvent.of(EventCode.CONVENTION_CARDS_IMPORTED)
+				.subject(c.getId(), c.getCode()).amount((double) accepted)
+				.details(accepted + (accepted > 1 ? " cartes importées" : " carte importée") + " pour la convention "
+						+ c.getCode() + (fileName == null ? "" : " depuis « " + fileName + " »") + (refused == 0 ? ""
+								: " (" + refused + (refused > 1 ? " lignes refusées" : " ligne refusée") + ")") + ".")));
+	}
+
+	/** Part B5: one export for the card printer: the cards written as the amount, the options in the details. */
+	public void cardsExported(Convention c, int count, String statusLabel, boolean onlyNeverExported) {
+		run(EventCode.CONVENTION_CARDS_EXPORTED, () -> eventLog.write(NewEvent.of(EventCode.CONVENTION_CARDS_EXPORTED)
+				.subject(c.getId(), c.getCode()).amount((double) count)
+				.details(count + (count > 1 ? " cartes exportées" : " carte exportée") + " pour la convention "
+						+ c.getCode() + " (" + statusLabel + (onlyNeverExported ? ", jamais exportées" : "") + ").")));
+	}
+
 	/** A card added by hand: its number, its holder's name and employee number (never the phone). */
 	public void cardAdded(Convention c, ConventionCard card) {
 		run(EventCode.CONVENTION_CARD_ADDED, () -> eventLog.write(NewEvent.of(EventCode.CONVENTION_CARD_ADDED)

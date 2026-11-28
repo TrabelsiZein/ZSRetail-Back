@@ -36,6 +36,7 @@ import com.digithink.zsretail.core.convention.enumeration.ConventionRecognition;
 import com.digithink.zsretail.core.convention.model.Convention;
 import com.digithink.zsretail.core.convention.model.ConventionCard;
 import com.digithink.zsretail.core.convention.repository.ConventionCardBatchInsert;
+import com.digithink.zsretail.core.convention.repository.ConventionCardBatchInsert.NewCard;
 import com.digithink.zsretail.core.convention.repository.ConventionCardRepository;
 import com.digithink.zsretail.core.convention.repository.ConventionRepository;
 
@@ -68,7 +69,7 @@ public class ConventionCards {
 
 	/** How a generation's cards reach the table: JDBC batches (ConventionCardBatchInsert); the tests' session. */
 	public interface Inserts {
-		void insert(long conventionId, List<String> numbers, String user, LocalDateTime at);
+		void insert(long conventionId, List<NewCard> cards, String user, LocalDateTime at);
 	}
 
 	private final ConventionRepository conventions;
@@ -161,7 +162,7 @@ public class ConventionCards {
 					+ " cards.", "min", 1, "max", MAX_GENERATION);
 		}
 		Convention c = conventions.lockById(conventionId).orElseThrow(() -> ConventionException.notFound(conventionId));
-		cardsAllowed(c);
+		cardsAllowed(c, today.get());
 		String start = c.prefixInEffect() + "-";
 		int digits = c.getCardDigits();
 		long max = (long) Math.pow(10, digits) - 1;
@@ -181,7 +182,7 @@ public class ConventionCards {
 		}
 		LocalDateTime now = LocalDateTime.now();
 		try {
-			inserts.insert(c.getId(), numbers, user, now);
+			inserts.insert(c.getId(), numbers.stream().map(NewCard::numbered).collect(Collectors.toList()), user, now);
 		} catch (DataIntegrityViolationException meanwhile) {
 			// a number taken between the read and the insert (a card added by hand, another convention's generation)
 			throw new ConventionException(409, "CONVENTION_CARDS_BUSY", "A card number was taken meanwhile: nothing was"
@@ -208,7 +209,7 @@ public class ConventionCards {
 	public Map<String, Object> add(long conventionId, CardForm form, String user) {
 		managedHere();
 		Convention c = find(conventionId);
-		cardsAllowed(c);
+		cardsAllowed(c, today.get());
 		CardForm f = form == null ? new CardForm() : form;
 		String number = ConventionNumbers.normalise(f.number);
 		if (number == null) {
@@ -306,6 +307,55 @@ public class ConventionCards {
 		return view(card);
 	}
 
+	// ─── The export for the card printer (part B5) ───────────────────
+
+	/** An Excel file to send: its name, its bytes, the cards in it. */
+	public static final class ExcelFile {
+		public final String name;
+		public final byte[] bytes;
+		public final int count;
+
+		public ExcelFile(String name, byte[] bytes, int count) {
+			this.name = name;
+			this.bytes = bytes;
+			this.count = count;
+		}
+	}
+
+	/**
+	 * Decision 8: the convention's cards of this status (empty: ACTIVE, the default; "all"), only those never exported
+	 * when asked, by number, in one .xlsx (number, convention code, name, organisation, holder name, employee number:
+	 * never the phone). Their first export is stamped (exported_at; a card exported before keeps its date); one
+	 * CONVENTION_CARDS_EXPORTED with the count, an empty export included (the file then holds its header only).
+	 */
+	@Transactional
+	public ExcelFile export(long conventionId, String status, boolean onlyNeverExported, String user) {
+		managedHere();
+		Convention c = conventions.lockById(conventionId).orElseThrow(() -> ConventionException.notFound(conventionId));
+		ConventionCardStatus wanted = status == null || status.trim().isEmpty() ? ConventionCardStatus.ACTIVE
+				: "all".equalsIgnoreCase(status.trim()) ? null : statusOf(status);
+		Specification<ConventionCard> spec = (root, query, cb) -> cb.equal(root.get("convention").get("id"), c.getId());
+		if (wanted != null) {
+			spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), wanted));
+		}
+		if (onlyNeverExported) {
+			spec = spec.and((root, query, cb) -> cb.isNull(root.get("exportedAt")));
+		}
+		List<ConventionCard> found = cards.findAll(spec, Sort.by("cardNumber"));
+		byte[] bytes = ConventionCardExcel.export(c.getCode(), c.getName(), c.getOrganisation(), found.stream()
+				.map(card -> new ConventionCardExcel.ExportRow(card.getCardNumber(), card.getHolderName(),
+						card.getHolderEmployeeNo()))
+				.collect(Collectors.toList()));
+		LocalDateTime now = LocalDateTime.now();
+		List<Long> ids = found.stream().map(ConventionCard::getId).collect(Collectors.toList());
+		for (int i = 0; i < ids.size(); i += ConventionCardImport.CHUNK) {
+			cards.stampExported(ids.subList(i, Math.min(ids.size(), i + ConventionCardImport.CHUNK)), now);
+		}
+		events.cardsExported(c, found.size(), wanted == null ? "toutes les cartes" : wanted == ConventionCardStatus.ACTIVE
+				? "cartes actives" : "cartes bloquées", onlyNeverExported);
+		return new ExcelFile(ConventionCardExcel.exportName(c.getCode(), now), bytes, found.size());
+	}
+
 	// ─── The rules ───────────────────────────────────────────────────
 
 	private void managedHere() {
@@ -319,12 +369,12 @@ public class ConventionCards {
 	}
 
 	/** Decision 4: cards only with CARDS; point 4 of B4: not on an expired convention (suspended, upcoming: yes). */
-	private void cardsAllowed(Convention c) {
+	static void cardsAllowed(Convention c, LocalDate day) {
 		if (c.getRecognition() != ConventionRecognition.CARDS) {
 			throw ConventionException.refused("CONVENTION_NO_CARDS", "The convention " + c.getCode() + " has no cards: its"
 					+ " members give their number at the till.", "code", c.getCode());
 		}
-		if (c.getEndDate() != null && c.getEndDate().isBefore(today.get())) {
+		if (c.getEndDate() != null && c.getEndDate().isBefore(day)) {
 			throw ConventionException.refused("CONVENTION_EXPIRED", "The convention " + c.getCode() + " ended on "
 					+ c.getEndDate() + ": no new card.", "code", c.getCode(), "end", c.getEndDate().toString());
 		}

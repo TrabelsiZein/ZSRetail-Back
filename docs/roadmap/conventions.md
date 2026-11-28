@@ -180,23 +180,34 @@ convention's history shows its runs), the card events `CONVENTION_CARD`; `Conven
 
 - `GET /conventions/{id}/cards?status=&q=&exported=&page=&size=` (q: number, holder name, employee number),
   `POST /conventions/{id}/cards/generate {count}`, `POST /conventions/{id}/cards {number, holder...}` (one by hand),
-  `PUT /conventions/cards/status {ids, status}`, `PUT /conventions/cards/{id}/holder`. Only with `CARDS`.
-- Events (subject `CONVENTION_CARD`, Notable): `CONVENTION_CARDS_GENERATED` (one per run, the amount column a count:
-  `AMOUNT_IS_COUNT`), `CONVENTION_CARD_ADDED`, `CONVENTION_CARD_BLOCKED` / `CONVENTION_CARD_UNBLOCKED` (one per card: a
+  `PUT /conventions/{id}/cards/status {ids, status}`, `PUT /conventions/{id}/cards/{cardId}/holder`. Generation and
+  one by hand only with `CARDS`, not expired.
+- Events (Notable): `CONVENTION_CARDS_GENERATED` (subject `CONVENTION`, one per run, the amount column a count:
+  `AMOUNT_IS_COUNT`); subject `CONVENTION_CARD`: `CONVENTION_CARD_ADDED`, `CONVENTION_CARD_BLOCKED` / `CONVENTION_CARD_UNBLOCKED` (one per card: a
   card's history), `CONVENTION_CARD_HOLDER_CHANGED` (name and employee number before → after; never the phone).
 - Tests: `ConventionCardsTest` (the format, the prefix and padding fixed, the counter, a number taken skipped, an item
   code / barcode / loyalty card number refused, 5,000 at most, two generations at once, block / unblock only what
   changes, the holder free).
 
-### B5 — Excel import and export
+### B5 — Excel import and export (done 2026-11-28)
 
-- `POST /conventions/{id}/cards/import` (multipart, .xlsx): `{accepted, refused: [{row, number, reason}]}`; the good
-  lines kept. Refusals: empty, bad characters, too long, twice in the file, existing in any convention, equal to an item
-  code / barcode / loyalty card number.
-- `GET /conventions/{id}/cards/excel?onlyNeverExported=`: the columns of decision 8; sets `exported_at` where empty.
-- Events: `CONVENTION_CARDS_IMPORTED` (accepted count; refused count in the details), `CONVENTION_CARDS_EXPORTED`.
-- POI is in core (`DataImportService`). Tests: `ConventionCardImportTest` (an .xlsx built in the test),
-  `ConventionCardExcelTest` (the export read back). The module doc complete.
+Built as below; what it does is in `docs/modules/conventions.md`, "Import" and "Export". Where it differs from this
+plan: the export is `POST /conventions/{id}/cards/export {status, onlyNeverExported}` with the **write** right (it
+stamps `exported_at` and gives the file that becomes cards; a GET must not change data); its status option, ACTIVE by
+default; `GET /conventions/cards/template?lang=fr|en` (read), the empty file to start from; the import's limits
+(5,000 lines, 2 MB), its whole-file refusals and its header found by name (French or English, any order);
+`ConventionCardImport` is the module's fifth bean (`ConventionCardExcel` reads and writes the files, no bean).
+
+- `POST /conventions/{id}/cards/import` (multipart, .xlsx): `{lines, accepted, refused: [{row, number, reason, ...}]}`;
+  the good lines kept. Refusals: empty, bad characters, too long, changed by Excel (a number cell over 15 digits), twice
+  in the file, a holder field too long, existing in any convention, equal to an item code / barcode / loyalty card
+  number. Only with `CARDS`, not expired.
+- `POST /conventions/{id}/cards/export`: the columns of decision 8; sets `exported_at` where empty (the first export
+  kept).
+- Events: `CONVENTION_CARDS_IMPORTED` (accepted count; refused count and the file's name in the details),
+  `CONVENTION_CARDS_EXPORTED` (the count), subject `CONVENTION`, `AMOUNT_IS_COUNT`.
+- POI is in core. Tests: `ConventionCardExcelTest` (the files read and written), `ConventionCardImportTest` (an .xlsx
+  built in the test; the export read back), `ConventionAPITest`. The module doc complete for the back end of step 1.
 
 ### F1 — the switch, the menus, the list
 
@@ -229,8 +240,10 @@ convention's history shows its runs), the card events `CONVENTION_CARD`; `Conven
 
 ### F4 — import, export, the Journal
 
-- `ConventionImportModal.vue` (the file, then the accepted count and the refused lines with their reasons; a model
-  file), the export (`libs/download.js`, the option "only the cards never exported").
+- `ConventionImportModal.vue` (the file, then the accepted count and the refused lines with their reasons, each
+  reason code in the three languages; the template from `GET /conventions/cards/template?lang=`), the export (a POST
+  answered by a file: `libs/download.js` or an axios blob; the options "only the cards never exported" and the status;
+  `X-Cards-Count` gives the count, 0 shown as "no new card").
 - The Journal's names of the new codes (`admin.eventLog.codes`), `libs/conventions.js` and `tools/conventions-check.mjs`,
   CHANGELOG.
 

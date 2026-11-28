@@ -24,6 +24,7 @@ import com.digithink.zsretail.core.convention.model.ConventionCard;
 import com.digithink.zsretail.core.convention.repository.ConventionCardBatchInsert;
 import com.digithink.zsretail.core.convention.repository.ConventionCardRepository;
 import com.digithink.zsretail.core.convention.repository.ConventionRepository;
+import com.digithink.zsretail.core.convention.service.ConventionCardImport;
 import com.digithink.zsretail.core.convention.service.ConventionCards;
 import com.digithink.zsretail.core.convention.service.ConventionEvents;
 import com.digithink.zsretail.core.convention.service.ConventionService;
@@ -49,6 +50,7 @@ public final class ConventionTestBed implements AutoCloseable {
 	public LocalDate today = LocalDate.of(2026, 11, 28);
 	public final ConventionService service;
 	public final ConventionCards cardService;
+	public final ConventionCardImport cardImport;
 
 	private static synchronized SessionFactory sessions() {
 		if (sessions == null) {
@@ -89,6 +91,8 @@ public final class ConventionTestBed implements AutoCloseable {
 		ConventionEvents events = new ConventionEvents(log.eventLog());
 		service = new ConventionService(conventions, cards, events, () -> ownedByHeadOffice, () -> today);
 		cardService = new ConventionCards(conventions, cards, events, this::insert, () -> ownedByHeadOffice, () -> today);
+		cardImport = new ConventionCardImport(conventions, cards, events, this::insert, () -> ownedByHeadOffice,
+				() -> today);
 		if (clean) {
 			tx(() -> {
 				for (String entity : new String[] { "ConventionCard", "Convention", "ItemBarcode", "Item",
@@ -101,11 +105,12 @@ public final class ConventionTestBed implements AutoCloseable {
 	}
 
 	/** ConventionCardBatchInsert's statement in one JDBC batch on this session's connection (its transaction). */
-	private void insert(long conventionId, java.util.List<String> numbers, String user, java.time.LocalDateTime at) {
+	private void insert(long conventionId, java.util.List<ConventionCardBatchInsert.NewCard> cards, String user,
+			java.time.LocalDateTime at) {
 		session.doWork(connection -> {
 			try (PreparedStatement ps = connection.prepareStatement(ConventionCardBatchInsert.SQL)) {
-				for (String number : numbers) {
-					ConventionCardBatchInsert.bind(ps, conventionId, number, user, at);
+				for (ConventionCardBatchInsert.NewCard card : cards) {
+					ConventionCardBatchInsert.bind(ps, conventionId, card, user, at);
 					ps.addBatch();
 				}
 				ps.executeBatch();

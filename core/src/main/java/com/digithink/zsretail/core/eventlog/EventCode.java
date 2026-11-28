@@ -147,6 +147,10 @@ public enum EventCode {
 	CONVENTION_CARD_UNBLOCKED(EventSubject.CONVENTION_CARD, NOTABLE, "Carte de convention débloquée"),
 	/** The holder's name and employee number before → after; the phone only as "modifié" (decision 15). */
 	CONVENTION_CARD_HOLDER_CHANGED(EventSubject.CONVENTION_CARD, NOTABLE, "Titulaire d'une carte de convention modifié"),
+	/** 3.6.0, part B5: one import run (subject the convention), the cards accepted in the amount, the refused in the details. */
+	CONVENTION_CARDS_IMPORTED(EventSubject.CONVENTION, NOTABLE, "Cartes de convention importées"),
+	/** One export for the card printer, the cards written in the amount (their first export stamped). */
+	CONVENTION_CARDS_EXPORTED(EventSubject.CONVENTION, NOTABLE, "Cartes de convention exportées"),
 
 	// ── Stock, inventory, purchases ──
 	STOCK_ADJUSTED(EventSubject.ITEM, ALERT, "Stock ajusté"),
@@ -201,7 +205,8 @@ public enum EventCode {
 	 */
 	public static final java.util.Set<EventCode> AMOUNT_IS_COUNT = java.util.Collections.unmodifiableSet(
 			java.util.EnumSet.of(LOGIN_REFUSED_REPEATED, EVENTLOG_EVENTS_DROPPED, EVENTLOG_CLEANUP,
-			EVENTLOG_CLEANUP_NIGHTLY, CONVENTION_CARDS_GENERATED));
+			EVENTLOG_CLEANUP_NIGHTLY, CONVENTION_CARDS_GENERATED, CONVENTION_CARDS_IMPORTED,
+			CONVENTION_CARDS_EXPORTED));
 
 	/**
 	 * Step 8: the events a cleanup never deletes (the cleanups and the changes of the settings: how the journal itself

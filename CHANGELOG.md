@@ -48,6 +48,17 @@ step 1's parts).
   recognition `CARDS`, not expired. A card is never deleted. Events: `CONVENTION_CARDS_GENERATED` (the count as amount),
   `CONVENTION_CARD_ADDED`, `CONVENTION_CARD_BLOCKED` / `UNBLOCKED` (one per card changed),
   `CONVENTION_CARD_HOLDER_CHANGED` (the phone never written). Refusal codes: `docs/modules/conventions.md`.
+- Conventions, step 1, part B5 (the back end of step 1 complete): Excel. `GET /conventions/cards/template?lang=fr|en`
+  (read): the empty import file, its four columns as text. `POST /conventions/{id}/cards/import` (multipart, write):
+  one .xlsx for one convention (`CARDS`, not expired), its header found by name in French or English, the good lines
+  kept and the refused ones answered with their row, the number read and a reason (empty, characters, too long, a
+  number cell changed by Excel, twice in the file, a holder field too long, a card of any convention, an item code, an
+  item barcode, a loyalty card); a file refused whole when empty, over 2 MB, not an .xlsx, without its header or over
+  5,000 lines; 5,000 lines in 2 s. `POST /conventions/{id}/cards/export {status, onlyNeverExported}` (write: it stamps
+  `exported_at`, the first export, and gives the file that becomes cards): the file for the card printer (number,
+  convention code, name, organisation, holder name, employee number; never the phone), the active cards by default.
+  Events `CONVENTION_CARDS_IMPORTED` and `CONVENTION_CARDS_EXPORTED`, the count as amount. The module doc
+  `docs/modules/conventions.md` complete for the back end.
 
 ### Build
 - Lombok 1.18.36 set in the parent pom (`lombok.version`, over Spring Boot 2.3.9's 1.18.18, which does not compile on

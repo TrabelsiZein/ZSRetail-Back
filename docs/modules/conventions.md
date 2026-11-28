@@ -5,9 +5,26 @@ their member number) at the till and get a benefit. The benefit itself is a prom
 2); this module holds the conventions and their cards. The design, the decisions (the reference) and the order of the
 steps: `docs/roadmap/conventions.md`. This file says what is built.
 
-Built: step 1, parts B1 (the switch), B2 (the tables), B3 (the conventions' API, rights and events), B4 (the cards:
-list, generation, one by hand, block / unblock, the holder). To come in step 1: B5 (Excel import and export), F1 to F4
-(the pages).
+Built: the whole back end of step 1, parts B1 (the switch), B2 (the tables), B3 (the conventions' API, rights and
+events), B4 (the cards: list, generation, one by hand, block / unblock, the holder), B5 (Excel: the template, the
+import, the export for the card printer). To come in step 1: F1 to F4 (the pages). The later steps (the promotion
+reserved to a convention, the till, the returns, the statement, the head office's ownership): the roadmap.
+
+All the calls in one place:
+
+| Call | Right | Part |
+|---|---|---|
+| `GET /conventions?state=&q=&page=&size=` | read | B3 |
+| `GET /conventions/{id}` | read | B3 |
+| `POST /conventions`, `PUT /conventions/{id}`, `PUT /conventions/{id}/status`, `DELETE /conventions/{id}` | write | B3 |
+| `GET /conventions/{id}/cards?status=&q=&exported=&page=&size=` | read | B4 |
+| `POST /conventions/{id}/cards/generate`, `POST /conventions/{id}/cards`, `PUT /conventions/{id}/cards/status`, `PUT /conventions/{id}/cards/{cardId}/holder` | write | B4 |
+| `GET /conventions/cards/template?lang=fr\|en` | read | B5 |
+| `POST /conventions/{id}/cards/import` (multipart `file`) | write | B5 |
+| `POST /conventions/{id}/cards/export {status, onlyNeverExported}` | write | B5 |
+
+Five beans, only with `convention.enabled=true`: `ConventionAPI`, `ConventionService`, `ConventionCards`,
+`ConventionCardImport`, `ConventionEvents` (`ConventionCardExcel` reads and writes the files: no bean).
 
 ## The switch: `convention.enabled` (part B1)
 
@@ -22,7 +39,7 @@ list, generation, one by hand, block / unblock, the holder). To come in step 1: 
   as `communication.enabled`). Seen live on 2026-11-28 (a value `true,eventlog.enabled=true` given by mistake).
 - `GET /config` field `conventionEnabled` (last); the startup summary says `conventions on`.
 - **Off**: no bean of the module (`Installation.CONVENTION`: `ConventionAPI`, `ConventionService`, `ConventionCards`,
-  `ConventionEvents`),
+  `ConventionCardImport`, `ConventionEvents`),
   so every `/conventions` address answers 404. The tables and their rows stay.
 
 ## Who changes them (decision 2)
@@ -195,6 +212,78 @@ not move: a later generation skips that number. The holder's three fields may co
 | 404 | `CONVENTION_CARD_NOT_FOUND` | `ids` |
 | 409 | `CONVENTION_CARDS_BUSY` | `code` |
 
+## Import (part B5, decision 7)
+
+`POST /conventions/{id}/cards/import`, multipart `file` (write right). `ConventionCardImport` (the run) and
+`ConventionCardExcel.read` (the file). Answer `{conventionId, lines, accepted, refused: [{row, number, reason, ...}]}`:
+the good lines are kept, the refused ones answered in the file's order with their Excel row, the number as read and a
+reason code. Only a convention with recognition `CARDS`, not expired (as the generation); 404, 409 as every change.
+The convention's row is locked for the run (one import or generation at a time); the cards go in by JDBC batches; the
+counter `last_card_seq` does not move (a later generation skips the numbers imported).
+
+**The file.** One `.xlsx` for one convention, its first sheet. The first row with content is the header; its columns
+are found by their name, in French or English, any case, accents or not, in any order, other columns ignored (an
+export reads back):
+
+| Column | Names recognised (after "lower case, no accents") | |
+|---|---|---|
+| card number | numéro de carte, numéro carte, n° de carte, no de carte, numéro, carte, card number, card no, card, number | required |
+| holder name | titulaire, nom du titulaire, nom titulaire, nom, nom et prénom, holder, holder name, name, full name | optional |
+| phone | téléphone, tél, mobile, gsm, phone, phone number | optional |
+| employee number | matricule, numéro de matricule, employee number, employee no, employee id, staff number | optional |
+
+`GET /conventions/cards/template?lang=fr|en` (read right) gives the empty file: the header "Numéro de carte,
+Titulaire, Téléphone, Matricule" (English: "Card number, Holder name, Phone, Employee number"), the four columns
+formatted as text, so a number typed keeps its leading zeros.
+
+**The whole file refused** (400, `{error, code, params}`, no card, no event):
+
+| Code | When |
+|---|---|
+| `CONVENTION_IMPORT_EMPTY` | no byte, no sheet, nothing, or the header only |
+| `CONVENTION_IMPORT_TOO_BIG` (`maxKb`) | over 2 MB (5,000 lines of four columns are about 110 KB) |
+| `CONVENTION_IMPORT_NOT_XLSX` | not an .xlsx: a .csv, an old .xls, another file renamed |
+| `CONVENTION_IMPORT_NO_HEADER` (`expected`) | the first row has no card number column (a file without its header) |
+| `CONVENTION_IMPORT_TOO_MANY_ROWS` (`max`) | over 5,000 lines (as a generation): split the file |
+
+**The cells.** A text is trimmed (a non-breaking space as a space); a number cell is read as its plain digits (`12345`,
+and `1.2345E4` typed as a number is `12345`; an EAN-13 stays whole); a formula gives its value; empty rows are
+skipped. Excel keeps 15 significant digits: a number cell of 16 digits or more was already changed, its line is
+refused (`NUMBER_CHANGED_BY_EXCEL`). A text cell holding `1.2345E4` is a text, refused for its characters. Arabic and
+accented text is kept as typed.
+
+**The reasons of a refused line** (`reason`, with its values):
+
+| Reason | When |
+|---|---|
+| `NUMBER_EMPTY` | no number (a holder alone is not a card) |
+| `NUMBER_CHANGED_BY_EXCEL` | a number cell over 15 digits |
+| `NUMBER_TOO_LONG` (`max` 40) | over 40 characters |
+| `NUMBER_INVALID` | other characters than A-Z, 0-9 and `-` (after trimming and upper-casing) |
+| `DUPLICATE_IN_FILE` (`firstRow`) | the same number on an earlier line of the file (the first is kept) |
+| `HOLDER_NAME_TOO_LONG`, `HOLDER_PHONE_TOO_LONG`, `HOLDER_EMPLOYEE_NO_TOO_LONG` (`max`) | over 150, 30, 50 characters |
+| `CARD_TAKEN` (`convention`) | already a card, of this convention or another |
+| `ITEM_CODE`, `ITEM_BARCODE`, `LOYALTY_CARD` | a number the till already reads: an item code, an item barcode (both columns), a loyalty card number (any case) |
+
+A line is never refused for a missing holder name (decision 5). The other numbers are read once per run, each column
+whole, and looked up in memory: an `upper(x) in (1,000 values)` on those varchar columns compared every row with every
+value (5,000 lines took 17.5 s on store B; 2.0 s since).
+
+## Export (part B5, decision 8)
+
+`POST /conventions/{id}/cards/export {status, onlyNeverExported}`, the file for the card printer. **The write right**:
+the export stamps the cards and gives the file that becomes physical cards; a reader may see the cards on the screen,
+not have them printed. A POST, not a GET: it changes the cards.
+
+- `status`: `ACTIVE` (the default), `BLOCKED` or `all`; `onlyNeverExported`: only the cards without `exported_at`.
+- One `.xlsx`, sheet "Cartes", by card number: **Numéro de carte, Code convention, Convention, Organisation,
+  Titulaire, Matricule** (decision 8; never the phone), every cell text. The file is named
+  `cartes-<code>-<yyyyMMdd-HHmm>.xlsx` (`Content-Disposition`), its card count in `X-Cards-Count` (exposed to the
+  browser). No card: the header only, `X-Cards-Count: 0`.
+- `exported_at` is stamped on the cards written where it was empty: it is the **first** export (a card exported again
+  keeps its date), so "only the cards never exported" twice gives the new cards only, then nothing.
+- Any convention (an expired one too: its cards may be printed again); 404, 409 as every change.
+
 ## The events (decision 3: a store's event log only)
 
 `core.convention.service.ConventionEvents`, all Notable, written after the commit (none for a refusal). On a head
@@ -211,6 +300,8 @@ as the label), a card's `CONVENTION_CARD` (the id; the number as the label).
 | `CONVENTION_CARD_ADDED` | card | one by hand | "Carte X ajoutée à la convention Y, titulaire …, matricule …" |
 | `CONVENTION_CARD_BLOCKED` / `CONVENTION_CARD_UNBLOCKED` | card | one per card changed | old / new value `ACTIVE` / `BLOCKED` |
 | `CONVENTION_CARD_HOLDER_CHANGED` | card | a holder field changed | "Titulaire : A → B ; Matricule : … ; Téléphone : modifié" |
+| `CONVENTION_CARDS_IMPORTED` | convention | one per import run (a run that keeps nothing too; not a file refused whole) | the cards kept in the amount column: "12 cartes importées pour la convention MIN-SANTE depuis « min-sante-30.xlsx » (17 lignes refusées)." |
+| `CONVENTION_CARDS_EXPORTED` | convention | one per export (an empty one too) | the cards written in the amount column: "5000 cartes exportées pour la convention CLINIQUE-TEST (cartes actives, jamais exportées)." |
 
 The French names are the screen's (`ConventionEvents.describe`); the Journal's names of the codes come with F4. **The
 holder's phone is never in an event** (decision 15): its change is written "Téléphone : modifié", without the value.
@@ -228,12 +319,22 @@ holder's phone is never in an event** (decision 15): its change is written "Tél
   number twice, a number taken meanwhile: 409), which conventions take cards, a card by hand and each refusal, block /
   unblock (the unchanged left alone, a card of another convention refusing the call), the holder (the phone never in
   an event), 409, the list and its filters.
+- `ConventionCardExcelTest` (core, no database): the header in French and English (variants, any order, extra columns,
+  an export read back), each whole-file refusal (empty, a .csv, an old .xls, no header, the header only, over 2 MB,
+  over 5,000 lines; 5,000 accepted), the cells (12345, 1.2345E4, an EAN-13, 16 digits marked, a formula, a text
+  1.2345E4, Arabic, accents, a phone typed as a number), the export's columns and text cells, the template.
+- `ConventionCardImportTest` (core, H2): every refusal reason in one file with the good lines kept and their holders
+  (Arabic, accents, none), the event; the same file again (all `CARD_TAKEN`) and a generation after it (skips); which
+  conventions, 404, 409, the wrong files without an event; 5,000 lines; the export (columns, the active cards by
+  default, never the phone, `exported_at` stamped and the first export kept, "never exported" twice: the second
+  empty, `all`, `BLOCKED`, the events).
 - `ConventionAPITest` (core): standalone MockMvc over the real API and services: 403 per right, each refusal's status,
-  code and params, 404, 409, the fields of a form that are ignored, the JSON (dates as text), the card endpoints; the
-  four beans only with `convention.enabled=true` (false, blank, a wrong value, no line: none).
+  code and params, 404, 409, the fields of a form that are ignored, the JSON (dates as text), the card endpoints, the
+  template, the multipart import, the export's file and headers (a reader gets 403); the five beans only with
+  `convention.enabled=true` (false, blank, a wrong value, no line: none).
 - `ZZDataInitializerRolesTest.conventionRightsGivenToAdmin`; `ConventionKeyTest`, `AppConfigAPITest` (B1);
   `ConventionTableTest` (B2).
-- `InstallationBeansProofTest` (network-tests): "decided 146"; the shapes "store, conventions on", "head office,
+- `InstallationBeansProofTest` (network-tests): "decided 147"; the shapes "store, conventions on", "head office,
   conventions on", "store, promotions from the head office, conventions on" (the beans are there: the reads stay).
 
 ## Real checks (store B, `pos_store_b`, port 555, `-Set 'convention.enabled=true','eventlog.enabled=true'`)
@@ -247,3 +348,12 @@ holder's phone is never in an event** (decision 15): its change is written "Tél
   (changed 0, unchanged 2), one unblocked; a holder changed twice (the phone never in the log); a card asked through
   another convention: 404. Left in the database: `MIN-SANTE` 26 cards (00001 and 00003 blocked, 00004 with a holder),
   `CLINIQUE-TEST` 5,000 cards.
+- B5, 2026-11-28: the template in French and English (the four columns, text); 29 lines on `MIN-SANTE`, 12 kept (Arabic
+  and accented holders, `77001` and `7.7002E4` typed as numbers read `77001` / `77002`) and 17 refused, each with its
+  reason (empty ×2, invalid ×3 among them `MIN-SANTÉ-15`, too long, 16 digits, duplicates ×3, holder name and phone too
+  long, a card of `MIN-SANTE` and one of `CLINIQUE-TEST`, an item code, a barcode, a loyalty card typed in lower case);
+  a .csv, a file without header and a header-only file refused whole; 5,000 lines on `IMPORT-TEST` in 17.5 s, then,
+  the lookups fixed, 5,000 on `IMPORT-TEST-2` in 2.0 s and the same file again (5,000 `CARD_TAKEN`) in 0.34 s;
+  `CLINIQUE-TEST` exported twice with "never exported": 5,000 cards (117 KB, its six columns, one stamp), then 0 (the
+  header only); `MIN-SANTE`'s active cards: 36 lines, the Arabic name intact in the file. Left in the database:
+  `MIN-SANTE` 38 cards (36 exported), `CLINIQUE-TEST` 5,000 (exported), `IMPORT-TEST` and `IMPORT-TEST-2` 5,000 each.

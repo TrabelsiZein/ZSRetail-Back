@@ -61,4 +61,33 @@ public interface ConventionCardRepository extends _BaseRepository<ConventionCard
 	/** The loyalty members (on a store whose loyalty is the head office's, the copies are written here too). */
 	@Query("select m.cardNumber from LoyaltyMember m where upper(m.cardNumber) like :pattern")
 	List<String> loyaltyCardsLike(@Param("pattern") String pattern);
+
+	// ─── Part B5: an import's numbers, by list (the caller sends at most 1,000 at a time: SQL Server's 2,100) ──
+
+	/** [number, the code of its convention] for the cards with these numbers. */
+	@Query("select c.cardNumber, c.convention.code from ConventionCard c where c.cardNumber in :numbers")
+	List<Object[]> cardsIn(@Param("numbers") Collection<String> numbers);
+
+	/*
+	 * An import's other numbers: each column read once, whole, and looked up in memory (a store's items, barcodes and
+	 * loyalty cards are a few thousand values). An "upper(x) in (1,000 values)" on these varchar columns compared every
+	 * row with every value: 5,000 lines took 17 s on store B (2026-11-28), 10 s of it in those queries.
+	 */
+
+	@Query("select i.itemCode from Item i where i.itemCode is not null")
+	List<String> allItemCodes();
+
+	@Query("select i.barcode from Item i where i.barcode is not null")
+	List<String> allItemOwnBarcodes();
+
+	@Query("select b.barcode from ItemBarcode b where b.barcode is not null")
+	List<String> allItemBarcodes();
+
+	@Query("select m.cardNumber from LoyaltyMember m where m.cardNumber is not null")
+	List<String> allLoyaltyCards();
+
+	/** Part B5, the export: stamps the first export of these cards (the ones already stamped keep their date). */
+	@org.springframework.data.jpa.repository.Modifying
+	@Query("update ConventionCard c set c.exportedAt = :at where c.id in :ids and c.exportedAt is null")
+	int stampExported(@Param("ids") Collection<Long> ids, @Param("at") java.time.LocalDateTime at);
 }

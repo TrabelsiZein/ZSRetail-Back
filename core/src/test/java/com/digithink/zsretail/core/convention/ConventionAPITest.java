@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -83,19 +84,26 @@ class ConventionAPITest {
 		ConventionAPI api = new ConventionAPI();
 		ReflectionTestUtils.setField(api, "service", bed.service);
 		ReflectionTestUtils.setField(api, "cards", bed.cardService);
+		ReflectionTestUtils.setField(api, "cardImport", bed.cardImport);
 		ReflectionTestUtils.setField(api, "currentUserProvider", current);
 		when(current.getCurrentUserName()).thenReturn("admin");
 		when(current.currentUserHasPermission(anyString())).thenAnswer(call -> held.contains(call.getArgument(0)));
 		held.addAll(Arrays.asList(ConventionAPI.READ, ConventionAPI.WRITE));
 		mvc = MockMvcBuilders.standaloneSetup(api).addFilters(new InTransaction())
-				.setMessageConverters(new MappingJackson2HttpMessageConverter(Jackson2ObjectMapperBuilder.json()
-						.featuresToDisable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build())) // as Spring Boot
+				.setMessageConverters(new org.springframework.http.converter.ByteArrayHttpMessageConverter(),
+						new MappingJackson2HttpMessageConverter(Jackson2ObjectMapperBuilder.json()
+								.featuresToDisable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS).build())) // as Spring Boot
 				.build();
 	}
 
 	@AfterEach
 	void close() {
 		bed.close();
+	}
+
+	/** A JSON body, any answer accepted (a file, or a JSON refusal). */
+	private static MockHttpServletRequestBuilder body(MockHttpServletRequestBuilder request, String body) {
+		return request.contentType(MediaType.APPLICATION_JSON).content(body);
 	}
 
 	private static MockHttpServletRequestBuilder json(MockHttpServletRequestBuilder request, String body) {
@@ -231,6 +239,62 @@ class ConventionAPITest {
 		mvc.perform(get("/conventions/" + id)).andExpect(status().isOk());
 	}
 
+	// ─── Excel (part B5) ─────────────────────────────────────────────
+
+	@Test
+	@DisplayName("B5 over HTTP: the template (read right; French, English), the import (multipart, write right), the export"
+			+ " (write right: a reader gets 403; the file, its name, its count; exported_at stamped)")
+	void excel() throws Exception {
+		long id = createMin();
+		org.springframework.mock.web.MockHttpServletResponse template = mvc.perform(get("/conventions/cards/template"))
+				.andExpect(status().isOk())
+				.andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+						.string("Content-Disposition", "attachment; filename=\"modele-cartes-convention.xlsx\""))
+				.andReturn().getResponse();
+		assertEquals(com.digithink.zsretail.core.convention.service.ConventionCardExcel.CONTENT_TYPE,
+				template.getContentType());
+		mvc.perform(get("/conventions/cards/template").param("lang", "en")).andExpect(status().isOk())
+				.andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+						.string("Content-Disposition", "attachment; filename=\"convention-cards-template.xlsx\""));
+
+		byte[] file = ConventionCardExcelTest.xlsx(new Object[] { "Card number", "Holder name" },
+				new Object[] { "MIN-A1", "Ali" }, new Object[] { "MIN A2", "Sana" });
+		org.springframework.mock.web.MockMultipartFile part = new org.springframework.mock.web.MockMultipartFile("file",
+				"cartes.xlsx", com.digithink.zsretail.core.convention.service.ConventionCardExcel.CONTENT_TYPE, file);
+		mvc.perform(multipart("/conventions/" + id + "/cards/import").file(part)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.lines").value(2)).andExpect(jsonPath("$.accepted").value(1))
+				.andExpect(jsonPath("$.refused[0].row").value(3))
+				.andExpect(jsonPath("$.refused[0].number").value("MIN A2"))
+				.andExpect(jsonPath("$.refused[0].reason").value("NUMBER_INVALID"));
+		refusal(mvc.perform(multipart("/conventions/" + id + "/cards/import").file(new org.springframework.mock.web
+				.MockMultipartFile("file", "x.csv", "text/csv", "a;b".getBytes()))), 400, "CONVENTION_IMPORT_NOT_XLSX");
+
+		org.springframework.mock.web.MockHttpServletResponse exported = mvc.perform(body(post("/conventions/" + id
+				+ "/cards/export"), "{\"onlyNeverExported\":true}")).andExpect(status().isOk())
+				.andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+						.string("X-Cards-Count", "1"))
+				.andReturn().getResponse();
+		assertEquals(true, exported.getHeader("Content-Disposition").matches("attachment; filename=\"cartes-MIN-\\d{8}-\\d{4}\\.xlsx\""));
+		try (org.apache.poi.xssf.usermodel.XSSFWorkbook book = new org.apache.poi.xssf.usermodel.XSSFWorkbook(
+				new java.io.ByteArrayInputStream(exported.getContentAsByteArray()))) {
+			assertEquals("MIN-A1", book.getSheetAt(0).getRow(1).getCell(0).getStringCellValue());
+		}
+		assertEquals(true, bed.cards.findByCardNumber("MIN-A1").get().getExportedAt() != null);
+		mvc.perform(post("/conventions/" + id + "/cards/export")).andExpect(status().isOk())
+				.andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+						.string("X-Cards-Count", "1")); // no body: the active cards, exported or not
+
+		held.remove(ConventionAPI.WRITE);
+		mvc.perform(get("/conventions/cards/template")).andExpect(status().isOk());
+		refusal(mvc.perform(multipart("/conventions/" + id + "/cards/import").file(part)), 403, "CONVENTION_FORBIDDEN");
+		refusal(mvc.perform(body(post("/conventions/" + id + "/cards/export"), "{}")), 403, "CONVENTION_FORBIDDEN")
+				.andExpect(jsonPath("$.params.permission").value(ConventionAPI.WRITE));
+		held.clear();
+		refusal(mvc.perform(get("/conventions/cards/template")), 403, "CONVENTION_FORBIDDEN");
+		held.addAll(Arrays.asList(ConventionAPI.READ, ConventionAPI.WRITE));
+		refusal(mvc.perform(body(post("/conventions/999/cards/export"), "{}")), 404, "CONVENTION_NOT_FOUND");
+	}
+
 	// ─── The cards (part B4) ─────────────────────────────────────────
 
 	@Test
@@ -306,6 +370,7 @@ class ConventionAPITest {
 	void onlyWithTheSwitch() {
 		ApplicationContextRunner runner = new ApplicationContextRunner()
 				.withUserConfiguration(ConventionAPI.class, ConventionService.class, ConventionCards.class,
+						com.digithink.zsretail.core.convention.service.ConventionCardImport.class,
 						ConventionEvents.class)
 				.withInitializer(context -> { // as they are: Spring injects nothing into them
 					context.getBeanFactory().registerSingleton("conventionRepository", bed.conventions);
@@ -321,6 +386,8 @@ class ConventionAPITest {
 			assertEquals(1, context.getBeansOfType(ConventionAPI.class).size());
 			assertEquals(1, context.getBeansOfType(ConventionService.class).size());
 			assertEquals(1, context.getBeansOfType(ConventionCards.class).size());
+			assertEquals(1, context.getBeansOfType(com.digithink.zsretail.core.convention.service.ConventionCardImport.class)
+					.size());
 			assertEquals(1, context.getBeansOfType(ConventionEvents.class).size());
 		});
 		for (String off : new String[] { "convention.enabled=false", "convention.enabled=", "convention.enabled=yes" }) {
@@ -328,6 +395,8 @@ class ConventionAPITest {
 				assertEquals(0, context.getBeansOfType(ConventionAPI.class).size(), off);
 				assertEquals(0, context.getBeansOfType(ConventionService.class).size(), off);
 				assertEquals(0, context.getBeansOfType(ConventionCards.class).size(), off);
+				assertEquals(0, context.getBeansOfType(
+						com.digithink.zsretail.core.convention.service.ConventionCardImport.class).size(), off);
 				assertEquals(0, context.getBeansOfType(ConventionEvents.class).size(), off);
 			});
 		}
